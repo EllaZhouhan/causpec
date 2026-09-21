@@ -18,6 +18,9 @@ data/**
 !data/generators/**
 !data/README.md
 
+# 极小的测试 fixture 放行，由 pre-commit 钩子把关大小（≤4KB）与位置
+!tests/fixtures/*.csv
+
 # ---- 运行产物 ----
 runs/
 outputs/
