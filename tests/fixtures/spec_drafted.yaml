@@ -1,0 +1,18 @@
+spec_version: 1
+question: CRRT 对 AKI-3 期患者 28 天死亡率的影响？
+family: hte_backdoor
+fields:
+  treatment:
+    value: rrt
+    source: user
+    said: 透析就是指开始CRRT
+    turn: 4
+    status: confirmed
+  outcome:
+    value: death_28d
+    source: model
+    status: drafted        # ← 模型推断的，用户还没确认
+  estimand:
+    value: ate
+    source: model
+    status: drafted
