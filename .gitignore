@@ -47,3 +47,4 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+.import_linter_cache/

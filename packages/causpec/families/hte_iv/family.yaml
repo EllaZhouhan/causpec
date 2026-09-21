@@ -1,0 +1,48 @@
+# hte_iv：IV 设定下的异质处理效应
+# 对应 design.md 7.6（estimand 与 family 对账）
+id: hte_iv
+status: planned          # planned | implemented
+analysis_type: hte
+
+answers: >
+  在存在未测混杂、但有可信 instrument 的情况下，处理效应如何随协变量变化。
+
+identification_strategy: instrumental_variable
+
+# 能识别的 estimand。validate 时比对 spec.estimand，不一致则改选 family 或改写 estimand。
+estimands:
+  - id: conditional_late
+    label: 条件 LATE（仅对 complier 成立）
+    requires_assumptions: [relevance, exclusion_restriction, monotonicity]
+  # TODO(design.md 7.6): 若另外假设「给定协变量后效应不随 compliance 类型变化」，
+  # 才可解释为 CATE。按 Project 1 实际采用的假设补齐下面这条。
+  # - id: cate
+  #   label: 条件平均处理效应（全人群）
+  #   requires_assumptions: [relevance, exclusion_restriction, monotonicity, no_effect_heterogeneity_by_compliance]
+
+requires:
+  spec_fields: [treatment, outcome, instrument, adjustment_set, effect_modifiers, time_zero]
+  key_non_edges:
+    - instrument 除经 treatment 外不影响 outcome    # exclusion restriction
+    - instrument 与未测混杂无关
+
+assumptions:
+  - id: relevance
+    category: empirically_assessed
+    statement: instrument 与 treatment 相关且强度足够
+  - id: exclusion_restriction
+    category: untestable
+    statement: instrument 只通过 treatment 影响 outcome
+  - id: monotonicity
+    category: untestable
+    statement: 不存在 defier
+
+estimator:
+  primary: DMLIV           # 作者研究代码，Phase 0 任务 3 迁入
+  calibration: null        # TODO: IV 版本的 DR 得分，自写（design.md 第 9 节）
+
+diagnostics:
+  instrument_relevance:
+    # 不使用统一的 first-stage F；线性诊断可选复用 StatsPAI（MIT）
+    - effective_f_test        # Montiel Olea–Pflueger
+    - anderson_rubin_test

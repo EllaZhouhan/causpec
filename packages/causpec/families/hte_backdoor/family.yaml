@@ -1,0 +1,38 @@
+# hte_backdoor：后门调整下的异质处理效应（baseline）
+id: hte_backdoor
+status: planned
+analysis_type: hte
+
+answers: >
+  在可观测混杂可被调整集充分控制的前提下，处理效应如何随协变量变化。
+
+identification_strategy: backdoor_adjustment
+
+estimands:
+  - id: ate
+    label: 平均处理效应
+    requires_assumptions: [unconfoundedness, positivity, consistency]
+  - id: att
+    label: 处理组的平均处理效应
+    requires_assumptions: [unconfoundedness, positivity, consistency]
+  - id: cate
+    label: 条件平均处理效应
+    requires_assumptions: [unconfoundedness, positivity, consistency]
+
+requires:
+  spec_fields: [treatment, outcome, adjustment_set, effect_modifiers, time_zero]
+
+assumptions:
+  - id: unconfoundedness
+    category: untestable
+    statement: 给定调整集后，处理分配与潜在结果独立
+  - id: positivity
+    category: empirically_assessed
+    statement: 每个协变量取值下接受与不接受处理的概率都严格在 0 与 1 之间
+  - id: consistency
+    category: requires_justification
+    statement: 处理定义明确，不存在实质不同的多个版本
+
+estimator:
+  primary: econml.dml.CausalForestDML       # EconML, MIT
+  calibration: econml.validate.DRTester     # EconML, MIT

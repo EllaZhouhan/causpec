@@ -25,6 +25,35 @@ CauSpec 的四条原则：
 
 不在支持范围内的设计（DiD、断点回归、合成控制）会被明确拒绝，并给出每个 family 被排除的原因。
 
+## 仓库结构
+
+三个交付物在同一个仓库里：**库**是厚的，**MCP server** 与 **skill** 是调用它的两层薄壳。两种形态调用同一套 `causpec` 函数，产出同样结构的 run 目录。
+
+```
+packages/causpec/          库：所有计算逻辑在这里
+  core/                      core 不导入任何 family（import-linter 在 CI 中强制）
+    contracts/                 Spec、QualityIssue、Result、Manifest
+    adapters/                  csv、parquet、postgres（只读）
+    mapping/                   轻量 mapping 与变量目录
+    quality/                   四层检查
+    runtime/                   RunContext、原子写入、audit、manifest
+    reporting/                 地址解析、占位符渲染、措辞等级判定
+    registry.py                family 注册表：core 与 family 的唯一接口
+  families/                  插件式，新增分析 = 一个目录 + 一行注册
+    hte_iv/  hte_backdoor/  longitudinal_ipcw/
+  cli.py                     causpec quality / estimate / report
+
+server/causpec_mcp/        MCP server（主形态）：持有凭据、执行门控
+skill/causpec-analyst/     skill（辅形态）：SKILL.md + references + scripts
+evals/                     数值、质量检查、鲁棒性、报告、agent、回归
+data/generators/           合成数据生成器（生成的数据不入库）
+examples/deployments/      demo-hospital、demo-retail 配置示例
+deploy/                    本地 Postgres demo（只读账号 + view）
+docs/                      design.md、plan.md、decisions/
+```
+
+目前除骨架外内容为空，按 [plan.md](docs/plan.md) 的阶段逐步填充。
+
 ## 文档
 
 - [设计文档](docs/design.md)
