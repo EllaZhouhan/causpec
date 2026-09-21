@@ -1,0 +1,49 @@
+# ---- 数据文件：任何情况下都不入库（真实数据与生成的合成数据）----
+*.csv
+*.tsv
+*.parquet
+*.xlsx
+*.xls
+*.duckdb
+*.db
+*.sqlite
+*.sqlite3
+*.feather
+*.pkl
+*.h5
+*.dta
+*.sav
+data/**
+!data/generators/
+!data/generators/**
+!data/README.md
+
+# ---- 运行产物 ----
+runs/
+outputs/
+*.log
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.ipynb_checkpoints/
+
+# ---- 工具缓存 ----
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---- 编辑器与系统 ----
+.DS_Store
+.idea/
+.vscode/
