@@ -34,7 +34,6 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
-provides-extras = ["diagnostics"]
 
 [package.metadata.requires-dev]
 dev = [

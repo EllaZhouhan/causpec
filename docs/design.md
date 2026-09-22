@@ -1,8 +1,8 @@
 # CauSpec 设计文档
 
-版本：0.2
+版本：0.3
 作者：Han Zhou
-更新：2026-09-21
+更新：2026-09-22
 
 文中带【复用】标记的地方表示直接使用或改写外部库、外部项目的代码或做法，并注明来源和许可。标注 TODO 的地方需要作者根据自己的方法与代码补充。
 
@@ -26,7 +26,7 @@ CauSpec 做四件事：
 ### 1.2 目标
 
 - G1：spec 的每个关键字段都记录来源（用户、模型推断、数据），并标注状态（草拟、确认）；估计只在关键字段全部确认后执行。
-- G2：支持本地 CSV/Parquet 与 PostgreSQL，以及宽表、长事件表、关系型多表三种口径，估计代码不变。
+- G2：支持本地 CSV/Parquet 与 PostgreSQL，以及宽表、长事件表两种口径，估计代码不变。
 - G3：数据质量与可识别性报告，即使分析不能运行，它本身也是交付物。
 - G4：数字只由代码产生；报告里的数字由渲染器按地址填入，模型不能直接写数字。
 - G5：输入与 seed 固定时结果可复现；每次运行有 manifest 与审计日志。
@@ -198,7 +198,7 @@ analysis_plan: {primary: ..., sensitivity: [...], exploratory: [...]}
 
 采用 target trial 的七个组成部分：eligibility、treatment strategies、assignment、follow-up（time zero 与结束）、outcome、causal contrast、analysis plan；另加 event_roles，把 death、discharge、transfer 等事件显式指定为 outcome、competing、censoring 或 terminal。
 
-【复用】字段划分对齐 StatsPAI 的 TargetTrialProtocol（MIT，src/statspai/target_trial/protocol.py），便于和成熟实现互相对照；只对齐字段结构，不依赖其运行时。
+【复用】字段划分对齐 StatsPAI 的 TargetTrialProtocol（MIT，src/statspai/target_trial/protocol.py），便于和成熟实现互相对照；**只对齐字段结构，不引入该依赖**。
 
 TODO：按 ipcw 方法写明各事件的处理方式及估计量的解释。
 
@@ -238,7 +238,7 @@ validate 时比对 spec.estimand 与所选 family 的声明。不一致时有两
 | 层 | 检查 | 实现 |
 |---|---|---|
 | 基础 | 类型、取值范围、唯一性、缺失、NULL 编码变体 | 【复用】pandera（MIT）的 DataFrame schema 声明；NULL 编码变体检测自写 |
-| 时间一致性 | treatment 早于 time zero、outcome 早于 treatment、时间倒序、follow-up 不足 | 自写；【复用】immortal time 检查可对照 StatsPAI 的 immortal_time_check（MIT） |
+| 时间一致性 | treatment 早于 time zero、outcome 早于 treatment、时间倒序、follow-up 不足 | 自写；immortal time 检查的口径参考 StatsPAI 的 immortal_time_check（MIT，仅参考做法） |
 | 可识别性 | treatment 流行率、overlap、SMD、suspected post-treatment、instrument relevance、censoring 与状态的关系 | overlap 与 SMD 自写（逻辑简单）；instrument relevance 见 8.2 |
 | 可行性 | 各组样本量、事件数、子组最小 n、极端权重与 ESS | 自写 |
 
@@ -246,7 +246,9 @@ validate 时比对 spec.estimand 与所选 family 的声明。不一致时有两
 
 诊断形式由 family 决定，不统一使用 first-stage F。
 
-【复用】线性诊断可调用 StatsPAI 的 effective_f_test（Montiel Olea–Pflueger）与 anderson_rubin_test（MIT）；其仓库声明 AR 检验已与 R ivmodel 做过数值一致性验证，effective F 检验则仅标为 analytical-only。作为可选依赖接入，并锁定版本。
+effective F 检验（Montiel Olea–Pflueger）自写，并配一个对照原论文数值例的回归测试。Anderson–Rubin 检验放入 backlog，需要时再加。
+
+不为这两个函数引入 StatsPAI：它体量大（依赖 numba、linearmodels 等）、版本迭代快，且近几个版本修正过若干函数的正确性问题；而这两个检验都是闭式的，自写加测试比锁定一个重依赖更可控，也更便于说明数值来源。
 
 ### 8.3 Issue schema
 
@@ -267,12 +269,12 @@ evidence: {...}, affected_columns, impact_on_analysis, recommended_repair
 | CausalForestDML（baseline） | 【复用】EconML（MIT），已在你的代码中使用 |
 | HTE 校准：BLP、组别校准、uplift/QINI | hte_backdoor：【复用】EconML 的 econml.validate.DRTester（MIT），按所用版本的接口接入。hte_iv：DRTester 基于无混杂假设下的 doubly robust 得分，不能直接用于 IV 设定，需要改用 IV 版本的得分自写；TODO。你原代码中没有这部分 |
 | 重复 cross-fitting 的排序稳定性 | 自写（循环 seed 调用估计器） |
-| 未观测混杂敏感性（DML） | 【复用】StatsPAI 的 dml_sensitivity（MIT），其仓库声明与 doubleml-for-py 做过一致性验证；或直接用 DoubleML（BSD-3）的 sensitivity_analysis；二选一 |
-| E-value | 【复用】StatsPAI 的 evalue（MIT），其仓库声明与 R EValue 一致 |
+| 未观测混杂敏感性（DML） | 【复用】DoubleML（BSD-3）的 sensitivity_analysis |
+| E-value | 自写（闭式公式），配对照 VanderWeele & Ding (2017) 数值例的回归测试 |
 | 反驳检验：placebo treatment、random common cause、data subset | 【复用】DoWhy（MIT）的 refuter |
-| Longitudinal IPCW | 你的代码；StatsPAI 的 ipcw 在其仓库中仅标为 analytical-only，只可用于合成数据上的交叉核对，不作为参考实现 |
+| Longitudinal IPCW | 你的代码；正确性由合成数据 A 的真值覆盖率验证 |
 
-关于 StatsPAI 依赖的说明：它体量大（依赖 numba、linearmodels 等），版本迭代快，近几个版本还修正过若干函数的正确性问题。因此只作为可选 extra（causpec[diagnostics]）引入，锁定版本，通过 family 适配器调用，不让 core 直接依赖。
+依赖策略：只引入 EconML、DoWhy、pandera、DoubleML 四个直接依赖，都是成熟、接口稳定的库。闭式的诊断量（E-value、effective F）自写并配数值回归测试——自写的成本是几十行，而每多一个重依赖就多一份版本漂移与正确性风险。StatsPAI 不作为依赖引入，只在字段结构与做法上借鉴（见 7.3、7.4、11.2）。
 
 ---
 
@@ -342,7 +344,7 @@ estimate 执行前检查：
 实现要点：
 
 - 使用官方 MCP Python SDK。
-- 不修改任何状态的工具（list_sources、describe_source、route_family、list_runs、get_run 等）标注 readOnlyHint；会写入 server 状态的工具（update_field、confirm_spec、record_waiver 等）不标注 readOnlyHint，但所有工具都不修改数据源。返回值声明 outputSchema，并提供 structuredContent。【复用】这些是 MCP 规范本身的特性，StatsPAI 的 mcp_server.py 是一个可参考的完整实现（MIT）。
+- 不修改任何状态的工具（list_sources、describe_source、route_family、list_runs、get_run 等）标注 readOnlyHint；会写入 server 状态的工具（update_field、confirm_spec、record_waiver 等）不标注 readOnlyHint，但所有工具都不修改数据源。返回值声明 outputSchema，并提供 structuredContent。这些都是 MCP 规范本身的特性。
 - stdio 模式下日志只写 stderr。
 - `causpec-mcp doctor`：检查依赖、连接，以及数据库账号是否确实没有写权限。
 - schema drift 检查：apply_mapping 时比对数据源当前的列与 mapping 的预期，不一致则报错并列出差异。
@@ -392,7 +394,7 @@ runs/<run_id>/
 ## 15. 样本数据
 
 - A：结构因果模型生成的合成数据，带真值，包含异质效应、instrument、informative censoring、变长轨迹。
-- B：A 的三种口径（宽表、长事件表、关系型；关系型装入 Postgres demo）。
+- B：A 的两种口径（宽表、长事件表），用于验证换口径只需改 mapping。
 - C：在 A 上注入问题，每个问题对应预期的 check_id。
 - D：商业场景：带 non-compliance 的 A/B test，以及用户留存。
 
@@ -406,7 +408,7 @@ runs/<run_id>/
 |---|---|
 | 数值 | 与直接调用 family 的结果一致；固定 seed 可复现；在 A 上的真值覆盖率 |
 | 质量检查 | 在 C 上逐一召回注入的问题 |
-| 鲁棒性 | B 的三种口径得出一致结论 |
+| 鲁棒性 | B 的两种口径得出一致结论 |
 | 报告 | 渲染器拒绝未占位的数字和不存在的地址；措辞等级与诊断结果一致 |
 | agent | 20–30 个 golden tasks：是否问对关键字段、是否遗漏诊断、是否越级措辞；包括 estimand 与识别策略不匹配的任务，以及需要不支持的设计（DiD、断点回归）的任务 |
 | 回归 | 冻结若干已确认的 spec 与快照作为 fixture，family 的改动不能改变它们的结果 |
@@ -420,7 +422,7 @@ runs/<run_id>/
 | 项目 | 定位 | 与 CauSpec 的区别 |
 |---|---|---|
 | Causal-Copilot、CAIS | 研究原型，追求全自动：LLM 选方法、生成代码、自我纠错 | CauSpec 不自动选方法，spec 须经用户确认 |
-| StatsPAI | 覆盖面广的计量与因果库，附带 MCP 与 skills，带跨语言数值一致性分级 | CauSpec 聚焦两类分析的受控工作流，并复用其部分诊断函数 |
+| StatsPAI | 覆盖面广的计量与因果库，附带 MCP 与 skills，带跨语言数值一致性分级 | CauSpec 聚焦两类分析的受控工作流；不引入其依赖，只借鉴 target trial 的字段结构与若干做法 |
 | Causal desk | 受控的对话式因果分析，思路与 CauSpec 最接近 | CauSpec 面向数据库只读接入、HTE-IV 与纵向 IPCW |
 | Baygent causal-inference | Bayesian 因果分析 skill，带强制检查点与措辞校准 | CauSpec 为频率学派加确定性服务端，并改写了其措辞校准 |
 
@@ -430,5 +432,4 @@ runs/<run_id>/
 
 1. 研究代码的开源许可。
 2. ipcw 中各事件的角色定义（7.3 节 TODO）。
-3. StatsPAI 作为可选依赖的具体版本，以及导入开销是否可接受。
 4. EconML DRTester 在所用版本中的接口。
