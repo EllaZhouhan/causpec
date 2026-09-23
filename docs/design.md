@@ -69,7 +69,7 @@ MCP 客户端（Claude Code / Desktop / claude.ai）
  │    └─ scripts/ → causpec CLI   仅 skill 形态使用
  └─ MCP server: causpec-mcp
       ├─ connectors   csv / parquet / postgres（只读）
-      ├─ workspace    DuckDB 派生快照
+      ├─ workspace    派生快照（实现不约束）
       ├─ gates        spec 确认与质量门控
       └─ → causpec
              ├─ core        contracts、mapping、quality、runtime、reporting
@@ -145,7 +145,14 @@ Longitudinal 表的字段：unit_id、episode_id、time_index、timestamp、elig
 
 ### 6.5 快照与指纹
 
-数据物化到 DuckDB 工作副本。snapshot_fingerprint 对规范化后的内容计算（先按主键排序，再固定列序和 dtype），不对文件字节计算。数据库来源另外记录查询文本与读取时间。
+数据物化到一份**派生快照**。快照要提供两样东西，不规定用什么实现：
+
+1. **一份可写的工作副本**——mapping 与质量修复只作用在它上面，原始数据源永不被修改
+2. **snapshot_fingerprint**——对规范化后的**内容**计算（先按主键排序，再固定列序和 dtype），不对文件字节计算
+
+默认实现用 pandas/polars 读入、应用 mapping、写一份 parquet，指纹对规范化后的内容算。十万行以内这样最简单，依赖也最少。数据量超出单机内存时再换 DuckDB 或其他列式引擎——那是实现细节，不改变上面两条契约。
+
+数据库来源另外记录查询文本与读取时间。
 
 快照的保留期限、磁盘加密与容量上限属于部署环境的职责，CauSpec 不实现；接入真实数据时，应在部署说明中写明这些要求。
 
@@ -159,9 +166,9 @@ Longitudinal 表的字段：unit_id、episode_id、time_index、timestamp、elig
 treatment:
   value: {variable: rrt, type: binary}
   source: user            # user | model | data
-  said: "透析就是指开始CRRT"   # 用户原话，source=user 时必填
+  said: "透析就是指开始CRRT"   # 用户原话；status=confirmed 时必填
   turn: 4
-  status: confirmed       # drafted | confirmed | contradicted
+  status: confirmed       # drafted | confirmed
 time_zero:
   value: first_aki3_time
   source: model
@@ -171,9 +178,10 @@ time_zero:
 规则：
 
 - 关键字段为：population、treatment、outcome、time_zero、estimand、variable_roles、key_non_edges、identification_strategy、adjustment_set、instrument，以及 longitudinal 的 event_roles。门控要求见 11.2 节。
-- 用户话语与数据事实冲突时，字段状态标为 contradicted，展示给用户，不自动裁决。【复用】参考 Causal desk ADR-0003（仅借鉴思路）。
+- **`status: confirmed` 必须附 `said`**，即用户确认时说的那句话，与 `source` 无关。模型推断的值经用户认可后同样标 confirmed，此时 `source` 仍是 model，但 `said` 记的是用户认可时的原话。
+- 数据与 spec 冲突（例如声明 binary 的 treatment 列实有三个取值、处理时间早于 time zero）不设单独的字段状态，由质量检查发现并产生 blocking issue，门控第 2 条已经拦住。冲突摆在质量报告里由人判断——改 spec，还是记一条附理由的豁免。系统不替用户裁决，也不为此多加一套状态机。
 
-需要如实说明：确认发生在对话中，server 无法验证用户是否真的看过 spec。缓解方式是在报告首页展示 spec 全文及每个字段的来源，由人事后核查。
+需要如实说明：确认发生在对话中，`update_field` 由模型调用，**server 无法验证用户是否真的看过 spec，也无法验证 `said` 是不是真话**。这个漏洞在当前形态下堵不死——只要确认发生在对话里、由模型转述，就没有密码学意义上的保证。能做的是把成本和可见性抬高：要求 confirmed 必附原话，意味着模型想跳过确认就必须编造一句用户的话；报告首页展示 spec 全文及每个字段的 source / said / turn，编造的引语用户一眼能认出。此外，SKILL.md 明令不得在未获用户明确答复时标记 confirmed，并由 golden tasks 专门测这一项（给一句模糊的话，看模型会不会把一堆字段标成 confirmed）。
 
 ### 7.2 结构
 
@@ -288,9 +296,40 @@ evidence: {...}, affected_columns, impact_on_analysis, recommended_repair
 
 ### 10.2 结论措辞等级
 
-由代码根据诊断与反驳检验的结果，判定结论可以使用的措辞等级：causal、suggestive、associational、descriptive。关键检验（例如严重的 overlap 问题、反驳检验失败）任何一项不通过，就不能使用 causal 级措辞。skill 规定正文措辞必须与判定的等级一致。
+四个等级：causal、suggestive、associational、descriptive。skill 规定正文措辞必须与判定的等级一致。
 
-【复用】等级划分、critical 与 marginal 检验的区分、"通过不等于证明"的解释框架，改写自 Baygent causal-inference skill 的 scripts/check_refutation.py 与 references/refutation.md（MIT，保留版权声明）；阈值按频率学派诊断重新设定，因为原脚本面向 Bayesian HDI。
+**代码只能降级，不能授予 causal。** untestable 类假设（unconfoundedness、exclusion restriction、monotonicity）不管跑多少检验都验证不了，因此代码自动判定的上限是 suggestive。升到 causal 需要两个额外条件，都记在 spec 里：每条 `category: untestable` 的假设都填了 `justification` 且该字段 `source=user`；用户显式确认愿意以因果措辞陈述。这样责任归属是清楚的——代码保证"诊断没发现问题"，人担保"假设成立"，报告里写明是谁认的。
+
+**只有两项阻断检验。** 取舍原则是：
+
+> 置信区间已经表达的，不再设闸。
+
+样本量小、精度差，CI 自己会宽，读者看得见；为这些再设阈值是重复，而且正是让工具变得烦人、最终被绕过的那部分。CI 表达不了的只有系统性偏倚，来源就两个：
+
+| 阻断检验 | 通过线 | 不通过意味着 |
+|---|---|---|
+| Overlap / positivity | 倾向得分落在 [0.05, 0.95] 之外的样本 ≤ 5% | 有一批人没有对照，估计是外推出来的；CI 会很窄，但窄得没有意义 |
+| Instrument relevance（仅 IV 设定） | effective F 超过 MOP 表中对应所容忍偏倚水平的临界值 | 弱工具下偏倚可以任意大，CI 覆盖率失效 |
+
+其余诊断——E-value、DoWhy 的三项反驳检验、调整后 SMD、重复 cross-fitting 的排序稳定性、suspected_collider 的双结果对照——**照算、照印、不设闸**。它们进报告供读者判断，不参与等级判定。只拦两件事的工具会被认真对待，拦十五件事的工具第一反应是被绕过。
+
+定级规则：
+
+```
+descriptive    ← 门控没过（spec 未确认，或有未处理的 blocking 质量问题）
+associational  ← 两项阻断检验任一不通过
+suggestive     ← 两项都通过（代码能给的最高级）
+causal         ← suggestive + 所有 untestable 假设已由用户 justify + 用户显式确认
+```
+
+外加两条：
+
+- 任何降级都要在报告的"措辞等级及理由"一节写明是哪项检验、实测值多少、线在哪
+- 用户可对阻断检验记豁免（须附理由），豁免在报告中单列，且**豁免过的分析不能达到 causal**
+
+**阈值必须可见、可配、可复现。** 0.05/0.95 与 5% 都是惯例而非定律，能被合理质疑。真正重要的是三件事：事先定死（不是看到结果再定）、写进报告（读者看得到线在哪）、写进 manifest（半年后能复现当时的判定）。实现上放一个 `claim_levels.yaml`，阈值全在里面，manifest 记其哈希。
+
+【复用】等级划分与"通过不等于证明"的解释框架，改写自 Baygent causal-inference skill 的 scripts/check_refutation.py 与 references/refutation.md（MIT，保留版权声明）。原脚本区分 critical 与 marginal 两档检验、面向 Bayesian HDI；本项目取消 marginal 一档，阻断项收缩到上表两项，并改为频率学派诊断。
 
 ### 10.3 报告结构
 
@@ -346,8 +385,10 @@ estimate 执行前检查：
 - 使用官方 MCP Python SDK。
 - 不修改任何状态的工具（list_sources、describe_source、route_family、list_runs、get_run 等）标注 readOnlyHint；会写入 server 状态的工具（update_field、confirm_spec、record_waiver 等）不标注 readOnlyHint，但所有工具都不修改数据源。返回值声明 outputSchema，并提供 structuredContent。这些都是 MCP 规范本身的特性。
 - stdio 模式下日志只写 stderr。
-- `causpec-mcp doctor`：检查依赖、连接，以及数据库账号是否确实没有写权限。
+- `causpec-mcp doctor`：检查依赖、连接，以及数据库账号是否确实没有写权限（实际尝试一次写入并预期失败）。
 - schema drift 检查：apply_mapping 时比对数据源当前的列与 mapping 的预期，不一致则报错并列出差异。
+
+**Postgres 的交付深度**：v0.3 只交付「薄 adapter + docker-compose demo」，目标是证明两件事——能接入由数据方建好的只读 view，以及只读保证确实来自账号权限（由 `doctor` 实际验证）。`masked_columns` 与 schema drift 检查放到 v1.0 之后。理由：本项目的差异化在因果推断的受控流程，不在数据库接入；把 Postgres 做深的边际收益远低于把质量检查和校准做扎实。`allowed_relations` 与路径边界（ADR-0002）不在削减之列，它们是安全边界，不是功能。
 
 ---
 

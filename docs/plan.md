@@ -55,7 +55,7 @@
 
 ### Phase 1（W2–W3）
 
-1. csv/parquet adapter、DuckDB 快照、规范化指纹
+1. csv/parquet adapter、派生快照（parquet）、规范化指纹
 2. 轻量 mapping 与变量目录
 3. family.yaml 的 estimand 声明、route_family 与 estimand 对账；变量角色图渲染（可选 DoWhy 识别核对）
 4. 基础层质量检查（【复用】pandera）与 NULL 编码检测
@@ -78,7 +78,7 @@
 
 1. MCP server：工具、readOnlyHint、outputSchema；数据源边界（root / allowed_relations，见 ADR-0002）
 2. 门控与结构化错误（注册表模式参考 StatsPAI agent/remediation.py，仅借鉴做法）
-3. postgres adapter；docker-compose 中使用只读账号和 view；doctor 与 schema drift 检查
+3. postgres 薄 adapter；docker-compose 中使用只读账号和 view；doctor 实际验证账号无写权限。masked_columns 与 schema drift 放到 v1.0 之后
 4. 数据集 B 的两种口径（宽表、长事件表）与鲁棒性 evals
 5. 录制三个 demo：成功路径、只改 mapping 的换口径路径、数据有问题时拒绝下结论的安全失败路径（打 tag v0.3）
 

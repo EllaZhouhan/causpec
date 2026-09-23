@@ -48,8 +48,26 @@ def test_user_sourced_field_requires_quote() -> None:
         SpecField(value="rrt", source=Source.USER)
 
 
-def test_model_sourced_field_needs_no_quote() -> None:
+def test_model_sourced_draft_needs_no_quote() -> None:
     assert SpecField(value="rrt", source=Source.MODEL).said is None
+
+
+def test_confirmed_field_requires_quote_even_when_model_sourced() -> None:
+    """design.md 7.1：确认必附原话，堵门控的根部漏洞。
+
+    模型可以自己调 update_field 宣布「用户确认了」。要求 confirmed 必须带上用户
+    当时那句话，模型想跳过确认就得编造引语，而引语会印在报告首页供人核对。
+    """
+    with pytest.raises(ValueError, match="确认时的原话"):
+        SpecField(value="ate", source=Source.MODEL, status=Status.CONFIRMED)
+
+
+def test_model_inferred_value_can_be_confirmed_by_user() -> None:
+    """值由模型推断、确认由用户给出——source 仍是 model，said 记用户认可时的原话。"""
+    field = SpecField(
+        value="ate", source=Source.MODEL, said="对，我想知道整体平均效应", status=Status.CONFIRMED
+    )
+    assert field.source is Source.MODEL and field.status is Status.CONFIRMED
 
 
 # ---- design.md 11.2：门控 ----
@@ -72,7 +90,11 @@ def test_missing_critical_field_counts_as_unconfirmed() -> None:
     spec = Spec(
         question="q",
         family="hte_backdoor",
-        fields={"treatment": SpecField(value="rrt", source=Source.MODEL, status=Status.CONFIRMED)},
+        fields={
+            "treatment": SpecField(
+                value="rrt", source=Source.MODEL, said="就用 rrt 这列", status=Status.CONFIRMED
+            )
+        },
     )
     assert spec.unconfirmed_critical_fields() == ["outcome", "estimand"]
 

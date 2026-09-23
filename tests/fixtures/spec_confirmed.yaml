@@ -15,6 +15,9 @@ fields:
     turn: 6
     status: confirmed
   estimand:
+    # 值由模型推断，但确认是用户给的——source 仍是 model，said 记用户认可时的原话
     value: ate
     source: model
+    said: 对，我想知道整体平均效应
+    turn: 8
     status: confirmed

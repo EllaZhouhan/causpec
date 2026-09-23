@@ -25,18 +25,25 @@ class Source(StrEnum):
 class Status(StrEnum):
     """字段的确认状态。
 
-    ``CONTRADICTED`` 用于用户话语与数据事实冲突的情况：展示给用户，不自动裁决。
+    数据与 spec 冲突不在这里表达：那由质量检查产生 blocking issue，门控第 2 条拦住
+    （design.md 7.1）。多一个状态就是多一套要维护、要测试的机制，而门控已经够了。
     """
 
     DRAFTED = "drafted"
     CONFIRMED = "confirmed"
-    CONTRADICTED = "contradicted"
 
 
 class SpecField(BaseModel):
     """一个 spec 字段，连同它的来源与状态。
 
-    ``said`` 在 ``source=user`` 时必填——用户说的话是证据，要原样留底（design.md 原则 2）。
+    ``said`` 有两处必填（design.md 7.1）：
+
+    - ``source=user`` 时——用户说的话是证据，要原样留底（原则 2）
+    - ``status=confirmed`` 时——确认时用户说的那句话，与 ``source`` 无关
+
+    第二条堵的是门控的根部漏洞：``update_field`` 由模型调用，server 无从验证用户
+    是否真的确认过。要求确认必附原话，模型想跳过确认就得编造一句用户的话，而这句话
+    会印在报告首页的 spec 全文里，用户一眼能认出。堵不死，但把痕迹留下了。
     """
 
     model_config = ConfigDict(frozen=True)
@@ -48,9 +55,11 @@ class SpecField(BaseModel):
     turn: int | None = None
 
     @model_validator(mode="after")
-    def _user_source_needs_quote(self) -> SpecField:
+    def _quote_required(self) -> SpecField:
         if self.source is Source.USER and not self.said:
             raise ValueError("source=user 时必须记录用户原话（said）")
+        if self.status is Status.CONFIRMED and not self.said:
+            raise ValueError("status=confirmed 时必须记录用户确认时的原话（said）")
         return self
 
 
