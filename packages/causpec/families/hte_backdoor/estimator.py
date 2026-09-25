@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.registry import register
@@ -23,6 +24,10 @@ class HteBackdoor:
     """后门调整下的处理效应。切片版本 = 朴素组均值差。"""
 
     id = "hte_backdoor"
+
+    def check(self, data: pd.DataFrame, spec: Spec) -> QualityReport:
+        """尚未实现专属检查（overlap、SMD 见 design.md 8.1，Phase 1 任务 5）。"""
+        return QualityReport()
 
     def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
         treatment_col = str(spec.fields["treatment"].value)

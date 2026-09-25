@@ -55,6 +55,7 @@ from econml.iv.dml import NonParamDMLIV
 from joblib import Parallel, delayed
 from sklearn.ensemble import RandomForestRegressor
 
+from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.registry import register
@@ -114,6 +115,13 @@ class HteIv:
     """
 
     id = "hte_iv"
+
+    def check(self, data: pd.DataFrame, spec: Spec) -> QualityReport:
+        """instrument 的相关性与外生性检查，阈值取自 family.yaml。"""
+        from causpec.core.registry import load_declaration
+        from causpec.families.hte_iv.checks import check_instrument
+
+        return check_instrument(data, spec, load_declaration(self.id).get("checks", {}))
 
     def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
         backend = str(spec.param("estimator", "ivforest"))

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import yaml
 
+from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 
@@ -39,6 +40,13 @@ class Family(Protocol):
 
     def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
         """跑估计，返回带地址的结果。"""
+        ...
+
+    def check(self, data: pd.DataFrame, spec: Spec) -> QualityReport:
+        """跑这个 family 的专属质量检查。
+
+        与 estimate 分开：G3 要求即使分析不能运行，质量报告本身也是交付物。
+        """
         ...
 
 

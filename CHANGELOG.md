@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- **`QualityIssue` / `QualityReport` contract**（design.md 8.3）：check_id、layer、
+  severity、waivable、evidence、affected_columns、impact_on_analysis、recommended_repair；
+  每条证据都有 `qc:<check_id>.<key>` 地址供报告引用
+- **`hte_iv` 的 instrument 检查**：迁自研究代码的 `test_iv_validity`，
+  相关性（线性稳健 F + partial R² + Probit LR 检验 + McFadden 增量 R²）、
+  complier 占比、协变量平衡（Benjamini–Hochberg FDR 校正）。阈值写在 family.yaml
+- **门控第 2 条**：有未豁免的 blocking 质量问题时拒绝估计；豁免必须附理由，
+  不可豁免的检查即使给理由也不放行
 - **合成数据集 A 生成器**（`data/generators/dataset_a.py`）：带个体真值的结构因果模型，
   未观测混杂让朴素估计与后门调整都有偏、只有 IV 能识别；二值与连续 instrument 两种形态；
   `realistic` / `high_power` 两套预设

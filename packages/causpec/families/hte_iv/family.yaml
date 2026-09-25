@@ -108,13 +108,39 @@ assumptions:
     category: untestable
     statement: 一阶段对 instrument 的响应方向对所有个体一致（连续 instrument）
 
-diagnostics:
-  instrument_relevance:
-    # 不使用统一的 first-stage F：treatment 是二值，一阶段用 Probit/Logit。
-    # 线性一阶段的稳健 F 与 partial R² 作为补充。
-    - first_stage_probit_lr_test
-    - first_stage_pseudo_r2
-    - first_stage_f_robust
-    - partial_r2_iv
-  exogeneity:
-    - covariate_balance_by_instrument     # 各协变量对 instrument 回归的 p 值
+# 质量检查与阈值。阈值在这里而不是写死在代码里：它们决定结论能用多强的措辞
+# （design.md 10.2），因此必须事先定死、写进报告、进 manifest。
+# 这些数字都是惯例而非定律，可以被合理质疑——重要的是它们可见、可配、可复现。
+checks:
+  iv_zero_variation:
+    layer: identification
+    severity: blocking
+    waivable: false
+    min_unique_values: 2
+    min_std: 1.0e-8
+
+  iv_weak_first_stage:
+    layer: identification
+    severity: blocking          # design.md 10.2 的两项阻断检验之一
+    waivable: true
+    # 线性一阶段的稳健 F。Staiger–Stock 的经验准则 F > 10，广泛使用但只是经验准则。
+    # treatment 是二值，因此另外给出 Probit 一阶段的 LR 检验与 McFadden 增量 R²，
+    # 三者一并进报告——design.md 8.2：诊断形式由 family 决定，不统一使用 first-stage F。
+    min_robust_f: 10.0
+    max_lr_p_value: 0.05
+
+  iv_low_complier_share:
+    layer: feasibility
+    severity: warning           # 不阻断：complier 少不代表估计错，只代表适用人群窄
+    waivable: true
+    # 仅二值 instrument。E[T|Z=1] − E[T|Z=0] 在单调性下就是 complier 占比。
+    min_complier_share: 0.05
+
+  iv_covariate_imbalance:
+    layer: identification
+    severity: warning           # 不阻断：exclusion restriction 本就无法检验，
+    waivable: true              # 失衡是必要条件不成立的信号，不是充分证据
+    # 逐个协变量对 instrument 回归取 p 值，再做 Benjamini–Hochberg FDR 校正。
+    # 不校正的话，60 个协变量里平均会有 3 个在 0.05 下"显著"纯属偶然。
+    fdr_level: 0.10
+    max_imbalanced_fraction: 0.10
