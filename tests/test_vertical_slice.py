@@ -150,6 +150,35 @@ def test_render_rejects_result_smuggled_as_literal(result: Result) -> None:
         render(f"差值 {{{{lit:{estimate}}}}}。", result.values)
 
 
+# ---- 格式说明 ----
+
+
+def test_format_spec_controls_precision(result: Result) -> None:
+    """没有这个，报告里会出现 17 位有效数字，而模型面对它的自然反应是
+    自己写成 -0.018——那就绕过 G4 了。让它能声明精度，比让它自己动手安全。"""
+    addresses = {"res:primary.ate": -0.017936448014042473}
+    assert render("效应 {{res:primary.ate|+.3f}}。", addresses) == "效应 -0.018。"
+
+
+def test_percent_format(result: Result) -> None:
+    assert render("{{qc:x.frac|.1%}}", {"qc:x.frac": 0.002}) == "0.2%"
+
+
+def test_format_spec_works_on_literals(result: Result) -> None:
+    assert render("{{lit:95}}% 置信区间", result.values) == "95% 置信区间"
+
+
+def test_invalid_format_spec_raises_instead_of_falling_back(result: Result) -> None:
+    """格式写错要报错，不能悄悄回退到默认格式——那会让报告里的精度不可预期。"""
+    with pytest.raises(RenderError, match="格式说明"):
+        render("{{res:primary.n|.2%x}}", result.values)
+
+
+def test_format_spec_does_not_exempt_bare_numbers(result: Result) -> None:
+    with pytest.raises(RenderError, match="未经占位的数字"):
+        render("效应 {{res:primary.estimate|.3f}}，另有 0.5 没占位。", result.values)
+
+
 def test_render_exempts_markdown_structure(result: Result) -> None:
     template = "## 结果\n\n1. 第一条\n2. 第二条\n\n| a | b |\n|---|---|\n| x | y |\n"
     assert render(template, result.values) == template

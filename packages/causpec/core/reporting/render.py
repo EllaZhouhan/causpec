@@ -3,7 +3,8 @@
 对应 design.md 10.1、G4。规则有三条，全部由代码强制：
 
 1. 正文只能用 ``{{res:primary.estimate}}`` 这样的占位符引用数字；
-   引用不存在的地址，渲染失败。
+   引用不存在的地址，渲染失败。地址后可跟格式说明控制精度，
+   例如 ``{{res:primary.ate|.3f}}``、``{{qc:...extreme_fraction|.1%}}``。
 2. 正文中出现**未经占位的数字**，渲染失败。
 3. 术语里的数字（「28 天死亡率」「95% 置信区间」「AKI-3 期」）写成
    ``{{lit:28}}``，显式声明这不是计算结果。**但如果一个 lit 的数值与任何
@@ -14,10 +15,15 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Mapping
 
-PLACEHOLDER = re.compile(r"\{\{([a-z]+):([A-Za-z0-9_.\-]+)\}\}")
+# {{res:primary.ate}} 或 {{res:primary.ate|.3f}}——竖线后是 Python 的格式说明。
+# 有格式说明这件事是必要的：不给的话，报告里会出现 -0.017936448014042473，
+# 而模型面对这种数字的自然反应是自己写成 -0.018，那就绕过 G4 了。
+# 让它能声明精度，比让它自己动手安全。
+PLACEHOLDER = re.compile(r"\{\{([a-z]+):([A-Za-z0-9_.\-]+?)(?:\|([^}]+))?\}\}")
 
 # 裸数字：先把占位符和 Markdown 结构挖掉，剩下的数字都算正文数字。
 BARE_NUMBER = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?![\w.])")
@@ -45,6 +51,23 @@ def _strip_exempt(text: str) -> str:
     ):
         out = pattern.sub(lambda m: " " * len(m.group(0)), out)
     return out
+
+
+def _format(value: object, spec: str | None, *, address: str) -> str:
+    """按格式说明渲染一个值。格式非法时报错而不是悄悄回退到默认格式。"""
+    if not spec:
+        return str(value)
+    target: object = value
+    if spec[-1] in "eEfFgGn%" and isinstance(value, str):
+        # 数值格式用在字符串上（lit:95 之类）时先转 float；转不了就交给 format 报错。
+        with contextlib.suppress(ValueError):
+            target = float(value)
+    try:
+        return format(target, spec)
+    except (ValueError, TypeError) as error:
+        raise RenderError(
+            f"{address} 的格式说明 {spec!r} 无法应用于值 {value!r}：{error}"
+        ) from error
 
 
 def _as_float(value: object) -> float | None:
@@ -91,15 +114,15 @@ def render(template: str, addresses: Mapping[str, float | int | str]) -> str:
     literals: list[str] = []
 
     def substitute(match: re.Match[str]) -> str:
-        namespace, path = match.group(1), match.group(2)
+        namespace, path, spec = match.group(1), match.group(2), match.group(3)
         if namespace == "lit":
             literals.append(path)
-            return path
+            return _format(path, spec, address=f"lit:{path}")
         address = f"{namespace}:{path}"
         if address not in addresses:
             unknown.append(address)
             return match.group(0)
-        return str(addresses[address])
+        return _format(addresses[address], spec, address=address)
 
     rendered = PLACEHOLDER.sub(substitute, template)
 
@@ -115,6 +138,7 @@ def render(template: str, addresses: Mapping[str, float | int | str]) -> str:
         raise RenderError(
             f"正文中出现未经占位的数字：{'、'.join(bare)}。\n"
             f"计算结果写成 {{{{res:...}}}}，术语里的固定数字写成 {{{{lit:28}}}}。\n"
+            f"需要控制精度时在地址后加格式说明，例如 {{{{res:primary.ate|.3f}}}}。\n"
             f"可用地址：{', '.join(sorted(addresses))}。"
         )
 

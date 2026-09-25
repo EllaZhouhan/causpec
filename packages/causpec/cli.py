@@ -24,7 +24,9 @@ from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
 from causpec.core.registry import FamilyUnavailable
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
-from causpec.core.reporting.render import RenderError, render
+from causpec.core.reporting.render import RenderError
+from causpec.core.reporting.report import ReportError
+from causpec.core.reporting.report import build as build_report
 from causpec.core.runtime.context import RunContext
 
 
@@ -36,6 +38,21 @@ def _load_data(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".parquet":
         return pd.read_parquet(path)
     return pd.read_csv(path)
+
+
+def _load_narrative(path: Path | None) -> dict[str, str]:
+    """读模型撰写的解读文字。
+
+    按段落组织的 YAML：``{section: 正文}``。不接受一整篇自由文本——
+    报告的结构由 design.md 10.3 规定，不由撰稿人决定（尤其是「假设写在
+    结果之前」这一条）。
+    """
+    if path is None:
+        return {}
+    payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(payload, dict):
+        raise SystemExit(f"{path} 应当是 {{段落: 正文}} 形式的 YAML。")
+    return {str(k): str(v) for k, v in payload.items()}
 
 
 def _parse_waivers(entries: list[str] | None) -> dict[str, str]:
@@ -66,6 +83,7 @@ def _persist_run(
     rendered: str | None,
     elapsed_ms: float,
     waivers: dict[str, str],
+    render_ok: bool,
 ) -> Path:
     """把这次运行落盘成一个 run 目录（design.md 第 14 节）。
 
@@ -87,7 +105,7 @@ def _persist_run(
             "estimate",
             {"spec": str(args.spec), "data": str(args.data), "seed": args.seed},
             duration_ms=elapsed_ms,
-            ok=rendered is not None or args.report is None,
+            ok=render_ok,
             metadata={
                 "family": spec.family,
                 "n_rows": int(result.values.get("res:sample.n", 0)),
@@ -149,15 +167,32 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     }
 
     rendered: str | None = None
-    render_error: RenderError | None = None
-    if args.report is not None:
+    render_error: RenderError | ReportError | None = None
+    if args.report or args.narrative is not None:
         try:
-            rendered = render(args.report.read_text(encoding="utf-8"), addresses)
-        except RenderError as error:
+            rendered = build_report(
+                spec,
+                report,
+                decision,
+                addresses,
+                narrative=_load_narrative(args.narrative),
+                execution_mode=ExecutionMode.CLI,
+            )
+        except (RenderError, ReportError) as error:
             render_error = error
 
     if args.run_dir is not None:
-        _persist_run(args, spec, report, result, decision, rendered, elapsed_ms, waivers)
+        _persist_run(
+            args,
+            spec,
+            report,
+            result,
+            decision,
+            rendered,
+            elapsed_ms,
+            waivers,
+            render_ok=render_error is None,
+        )
 
     if render_error is not None:
         print(f"报告渲染失败：\n{render_error}", file=sys.stderr)
@@ -187,7 +222,17 @@ def build_parser() -> argparse.ArgumentParser:
     estimate = subparsers.add_parser("estimate", help="门控通过后执行估计，可选渲染报告")
     estimate.add_argument("--spec", type=Path, required=True, help="spec.yaml 路径")
     estimate.add_argument("--data", type=Path, required=True, help="数据 CSV / Parquet 路径")
-    estimate.add_argument("--report", type=Path, help="报告模板；省略则直接打印带地址的结果")
+    estimate.add_argument(
+        "--report",
+        action="store_true",
+        help="按 design.md 10.3 的固定结构输出报告；省略则直接打印带地址的结果",
+    )
+    estimate.add_argument(
+        "--narrative",
+        type=Path,
+        metavar="YAML",
+        help="模型撰写的解读文字，{段落: 正文}；正文只能用占位符引用数字",
+    )
     estimate.add_argument("--seed", type=int, default=42)
     estimate.add_argument(
         "--run-dir",

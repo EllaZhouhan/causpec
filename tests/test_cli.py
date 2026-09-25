@@ -155,8 +155,8 @@ def test_estimate_succeeds_on_clean_data(workspace, capsys) -> None:
 
 
 def test_report_rendering_rejects_bare_numbers(workspace, tmp_path, capsys) -> None:
-    template = tmp_path / "bad.md"
-    template.write_text("效应约为 -0.08。\n", encoding="utf-8")
+    narrative = tmp_path / "bad.yaml"
+    narrative.write_text("primary_results: 效应约为 -0.08。\n", encoding="utf-8")
     code = run(
         "estimate",
         "--spec",
@@ -164,16 +164,36 @@ def test_report_rendering_rejects_bare_numbers(workspace, tmp_path, capsys) -> N
         "--data",
         str(workspace["good.csv"]),
         "--report",
-        str(template),
+        "--narrative",
+        str(narrative),
     )
     assert code == 3
     assert "未经占位的数字" in capsys.readouterr().err
 
 
+def test_report_rejects_model_written_factual_sections(workspace, tmp_path, capsys) -> None:
+    """spec 来源表与措辞等级由代码生成，模型碰不到（design.md 7.1、原则 5）。"""
+    narrative = tmp_path / "forbidden.yaml"
+    narrative.write_text("claim_level: 我认为可以用因果措辞。\n", encoding="utf-8")
+    code = run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--report",
+        "--narrative",
+        str(narrative),
+    )
+    assert code == 3
+    assert "由代码生成" in capsys.readouterr().err
+
+
 def test_report_renders_with_placeholders(workspace, tmp_path, capsys) -> None:
-    template = tmp_path / "ok.md"
-    template.write_text(
-        "平均效应 {{res:primary.ate}}，样本 {{res:sample.n}} 人。\n", encoding="utf-8"
+    narrative = tmp_path / "ok.yaml"
+    narrative.write_text(
+        "primary_results: 平均效应 {{res:primary.ate|+.3f}}，样本 {{res:sample.n}} 人。\n",
+        encoding="utf-8",
     )
     code = run(
         "estimate",
@@ -182,13 +202,28 @@ def test_report_renders_with_placeholders(workspace, tmp_path, capsys) -> None:
         "--data",
         str(workspace["good.csv"]),
         "--report",
-        str(template),
+        "--narrative",
+        str(narrative),
     )
     assert code == 0
     out = capsys.readouterr().out
-    # 占位符被代入了：正文里不该还有 {{ }}，且数字确实出现了
     assert "{{" not in out
     assert "样本 800 人" in out
+    assert "## 假设" in out  # 固定结构
+
+
+def test_report_puts_assumptions_before_results(workspace, capsys) -> None:
+    """design.md 10.3：人是先看到假设才看到数字的。"""
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--report",
+    )
+    out = capsys.readouterr().out
+    assert out.index("## 假设") < out.index("## 主结果")
 
 
 # ---- 参数表面 ----
@@ -240,8 +275,6 @@ def test_waived_analysis_is_downgraded(workspace, capsys) -> None:
 def test_run_dir_persists_everything(workspace, tmp_path, capsys) -> None:
     """design.md 第 14 节的 run 目录布局。"""
     runs = tmp_path / "runs"
-    template = tmp_path / "r.md"
-    template.write_text("等级 {{claim:level}}。\n", encoding="utf-8")
     code = run(
         "estimate",
         "--spec",
@@ -249,7 +282,6 @@ def test_run_dir_persists_everything(workspace, tmp_path, capsys) -> None:
         "--data",
         str(workspace["good.csv"]),
         "--report",
-        str(template),
         "--run-dir",
         str(runs),
     )
@@ -341,11 +373,11 @@ def test_no_run_dir_writes_nothing(workspace, tmp_path, capsys) -> None:
 
 
 def test_report_can_reference_all_three_namespaces(workspace, tmp_path, capsys) -> None:
-    """res:（估计）、qc:（质量检查）、claim:（措辞等级）在同一份报告里都能引用。"""
-    template = tmp_path / "three.md"
-    template.write_text(
-        "效应 {{res:primary.ate}}；"
-        "极端得分占比 {{qc:backdoor_overlap.extreme_fraction}}；"
+    """res:（估计）、qc:（质量检查）、claim:（措辞等级）在同一段解读里都能引用。"""
+    narrative = tmp_path / "three.yaml"
+    narrative.write_text(
+        "primary_results: 效应 {{res:primary.ate|+.3f}}；"
+        "极端得分占比 {{qc:backdoor_overlap.extreme_fraction|.1%}}；"
         "等级 {{claim:level}}。\n",
         encoding="utf-8",
     )
@@ -356,7 +388,8 @@ def test_report_can_reference_all_three_namespaces(workspace, tmp_path, capsys) 
         "--data",
         str(workspace["good.csv"]),
         "--report",
-        str(template),
+        "--narrative",
+        str(narrative),
     )
     assert code == 0
     out = capsys.readouterr().out

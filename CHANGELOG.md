@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- **报告固定结构**（design.md 10.3）：十个段落顺序由代码决定，
+  「假设写在结果之前」是结构保证而非提醒。spec 来源表与措辞等级判定由代码生成，
+  模型不得为这两节撰稿；其余段落可提供解读，一律走占位符渲染
+- **占位符格式说明**：`{{res:primary.ate|+.3f}}`、`{{qc:...frac|.1%}}`——
+  没有它报告里会出现 17 位有效数字，而模型面对这种数字的自然反应是自己四舍五入，
+  那就绕过 G4 了
+- **CLI `--report` / `--narrative`**：`--report` 输出固定结构，
+  `--narrative` 接受 `{段落: 正文}` 的 YAML
 - **runtime**（design.md 第 14 节、G5）：`RunContext` 落盘 run 目录、
   `Manifest` 记录全部会影响结果的东西（代码版本、依赖版本、spec_hash、seed、
   判定规则哈希）、每个产物的 sha256、`verify()` 核对事后篡改。
