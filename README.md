@@ -54,6 +54,34 @@ docs/                      design.md、plan.md、decisions/
 
 目前除骨架外内容为空，按 [plan.md](docs/plan.md) 的阶段逐步填充。
 
+## 估计器与置信区间
+
+`hte_iv` 有两个后端，由 `spec.estimation.params.estimator` 选。二值与连续 instrument 都支持。
+
+| | `ivforest`（默认） | `dmliv` |
+|---|---|---|
+| 类 | `econml.grf.CausalIVForest` | `econml.iv.dml.NonParamDMLIV` |
+| CATE 区间 | GRF honest 方差，一次拟合内完成 | bootstrap |
+| ATE 区间 | 对森林做单位层面 bootstrap | bootstrap |
+| 每次重抽样 | 约 5 秒（n=5000） | 约 26 秒 |
+| 多个 instrument / `adjustment_set` | 不支持 | 支持 |
+
+**为什么 `dmliv` 只能 bootstrap**：它的 final model 是任意回归器，EconML 推不出方差——`_get_inference_options()` 里就 `bootstrap` 一项。这不是选择，是唯一选项。
+
+**为什么 `ivforest` 的 ATE 区间也要 bootstrap**：`econml.grf` 只提供**逐点**方差（`predict_and_var` 给的协方差矩阵是单点上各输出维之间的，不是不同 x 之间的）。同一片森林的各点估计高度相关，把逐点方差平均再除以 n 等于假设独立。所以 CATE 区间用 GRF 的解析方差，ATE 区间另走 bootstrap——两者来路不同，分别记在 `res:cate.ci_method` 与 `res:primary.ate_ci_method`，报告要分别说明。
+
+**重抽样次数**默认 200，两个后端共用，可覆盖：
+
+```yaml
+estimation:
+  params:
+    estimator: ivforest
+    n_bootstrap_samples: 200   # 低于 100 时 res:estimation.bootstrap_adequate = "no"
+    bootstrap_n_jobs: 8        # 下标先一次性抽好再并行，不影响结果
+```
+
+调低次数会让区间失真：实测同一份数据，20 次重抽样与 GRF 解析区间给出的「个体显著获益人数」差了两个数量级（416 对 3）。所以次数不够时结果里会打标记，报告必须把这件事摆出来。
+
 ## 文档
 
 - [设计文档](docs/design.md)

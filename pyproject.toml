@@ -18,6 +18,7 @@ dependencies = [
 # 缺失时 registry 给结构化错误 + 安装命令，不是裸的 ImportError。
 hte = [
     "econml>=0.15",
+    "joblib>=1.3",
     "scikit-learn>=1.4",
 ]
 

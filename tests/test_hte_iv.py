@@ -43,7 +43,9 @@ def make_spec(params: dict[str, object], **overrides: object) -> Spec:
     )
 
 
-FAST = {"estimator": "ivforest", "n_estimators": 52}  # 必须能被 subforest_size=4 整除
+# n_estimators 必须能被 subforest_size=4 整除；bootstrap 次数压到最低，
+# 这些测试锁的是适配层的契约，不是区间的统计性质。
+FAST = {"estimator": "ivforest", "n_estimators": 52, "n_bootstrap_samples": 3}
 
 
 @pytest.fixture(scope="module")
@@ -80,22 +82,41 @@ def test_continuous_instrument_is_detected(data) -> None:
     assert out.values["res:instrument.kind"] == "continuous"
 
 
-def test_ivforest_omits_ate_interval(result) -> None:
-    """逐点区间不能简单平均成 ATE 区间，所以这个后端不给这个地址。
+def test_cate_and_ate_intervals_come_from_different_mechanisms(result) -> None:
+    """ivforest 的两种区间来路不同，必须分开记。
 
-    引用它的报告会渲染失败——这正是地址机制该有的行为，
-    比给一个没法辩护的数好。
+    CATE 逐点区间来自 GRF 的 honest 方差（一次拟合内完成）；ATE 区间来自对
+    森林做单位层面 bootstrap——因为 econml.grf 只提供逐点方差，同一片森林的
+    各点估计高度相关，逐点方差平均再除以 n 等于假设独立。
     """
-    assert result.values["res:primary.interval_method"] == "grf_honest"
-    assert "res:primary.ate_ci_lower" not in result.values
-    with pytest.raises(KeyError, match="地址不存在"):
-        result.resolve("res:primary.ate_ci_lower")
-
-
-def test_interval_method_is_recorded(result) -> None:
-    """区间怎么来的必须进结果，由报告摆给读者看（design.md 10.2）。"""
-    assert result.values["res:primary.interval_method"] in {"grf_honest", "bootstrap"}
+    assert result.values["res:cate.ci_method"] == "grf_honest"
+    assert result.values["res:primary.ate_ci_method"] == "forest_bootstrap"
     assert result.values["res:estimation.estimator"] == "ivforest"
+
+
+def test_ate_interval_is_ordered(result) -> None:
+    """percentile bootstrap 区间**不保证**包住点估计，所以这里只断言它有序。
+
+    [q2.5(θ*), q97.5(θ*)] 是重抽样分布的分位数；当重抽样分布相对 θ̂ 有系统偏移时
+    （honest 森林会向均值收缩，本来就有这种偏移），θ̂ 可以落在区间外。
+    要让区间以 θ̂ 为中心得改用 basic/反分位 bootstrap，那是另一个选择——
+    这里与 dmliv 保持一致，都用 percentile。
+    """
+    assert result.values["res:primary.ate_ci_lower"] < result.values["res:primary.ate_ci_upper"]
+
+
+def test_low_bootstrap_count_is_flagged(result) -> None:
+    """重抽样次数不够时结果里打标记，报告必须把这件事摆出来。"""
+    assert result.values["res:estimation.bootstrap_adequate"] == "no"
+    assert result.values["res:estimation.n_bootstrap_samples"] == 3
+
+
+def test_bootstrap_parallelism_does_not_change_the_result(data) -> None:
+    """下标先一次性抽好再并行，所以并行度不影响结果。"""
+    family = registry.get("hte_iv")
+    serial = family.estimate(data, make_spec({**FAST, "bootstrap_n_jobs": 1}), seed=5)
+    parallel = family.estimate(data, make_spec({**FAST, "bootstrap_n_jobs": 2}), seed=5)
+    assert serial.values == parallel.values
 
 
 def test_sample_facts_match_the_data(result, data) -> None:

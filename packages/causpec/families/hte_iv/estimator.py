@@ -52,6 +52,7 @@ import numpy as np
 from econml.grf import CausalIVForest
 from econml.inference import BootstrapInference
 from econml.iv.dml import NonParamDMLIV
+from joblib import Parallel, delayed
 from sklearn.ensemble import RandomForestRegressor
 
 from causpec.core.contracts.result import Result
@@ -62,6 +63,11 @@ if TYPE_CHECKING:
     import pandas as pd
 
 ESTIMATORS = ("dmliv", "ivforest")
+
+# percentile bootstrap 区间要可信，重抽样次数不能太少：实测同一份数据下
+# 20 次重抽样与 GRF 解析区间给出的「个体显著获益人数」差了两个数量级。
+# 两个后端共用这个默认值，都可从 spec.estimation.params 覆盖。
+DEFAULT_BOOTSTRAP_SAMPLES = 200
 
 # 唯一值落在 {0,1} 内时，视 instrument 为二值。
 _BINARY_VALUES = frozenset({0, 1})
@@ -181,7 +187,7 @@ class HteIv:
         # percentile bootstrap 区间要可信，重抽样次数不能少。默认 200——慢，
         # 但慢是这条路的真实代价，不该靠调低次数来掩盖。低于 100 时在 Result 里
         # 打标记，让报告能把这件事摆出来。
-        n_bootstrap = int(spec.param("n_bootstrap_samples", 200))
+        n_bootstrap = int(spec.param("n_bootstrap_samples", DEFAULT_BOOTSTRAP_SAMPLES))
         estimator.fit(
             Y=y,
             T=t,
@@ -202,7 +208,8 @@ class HteIv:
             "res:primary.ate": _scalar(estimator.ate(X=x)),
             "res:primary.ate_ci_lower": _scalar(ate_lower),
             "res:primary.ate_ci_upper": _scalar(ate_upper),
-            "res:primary.interval_method": "bootstrap",
+            "res:cate.ci_method": "bootstrap",
+            "res:primary.ate_ci_method": "bootstrap",
             "res:estimation.n_bootstrap_samples": n_bootstrap,
             "res:estimation.bootstrap_adequate": "yes" if n_bootstrap >= 100 else "no",
             "res:estimation.n_estimators": int(spec.param("n_estimators", 300)),
@@ -211,6 +218,62 @@ class HteIv:
         return values
 
     # ---- 后端二：CausalIVForest（解析区间，便宜）----
+
+    @staticmethod
+    def _build_forest(spec: Spec, seed: int, n_estimators: int, subforest_size: int):
+        return CausalIVForest(
+            n_estimators=n_estimators,
+            criterion=spec.param("criterion", "het"),
+            min_samples_leaf=spec.param("min_samples_leaf", 10),
+            min_var_fraction_leaf=spec.param("min_var_fraction_leaf", 0.05),
+            honest=True,
+            inference=True,
+            subforest_size=subforest_size,
+            n_jobs=spec.param("model_n_jobs", 1),
+            random_state=seed,
+        )
+
+    def _bootstrap_ate_interval(
+        self, x, t, y, z_values, spec: Spec, seed: int, n_estimators: int, subforest_size: int
+    ) -> tuple[float, float]:
+        """单位层面 bootstrap 出 ATE 的 percentile 区间。
+
+        每一轮对观测重抽样、重拟合森林，然后在**原始 X** 上预测并取均值——
+        估计对象始终是原样本协变量分布下的 ATE。
+
+        为什么不用森林自己的方差：``predict_and_var``、``prediction_stderr`` 等接口
+        给的都是**逐点**方差（``predict_and_var`` 那个协方差矩阵是单点上各输出维之间的，
+        不是不同 x 之间的）。同一片森林给出的各点估计高度相关，把逐点方差平均
+        再除以 n 等于假设它们独立，那是错的。econml.grf 没有跨样本平均的方差接口。
+
+        重抽样次数由 ``n_bootstrap_samples`` 控制（两个后端共用），并行度由
+        ``bootstrap_n_jobs`` 控制。下标先一次性抽好再并行，所以并行度不影响结果，
+        seed 固定就能复现。
+        """
+        n_bootstrap = int(spec.param("n_bootstrap_samples", DEFAULT_BOOTSTRAP_SAMPLES))
+        rng = np.random.default_rng(seed)
+        n = len(y)
+        # 先把全部重抽样下标抽好，再并行——这样并行度不影响结果，seed 固定即可复现。
+        indices = [rng.integers(0, n, n) for _ in range(n_bootstrap)]
+
+        def one_replicate(rep: int, idx: np.ndarray) -> float:
+            forest = self._build_forest(spec, seed + rep + 1, n_estimators, subforest_size)
+            forest.fit(X=x[idx], T=t[idx], y=y[idx], Z=z_values[idx])
+            return float(np.mean(np.ravel(forest.predict(x))))
+
+        # Parallel 的返回类型 joblib 标不出来，显式收成 ndarray。
+        ates = np.asarray(
+            Parallel(n_jobs=spec.param("bootstrap_n_jobs", 1))(
+                delayed(one_replicate)(rep, idx) for rep, idx in enumerate(indices)
+            ),
+            dtype=float,
+        )
+        # percentile 法：取重抽样分布的分位数。与 dmliv（EconML 的 BootstrapInference）
+        # 保持一致。注意它**不保证**包住点估计——honest 森林向均值收缩，重抽样分布
+        # 相对 θ̂ 可以有系统偏移。要以 θ̂ 为中心得改用 basic/反分位法，那是另一个选择，
+        # 需要时通过 spec 暴露，不在这里悄悄换。
+        lower, upper = np.percentile(ates, [2.5, 97.5])
+        return float(lower), float(upper)
 
     def _fit_ivforest(self, y, t, z, x, w, spec: Spec, seed: int, adjustment_set: list[str]):
         if adjustment_set:
@@ -234,29 +297,28 @@ class HteIv:
                 f" 或 {n_estimators + subforest_size - n_estimators % subforest_size}。"
             )
 
-        forest = CausalIVForest(
-            n_estimators=n_estimators,
-            criterion=spec.param("criterion", "het"),
-            min_samples_leaf=spec.param("min_samples_leaf", 10),
-            min_var_fraction_leaf=spec.param("min_var_fraction_leaf", 0.05),
-            honest=True,
-            inference=True,
-            subforest_size=subforest_size,
-            n_jobs=spec.param("model_n_jobs", 1),
-            random_state=seed,
-        )
-        forest.fit(X=x, T=t, y=y, Z=z.to_numpy().ravel())
+        z_values = z.to_numpy().ravel()
+        forest = self._build_forest(spec, seed, n_estimators, subforest_size)
+        forest.fit(X=x, T=t, y=y, Z=z_values)
 
         cate = np.ravel(forest.predict(x))
         interval = forest.predict_interval(x, alpha=0.05)
         lower, upper = np.ravel(interval[0]), np.ravel(interval[1])
 
+        n_bootstrap = int(spec.param("n_bootstrap_samples", DEFAULT_BOOTSTRAP_SAMPLES))
+        ate_lower, ate_upper = self._bootstrap_ate_interval(
+            x, t, y, z_values, spec, seed, n_estimators, subforest_size
+        )
+
         values: dict[str, float | int | str] = {
-            # 逐点区间不能简单平均成 ATE 区间（忽略协方差），所以这个后端
-            # 不产出 res:primary.ate_ci_*。引用它的报告会渲染失败，这是对的。
             "res:primary.ate": float(np.mean(cate)),
-            "res:primary.interval_method": "grf_honest",
-            "res:estimation.bootstrap_adequate": "n/a",
+            "res:primary.ate_ci_lower": ate_lower,
+            "res:primary.ate_ci_upper": ate_upper,
+            # CATE 与 ATE 的区间来自不同机制，分开记，报告里要分别说明。
+            "res:cate.ci_method": "grf_honest",
+            "res:primary.ate_ci_method": "forest_bootstrap",
+            "res:estimation.n_bootstrap_samples": n_bootstrap,
+            "res:estimation.bootstrap_adequate": "yes" if n_bootstrap >= 100 else "no",
             "res:estimation.n_estimators": n_estimators,
         }
         values.update(self._cate_addresses(cate, lower, upper))

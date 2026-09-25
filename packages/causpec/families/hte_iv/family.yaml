@@ -15,18 +15,32 @@ identification_strategy: instrumental_variable
 estimators:
   ivforest:                                 # 默认
     class: econml.grf.CausalIVForest        # EconML, MIT
-    interval_method: grf_honest             # Athey–Tibshirani–Wager，一次拟合内完成
-    provides_ate_interval: false            # 逐点区间不能简单平均成 ATE 区间
+    cate_interval_method: grf_honest        # Athey–Tibshirani–Wager，一次拟合内完成
+    ate_interval_method: forest_bootstrap   # 见下
     supports_adjustment_set: false          # 没有独立的 W 通道，只调整 X
     supports_multiple_instruments: false
+    note: >
+      econml.grf 只提供逐点方差（predict_and_var 的协方差矩阵是单点上各输出维之间的，
+      不是不同 x 之间的），没有跨样本平均的接口。同一片森林的各点估计高度相关，
+      逐点方差平均再除以 n 等于假设独立。因此 ATE 区间由单位层面 bootstrap 得到：
+      每轮重抽样、重拟合森林、在原始 X 上预测取均值，取 percentile。
+      森林便宜，这条路可行——实测每次重抽样约 5 秒，dmliv 约 26 秒。
   dmliv:
     class: econml.iv.dml.NonParamDMLIV      # EconML, MIT
     model_final: sklearn RandomForestRegressor
-    interval_method: bootstrap              # EconML 对这个类只提供 bootstrap，没有解析式
-    provides_ate_interval: true
+    cate_interval_method: bootstrap
+    ate_interval_method: bootstrap
     supports_adjustment_set: true
     supports_multiple_instruments: true
-    note: 与研究代码最终版一致；可信的 percentile 区间需要 ≥100 次重抽样，很慢
+    note: >
+      与研究代码最终版一致。EconML 对这个类只提供 bootstrap
+      （_get_inference_options() 里就一项）——final model 是任意回归器，推不出方差。
+
+# 两个后端共用，都可从 spec.estimation.params 覆盖。
+bootstrap:
+  n_bootstrap_samples_default: 200
+  adequate_threshold: 100     # 低于此值在 res:estimation.bootstrap_adequate 打标记
+  parallel_param: bootstrap_n_jobs
 
 calibration: null    # TODO: IV 版本的 DR 得分，自写（design.md 第 9 节）
 

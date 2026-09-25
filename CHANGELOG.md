@@ -8,8 +8,12 @@
 - **合成数据集 A 生成器**（`data/generators/dataset_a.py`）：带个体真值的结构因果模型，
   未观测混杂让朴素估计与后门调整都有偏、只有 IV 能识别；二值与连续 instrument 两种形态；
   `realistic` / `high_power` 两套预设
-- **`hte_iv` family**：两个后端（`ivforest` = CausalIVForest 解析区间，默认；
-  `dmliv` = NonParamDMLIV + bootstrap，与研究代码最终版一致），二值与连续 instrument 都支持
+- **`hte_iv` family**：两个后端（`ivforest` = CausalIVForest，默认；`dmliv` = NonParamDMLIV，
+  与研究代码最终版一致），二值与连续 instrument 都支持。
+  `ivforest` 的 CATE 区间用 GRF honest 方差，ATE 区间用森林的单位层面 bootstrap——
+  econml.grf 只提供逐点方差，没有跨样本平均的接口。重抽样次数两个后端共用，
+  默认 200，可从 spec 覆盖，并行度由 `bootstrap_n_jobs` 控制（下标先抽好再并行，
+  不影响结果）
 - `causpec[hte]` extra：econml 与 scikit-learn；依赖缺失时给结构化错误 + 安装命令
 - 仓库骨架：uv、ruff、pyright、pytest、pre-commit、CI、import-linter
 - 数据文件拦截（`.gitignore` + pre-commit 钩子）
