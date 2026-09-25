@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,7 @@ import pytest
 from dataset_a import config_for, generate
 
 from causpec.cli import _parse_waivers, main
+from causpec.core.runtime.writer import sha256_of
 
 SPEC = """\
 spec_version: 1
@@ -230,6 +232,112 @@ def test_waived_analysis_is_downgraded(workspace, capsys) -> None:
     out = capsys.readouterr().out
     assert "措辞等级：associational" in out
     assert "已豁免，但诊断结论不变" in out
+
+
+# ---- run 目录 ----
+
+
+def test_run_dir_persists_everything(workspace, tmp_path, capsys) -> None:
+    """design.md 第 14 节的 run 目录布局。"""
+    runs = tmp_path / "runs"
+    template = tmp_path / "r.md"
+    template.write_text("等级 {{claim:level}}。\n", encoding="utf-8")
+    code = run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--report",
+        str(template),
+        "--run-dir",
+        str(runs),
+    )
+    assert code == 0
+    capsys.readouterr()
+
+    directory = next(runs.iterdir())
+    written = {str(p.relative_to(directory)) for p in directory.rglob("*") if p.is_file()}
+    assert written == {
+        "manifest.json",
+        "audit.jsonl",
+        "spec.yaml",
+        "claim_level.json",
+        "quality/issues.json",
+        "results/results.json",
+        "report.md",
+    }
+
+
+def test_run_dir_manifest_is_verifiable(workspace, tmp_path, capsys) -> None:
+    runs = tmp_path / "runs"
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--run-dir",
+        str(runs),
+    )
+    capsys.readouterr()
+
+    directory = next(runs.iterdir())
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["execution_mode"] == "cli"
+    assert manifest["seed"] == 42
+    assert manifest["claim_rules_hash"]
+    for relative, digest in manifest["artifacts"].items():
+        assert sha256_of(directory / relative) == digest
+
+
+def test_audit_records_the_run_without_leaking_paths(workspace, tmp_path, capsys) -> None:
+    runs = tmp_path / "runs"
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--run-dir",
+        str(runs),
+    )
+    capsys.readouterr()
+
+    directory = next(runs.iterdir())
+    raw = (directory / "audit.jsonl").read_text(encoding="utf-8")
+    assert "good.csv" not in raw  # 参数只记哈希
+    entry = json.loads(raw.splitlines()[0])
+    assert entry["tool"] == "estimate"
+    assert entry["meta"]["claim_level"] == "suggestive"
+    assert entry["meta"]["family"] == "hte_backdoor"
+
+
+def test_waivers_are_persisted(workspace, tmp_path, capsys) -> None:
+    """豁免的理由必须落盘——它是事后审查这次分析时最该看的东西。"""
+    runs = tmp_path / "runs"
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["broken.csv"]),
+        "--run-dir",
+        str(runs),
+        "--waive",
+        "backdoor_overlap=已限制到有共同支撑的子人群",
+    )
+    capsys.readouterr()
+
+    directory = next(runs.iterdir())
+    waivers = json.loads((directory / "waivers.json").read_text(encoding="utf-8"))
+    assert waivers == {"backdoor_overlap": "已限制到有共同支撑的子人群"}
+
+
+def test_no_run_dir_writes_nothing(workspace, tmp_path, capsys) -> None:
+    run("estimate", "--spec", str(workspace["spec.yaml"]), "--data", str(workspace["good.csv"]))
+    capsys.readouterr()
+    assert not (tmp_path / "runs").exists()
 
 
 def test_report_can_reference_all_three_namespaces(workspace, tmp_path, capsys) -> None:

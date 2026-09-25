@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Added
+- **runtime**（design.md 第 14 节、G5）：`RunContext` 落盘 run 目录、
+  `Manifest` 记录全部会影响结果的东西（代码版本、依赖版本、spec_hash、seed、
+  判定规则哈希）、每个产物的 sha256、`verify()` 核对事后篡改。
+  所有写入原子（临时文件同目录 + fsync + `os.replace`）
+- **审计日志**：每次调用一行，**参数只记哈希不记内容**；元数据过一道敏感键名
+  检查，命中 password/dsn/token 等即抛错——「日志不记录凭据」由代码强制
+- **CLI `--run-dir`**：把一次运行完整落盘，含豁免理由
 - **措辞等级判定**（design.md 10.2、原则 5）：四级规则写在
   `core/reporting/claim_levels.yaml`，判定结果带规则哈希。代码自动判定的上限是
   suggestive——untestable 假设跑多少检验都验证不了，升到 causal 需要用户逐条论证

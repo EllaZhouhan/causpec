@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -16,11 +17,15 @@ import yaml
 
 from causpec import __version__
 from causpec.core import registry
+from causpec.core.contracts.manifest import ExecutionMode
+from causpec.core.contracts.quality import QualityReport
+from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
 from causpec.core.registry import FamilyUnavailable
-from causpec.core.reporting.claim_level import determine
+from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
 from causpec.core.reporting.render import RenderError, render
+from causpec.core.runtime.context import RunContext
 
 
 def _load_spec(path: Path) -> Spec:
@@ -50,6 +55,54 @@ def _resolve_family(spec: Spec):
     except (FamilyUnavailable, FileNotFoundError) as error:
         print(error, file=sys.stderr)
         raise SystemExit(4) from error
+
+
+def _persist_run(
+    args: argparse.Namespace,
+    spec: Spec,
+    report: QualityReport,
+    result: Result,
+    decision: ClaimLevelDecision,
+    rendered: str | None,
+    elapsed_ms: float,
+    waivers: dict[str, str],
+) -> Path:
+    """把这次运行落盘成一个 run 目录（design.md 第 14 节）。
+
+    产物一律原子写入，最后由 finalize 记下每个文件的 checksum。
+    审计日志只记参数哈希，不记参数内容——路径会泄露目录结构（ADR-0002），
+    列名会泄露 schema。
+    """
+    with RunContext.create(args.run_dir, ExecutionMode.CLI) as run:
+        run.write_text("spec.yaml", args.spec.read_text(encoding="utf-8"))
+        run.write_json("quality/issues.json", [i.model_dump(mode="json") for i in report.issues])
+        run.write_json("results/results.json", result.model_dump(mode="json"))
+        run.write_json("claim_level.json", decision.model_dump(mode="json"))
+        if waivers:
+            run.write_json("waivers.json", waivers)
+        if rendered is not None:
+            run.write_text("report.md", rendered)
+
+        run.audit(
+            "estimate",
+            {"spec": str(args.spec), "data": str(args.data), "seed": args.seed},
+            duration_ms=elapsed_ms,
+            ok=rendered is not None or args.report is None,
+            metadata={
+                "family": spec.family,
+                "n_rows": int(result.values.get("res:sample.n", 0)),
+                "claim_level": decision.level.value,
+                "n_blocking": len(report.blocking),
+                "n_waivers": len(waivers),
+            },
+        )
+        run.finalize(
+            spec_hash=spec.spec_hash(),
+            seed=args.seed,
+            claim_rules_hash=decision.rules_hash,
+        )
+    print(f"run 目录：{run.directory}", file=sys.stderr)
+    return run.directory
 
 
 def cmd_quality(args: argparse.Namespace) -> int:
@@ -83,7 +136,9 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         print(error, file=sys.stderr)
         return 2
 
+    started = time.perf_counter()
     result = family.estimate(data, spec, seed=args.seed)
+    elapsed_ms = (time.perf_counter() - started) * 1000
 
     # 措辞等级由代码判定，模型不能自行升级（design.md 原则 5）。
     decision = determine(spec, report, gate_passed=True, waived=waivers)
@@ -93,19 +148,29 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         **decision.addresses(),
     }
 
-    if args.report is None:
-        for address, value in addresses.items():
-            print(f"{address} = {value}")
-        print(f"\n措辞等级：{decision.level.value}")
-        for reason in decision.reasons:
-            print(f"  · {reason}")
+    rendered: str | None = None
+    render_error: RenderError | None = None
+    if args.report is not None:
+        try:
+            rendered = render(args.report.read_text(encoding="utf-8"), addresses)
+        except RenderError as error:
+            render_error = error
+
+    if args.run_dir is not None:
+        _persist_run(args, spec, report, result, decision, rendered, elapsed_ms, waivers)
+
+    if render_error is not None:
+        print(f"报告渲染失败：\n{render_error}", file=sys.stderr)
+        return 3
+    if rendered is not None:
+        print(rendered)
         return 0
 
-    try:
-        print(render(args.report.read_text(encoding="utf-8"), addresses))
-    except RenderError as error:
-        print(f"报告渲染失败：\n{error}", file=sys.stderr)
-        return 3
+    for address, value in addresses.items():
+        print(f"{address} = {value}")
+    print(f"\n措辞等级：{decision.level.value}")
+    for reason in decision.reasons:
+        print(f"  · {reason}")
     return 0
 
 
@@ -124,6 +189,11 @@ def build_parser() -> argparse.ArgumentParser:
     estimate.add_argument("--data", type=Path, required=True, help="数据 CSV / Parquet 路径")
     estimate.add_argument("--report", type=Path, help="报告模板；省略则直接打印带地址的结果")
     estimate.add_argument("--seed", type=int, default=42)
+    estimate.add_argument(
+        "--run-dir",
+        type=Path,
+        help="把这次运行落盘到这个目录下（manifest、产物 checksum、审计日志）",
+    )
     estimate.add_argument(
         "--waive",
         action="append",
