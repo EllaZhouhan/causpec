@@ -19,6 +19,7 @@ from causpec.core import registry
 from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
 from causpec.core.registry import FamilyUnavailable
+from causpec.core.reporting.claim_level import determine
 from causpec.core.reporting.render import RenderError, render
 
 
@@ -74,21 +75,34 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
     # 门控在估计之前。不通过就到此为止——这是代码里的 if，不是 prompt 里的规则。
     # 第 1 条查 spec 确认，第 2 条查有没有未豁免的 blocking 质量问题。
+    waivers = _parse_waivers(args.waive)
+    report = family.check(data, spec)
     try:
-        check_all(spec, family.check(data, spec), _parse_waivers(args.waive))
+        check_all(spec, report, waivers)
     except GateError as error:
         print(error, file=sys.stderr)
         return 2
 
     result = family.estimate(data, spec, seed=args.seed)
 
+    # 措辞等级由代码判定，模型不能自行升级（design.md 原则 5）。
+    decision = determine(spec, report, gate_passed=True, waived=waivers)
+    addresses: dict[str, float | int | str] = {
+        **result.values,
+        **report.addresses(),
+        **decision.addresses(),
+    }
+
     if args.report is None:
-        for address, value in result.values.items():
+        for address, value in addresses.items():
             print(f"{address} = {value}")
+        print(f"\n措辞等级：{decision.level.value}")
+        for reason in decision.reasons:
+            print(f"  · {reason}")
         return 0
 
     try:
-        print(render(args.report.read_text(encoding="utf-8"), result))
+        print(render(args.report.read_text(encoding="utf-8"), addresses))
     except RenderError as error:
         print(f"报告渲染失败：\n{error}", file=sys.stderr)
         return 3

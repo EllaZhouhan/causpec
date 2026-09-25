@@ -15,8 +15,7 @@
 from __future__ import annotations
 
 import re
-
-from causpec.core.contracts.result import Result
+from collections.abc import Mapping
 
 PLACEHOLDER = re.compile(r"\{\{([a-z]+):([A-Za-z0-9_.\-]+)\}\}")
 
@@ -55,11 +54,13 @@ def _as_float(value: object) -> float | None:
         return None
 
 
-def _check_literals_are_not_results(literals: list[str], result: Result) -> None:
+def _check_literals_are_not_results(
+    literals: list[str], addresses: Mapping[str, float | int | str]
+) -> None:
     """lit 里夹带计算结果 → 拒绝。"""
     numeric_results = {
         address: number
-        for address, value in result.values.items()
+        for address, value in addresses.items()
         if (number := _as_float(value)) is not None
     }
     for literal in literals:
@@ -75,8 +76,12 @@ def _check_literals_are_not_results(literals: list[str], result: Result) -> None
                 )
 
 
-def render(template: str, result: Result) -> str:
-    """把正文中的占位符替换成结果里的数值。
+def render(template: str, addresses: Mapping[str, float | int | str]) -> str:
+    """把正文中的占位符替换成地址表里的数值。
+
+    ``addresses`` 是各来源合并后的地址表：估计结果（``res:``）、质量检查
+    （``qc:``）、措辞等级（``claim:``）。渲染器不认识任何一个来源的类型，
+    只认识地址——这样加一种产物不需要动它。
 
     Raises:
         RenderError: 引用了不存在的地址、正文出现未经占位的数字，
@@ -91,18 +96,17 @@ def render(template: str, result: Result) -> str:
             literals.append(path)
             return path
         address = f"{namespace}:{path}"
-        try:
-            return str(result.resolve(address))
-        except KeyError:
+        if address not in addresses:
             unknown.append(address)
             return match.group(0)
+        return str(addresses[address])
 
     rendered = PLACEHOLDER.sub(substitute, template)
 
     if unknown:
         raise RenderError(
             f"引用了不存在的地址：{'、'.join(unknown)}。\n"
-            f"可用地址：{', '.join(sorted(result.values))}。\n"
+            f"可用地址：{', '.join(sorted(addresses))}。\n"
             f"请只引用上述地址，不要自己写数字。"
         )
 
@@ -111,8 +115,8 @@ def render(template: str, result: Result) -> str:
         raise RenderError(
             f"正文中出现未经占位的数字：{'、'.join(bare)}。\n"
             f"计算结果写成 {{{{res:...}}}}，术语里的固定数字写成 {{{{lit:28}}}}。\n"
-            f"可用地址：{', '.join(sorted(result.values))}。"
+            f"可用地址：{', '.join(sorted(addresses))}。"
         )
 
-    _check_literals_are_not_results(literals, result)
+    _check_literals_are_not_results(literals, addresses)
     return rendered

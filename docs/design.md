@@ -327,7 +327,14 @@ causal         ← suggestive + 所有 untestable 假设已由用户 justify + �
 - 任何降级都要在报告的"措辞等级及理由"一节写明是哪项检验、实测值多少、线在哪
 - 用户可对阻断检验记豁免（须附理由），豁免在报告中单列，且**豁免过的分析不能达到 causal**
 
-**阈值必须可见、可配、可复现。** 0.05/0.95 与 5% 都是惯例而非定律，能被合理质疑。真正重要的是三件事：事先定死（不是看到结果再定）、写进报告（读者看得到线在哪）、写进 manifest（半年后能复现当时的判定）。实现上放一个 `claim_levels.yaml`，阈值全在里面，manifest 记其哈希。
+**阈值必须可见、可配、可复现。** 0.05/0.95 与 5% 都是惯例而非定律，能被合理质疑。真正重要的是三件事：事先定死（不是看到结果再定）、写进报告（读者看得到线在哪）、写进 manifest（半年后能复现当时的判定）。实现上放一个 `claim_levels.yaml`（`packages/causpec/core/reporting/`），规则全在里面，manifest 记其哈希，判定结果里也带上（`claim:rules_hash`）。
+
+补充两条实现时定下的细节：
+
+- **豁免不改变诊断结论。** 被豁免的阻断检验仍然把等级压到 associational，报告中注明"已豁免，但诊断结论不变"。豁免让分析得以进行，不让问题消失。
+- **论证必须来自用户。** `source=model` 的论证不算数——模型论证自己的假设成立是循环的。`Assumption` 因此记 `justified_by`。
+
+判定结果通过 `claim:` 命名空间进报告：`claim:level`、`claim:n_unjustified_assumptions`、`claim:rules_version`、`claim:rules_hash`。渲染器同时接受 `res:`、`qc:`、`claim:` 三个来源合并后的地址表。
 
 【复用】等级划分与"通过不等于证明"的解释框架，改写自 Baygent causal-inference skill 的 scripts/check_refutation.py 与 references/refutation.md（MIT，保留版权声明）。原脚本区分 critical 与 marginal 两档检验、面向 Bayesian HDI；本项目取消 marginal 一档，阻断项收缩到上表两项，并改为频率学派诊断。
 

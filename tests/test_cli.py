@@ -19,6 +19,10 @@ question: 透析对 ICU 患者死亡率的平均效应？
 family: hte_backdoor
 estimation:
   params: {n_estimators: 52}
+assumptions:
+  - id: unconfoundedness
+    category: untestable
+    statement: 给定调整集后，处理分配与潜在结局独立
 fields:
   treatment:
     {value: isDialysisICU, source: user, said: 处理就是开始透析, turn: 2, status: confirmed}
@@ -199,3 +203,54 @@ def test_subcommands_are_registered(capsys) -> None:
 def test_no_subcommand_prints_help(capsys) -> None:
     assert main([]) == 0
     assert "usage" in capsys.readouterr().out
+
+
+# ---- 措辞等级 ----
+
+
+def test_estimate_prints_the_claim_level(workspace, capsys) -> None:
+    """措辞等级由代码判定并打印，模型不经手（design.md 原则 5）。"""
+    run("estimate", "--spec", str(workspace["spec.yaml"]), "--data", str(workspace["good.csv"]))
+    out = capsys.readouterr().out
+    assert "措辞等级：suggestive" in out
+    assert "unconfoundedness" in out  # 为什么不能更高，要说出来
+
+
+def test_waived_analysis_is_downgraded(workspace, capsys) -> None:
+    """豁免让分析跑起来，但措辞等级降到 associational。"""
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["broken.csv"]),
+        "--waive",
+        "backdoor_overlap=已限制到有共同支撑的子人群",
+    )
+    out = capsys.readouterr().out
+    assert "措辞等级：associational" in out
+    assert "已豁免，但诊断结论不变" in out
+
+
+def test_report_can_reference_all_three_namespaces(workspace, tmp_path, capsys) -> None:
+    """res:（估计）、qc:（质量检查）、claim:（措辞等级）在同一份报告里都能引用。"""
+    template = tmp_path / "three.md"
+    template.write_text(
+        "效应 {{res:primary.ate}}；"
+        "极端得分占比 {{qc:backdoor_overlap.extreme_fraction}}；"
+        "等级 {{claim:level}}。\n",
+        encoding="utf-8",
+    )
+    code = run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--report",
+        str(template),
+    )
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "{{" not in out
+    assert "suggestive" in out

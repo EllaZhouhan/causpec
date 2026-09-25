@@ -125,34 +125,34 @@ def test_hte_backdoor_declares_backdoor_estimands() -> None:
 
 def test_render_substitutes_addresses(result: Result) -> None:
     assert (
-        render("效应 {{res:primary.estimate}}。", result)
+        render("效应 {{res:primary.estimate}}。", result.values)
         == f"效应 {result.values['res:primary.estimate']}。"
     )
 
 
 def test_render_rejects_bare_number(result: Result) -> None:
     with pytest.raises(RenderError, match="未经占位的数字"):
-        render("效应大约是 -0.08。", result)
+        render("效应大约是 -0.08。", result.values)
 
 
 def test_render_rejects_unknown_address(result: Result) -> None:
     with pytest.raises(RenderError, match="地址"):
-        render("置信区间 {{res:primary.ci_lower}}。", result)
+        render("置信区间 {{res:primary.ci_lower}}。", result.values)
 
 
 def test_render_allows_literal_in_terminology(result: Result) -> None:
-    assert render("{{lit:28}} 天死亡率。", result) == "28 天死亡率。"
+    assert render("{{lit:28}} 天死亡率。", result.values) == "28 天死亡率。"
 
 
 def test_render_rejects_result_smuggled_as_literal(result: Result) -> None:
     estimate = result.values["res:primary.estimate"]
     with pytest.raises(RenderError, match="与计算结果"):
-        render(f"差值 {{{{lit:{estimate}}}}}。", result)
+        render(f"差值 {{{{lit:{estimate}}}}}。", result.values)
 
 
 def test_render_exempts_markdown_structure(result: Result) -> None:
     template = "## 结果\n\n1. 第一条\n2. 第二条\n\n| a | b |\n|---|---|\n| x | y |\n"
-    assert render(template, result) == template
+    assert render(template, result.values) == template
 
 
 def test_addresses_are_namespaced(result: Result) -> None:

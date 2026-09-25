@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- **措辞等级判定**（design.md 10.2、原则 5）：四级规则写在
+  `core/reporting/claim_levels.yaml`，判定结果带规则哈希。代码自动判定的上限是
+  suggestive——untestable 假设跑多少检验都验证不了，升到 causal 需要用户逐条论证
+  并显式确认。豁免不改变诊断结论。
+- **`Assumption` contract**：三分类（empirically_assessed / requires_justification /
+  untestable）、论证文本、`justified_by`——模型自己的论证不算数
+- **`claim:` 命名空间**；渲染器改为接受合并后的地址表，`res:` / `qc:` / `claim:`
+  可以在同一份报告里引用
 - **`hte_backdoor` 换上 CausalForestDML**，CATE 与 ATE 的区间都用 `blb`
   （bootstrap of little bags），不需要重抽样重拟合
 - **overlap / positivity 检查**（两项阻断检验的另一项）、IPW 前后的 SMD、

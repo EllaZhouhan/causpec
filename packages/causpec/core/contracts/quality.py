@@ -35,6 +35,11 @@ class QualityIssue(BaseModel):
 
     ``INFO`` 级也是一条 issue——诊断量算出来了但没问题，同样要有地址，
     因为报告要引用它的数值（例如"一阶段 F = {{qc:iv_weak_first_stage.f_statistic}}"）。
+
+    **不变量：``severity`` 反映的是检查的实际结果，不是它的声明。**
+    检查通过时 severity 一律降为 ``INFO``，只有失败时才用 family.yaml 里声明的
+    级别。因此 ``QualityReport.blocking`` 恰好是"声明为阻断且确实失败"的那些——
+    门控与措辞等级判定都依赖这一点。是否通过另外记在 ``evidence["passed"]`` 里。
     """
 
     model_config = ConfigDict(frozen=True)
