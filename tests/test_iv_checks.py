@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import pytest
 from dataset_a import config_for, generate
 
@@ -241,5 +240,7 @@ def test_family_exposes_check_through_the_protocol(strong) -> None:
     assert report.get("iv_weak_first_stage").evidence["passed"] is True
 
 
-def test_hte_backdoor_check_is_empty_for_now(strong) -> None:
-    assert registry.get("hte_backdoor").check(pd.DataFrame(), SPEC).issues == []
+def test_each_family_brings_its_own_checks(strong) -> None:
+    """两个 family 的检查集互不相同——core 不知道任何一方查了什么。"""
+    iv_checks = {i.check_id for i in registry.get("hte_iv").check(strong, SPEC).issues}
+    assert iv_checks and all(check.startswith("iv_") for check in iv_checks)

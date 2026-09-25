@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Added
+- **`hte_backdoor` 换上 CausalForestDML**，CATE 与 ATE 的区间都用 `blb`
+  （bootstrap of little bags），不需要重抽样重拟合
+- **overlap / positivity 检查**（两项阻断检验的另一项）、IPW 前后的 SMD、
+  Kish 有效样本量、处理流行率。倾向得分交叉拟合，默认梯度提升
+- **CLI `quality` 子命令**；`estimate` 现在会先跑检查再过门控，
+  `--waive CHECK_ID=理由` 豁免可豁免的 blocking 检查
 - **`QualityIssue` / `QualityReport` contract**（design.md 8.3）：check_id、layer、
   severity、waivable、evidence、affected_columns、impact_on_analysis、recommended_repair；
   每条证据都有 `qc:<check_id>.<key>` 地址供报告引用

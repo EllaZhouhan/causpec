@@ -1,7 +1,7 @@
 # hte_backdoor：后门调整下的异质处理效应（baseline）
 id: hte_backdoor
-status: planned
 analysis_type: hte
+requires_extra: hte
 
 answers: >
   在可观测混杂可被调整集充分控制的前提下，处理效应如何随协变量变化。
@@ -35,4 +35,48 @@ assumptions:
 
 estimator:
   primary: econml.dml.CausalForestDML       # EconML, MIT
+  cate_interval_method: blb                 # bootstrap of little bags，一次拟合内完成
+  ate_interval_method: blb                  # 与 hte_iv 不同：这里 ATE 区间也是解析的
   calibration: econml.validate.DRTester     # EconML, MIT
+  note: >
+    final model 就是森林本身，所以 econml 能给出方差估计，不需要重抽样重拟合。
+    hte_iv 的 NonParamDMLIV 只能 bootstrap，因为它的 final model 是任意回归器。
+
+status: implemented
+
+# 质量检查与阈值。阈值写在这里而不是代码里：它们决定结论能用多强的措辞
+# （design.md 10.2），必须事先定死、写进报告、进 manifest。都是惯例而非定律。
+checks:
+  backdoor_treatment_prevalence:
+    layer: feasibility
+    severity: warning
+    waivable: true
+    min_rate: 0.01
+    min_per_arm: 50
+
+  backdoor_overlap:
+    layer: identification
+    severity: blocking          # design.md 10.2 的两项阻断检验之一
+    waivable: true
+    # 倾向得分落在 [low, high] 之外的样本占比不超过 max_extreme_fraction。
+    propensity_low: 0.05
+    propensity_high: 0.95
+    max_extreme_fraction: 0.05
+    # 交叉拟合是必须的：同一份数据上拟合又预测会把得分推向 0/1，
+    # 于是"看上去"没有共同支撑，把好数据判成坏数据。
+    cv_folds: 5
+    # overlap 问的是"有没有一片区域里处理几乎是确定的"。设定过窄的模型
+    # 可能看不出真实分离——这里漏报比误报代价大，因为漏报会放行一个本该阻断的分析。
+    propensity_model: gradient_boosting     # gradient_boosting | logistic
+
+  backdoor_covariate_imbalance:
+    layer: identification
+    severity: warning           # 不阻断：design.md 10.2 明确把 SMD 列入"照印不设闸"
+    waivable: true
+    max_abs_smd: 0.10           # 因果推断文献的通行线
+
+  backdoor_extreme_weights:
+    layer: feasibility
+    severity: warning
+    waivable: true
+    min_ess_ratio: 0.20         # Kish 有效样本量 / 实际样本量

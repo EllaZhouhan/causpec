@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
 import pytest
 import yaml
 
@@ -28,14 +27,25 @@ def load_spec(name: str) -> Spec:
 
 
 @pytest.fixture
-def rows() -> pd.DataFrame:
-    return pd.read_csv(FIXTURES / "mini_icu.csv")
+def result() -> Result:
+    """手写的结果，不跑估计器。
 
-
-@pytest.fixture
-def result(rows: pd.DataFrame) -> Result:
-    spec = load_spec("spec_confirmed.yaml")
-    return registry.get(spec.family).estimate(rows, spec, seed=42)
+    这个文件锁的是门控、渲染、spec 契约——它们不该依赖任何 family 能不能跑起来，
+    也不该为此付出拟合一片森林的代价。估计器本身的行为见 test_hte_iv.py 与
+    test_hte_backdoor.py。
+    """
+    return Result(
+        family="hte_backdoor",
+        seed=42,
+        values={
+            "res:primary.estimate": 0.0289,
+            "res:primary.n": 60,
+            "res:primary.n_treated": 29,
+            "res:primary.n_control": 31,
+            "res:primary.mean_treated": 0.4483,
+            "res:primary.mean_control": 0.4194,
+        },
+    )
 
 
 # ---- design.md 7.1：用户话语是证据，要原样留底 ----
@@ -145,14 +155,5 @@ def test_render_exempts_markdown_structure(result: Result) -> None:
     assert render(template, result) == template
 
 
-# ---- 估计 ----
-
-
-def test_estimate_is_reproducible(rows: pd.DataFrame) -> None:
-    spec = load_spec("spec_confirmed.yaml")
-    family = registry.get(spec.family)
-    assert family.estimate(rows, spec, seed=42) == family.estimate(rows, spec, seed=42)
-
-
-def test_estimate_addresses_are_namespaced(result: Result) -> None:
+def test_addresses_are_namespaced(result: Result) -> None:
     assert all(address.startswith("res:") for address in result.values)
