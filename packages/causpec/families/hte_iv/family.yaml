@@ -1,30 +1,84 @@
 # hte_iv：IV 设定下的异质处理效应
 # 对应 design.md 7.6（estimand 与 family 对账）
 id: hte_iv
-status: planned          # planned | implemented
+status: implemented          # planned | implemented
 analysis_type: hte
+requires_extra: hte          # 依赖没装时 registry 用这个给出安装命令
 
 answers: >
   在存在未测混杂、但有可信 instrument 的情况下，处理效应如何随协变量变化。
 
 identification_strategy: instrumental_variable
 
-# 能识别的 estimand。validate 时比对 spec.estimand，不一致则改选 family 或改写 estimand。
+# 两个后端，由 spec.estimation.params.estimator 选。
+# 估计对象相同，区间的构造方式不同——必须写进报告（design.md 10.2）。
+estimators:
+  ivforest:                                 # 默认
+    class: econml.grf.CausalIVForest        # EconML, MIT
+    interval_method: grf_honest             # Athey–Tibshirani–Wager，一次拟合内完成
+    provides_ate_interval: false            # 逐点区间不能简单平均成 ATE 区间
+    supports_adjustment_set: false          # 没有独立的 W 通道，只调整 X
+    supports_multiple_instruments: false
+  dmliv:
+    class: econml.iv.dml.NonParamDMLIV      # EconML, MIT
+    model_final: sklearn RandomForestRegressor
+    interval_method: bootstrap              # EconML 对这个类只提供 bootstrap，没有解析式
+    provides_ate_interval: true
+    supports_adjustment_set: true
+    supports_multiple_instruments: true
+    note: 与研究代码最终版一致；可信的 percentile 区间需要 ≥100 次重抽样，很慢
+
+calibration: null    # TODO: IV 版本的 DR 得分，自写（design.md 第 9 节）
+
+# instrument 二值与连续都支持。识别对象随之不同——见下面两条 estimand。
+# discrete_instrument 由 adapter 按数据自动判定，并记入 res:instrument.kind。
+instrument_kinds: [binary, continuous]
+
 estimands:
   - id: conditional_late
     label: 条件 LATE（仅对 complier 成立）
+    instrument_kind: binary
     requires_assumptions: [relevance, exclusion_restriction, monotonicity]
+    interpretation: >
+      仅对 complier——即"因为 instrument 取值不同而改变了是否接受处理"的那部分人——
+      成立。complier 无法被识别到个体，因此这个估计对象不能解读为"某一位患者的效应"，
+      也不能解读为全人群的 CATE。报告必须写明这一点。
+
+  - id: weighted_conditional_late
+    label: 边际 LATE 的加权平均（连续 instrument）
+    instrument_kind: continuous
+    requires_assumptions: [relevance, exclusion_restriction, uniformity]
+    interpretation: >
+      连续 instrument 下不存在单一的 complier 群体。在 uniformity（单调性对连续
+      instrument 的推广）下，识别的是各相邻取值之间"边际 LATE"的加权平均，
+      权重由该处一阶段的斜率与 instrument 的分布共同决定
+      （Angrist & Imbens 1995, JASA）。权重不由用户选择，也不等同于人群占比，
+      因此这个估计对象的适用人群比二值情形更难描述——报告必须给出权重的分布。
+
   # TODO(design.md 7.6): 若另外假设「给定协变量后效应不随 compliance 类型变化」，
-  # 才可解释为 CATE。按 Project 1 实际采用的假设补齐下面这条。
+  # 上述两者才可解释为全人群的 CATE。是否采用这条假设、如何论证，由作者填写。
   # - id: cate
   #   label: 条件平均处理效应（全人群）
-  #   requires_assumptions: [relevance, exclusion_restriction, monotonicity, no_effect_heterogeneity_by_compliance]
+  #   requires_assumptions: [..., no_effect_heterogeneity_by_compliance]
 
 requires:
-  spec_fields: [treatment, outcome, instrument, adjustment_set, effect_modifiers, time_zero]
+  spec_fields:
+    - treatment            # → T，二值
+    - outcome              # → Y，二值
+    - instrument           # → Z，一列或多列
+    - effect_modifiers     # → X，CATE 随之变化的协变量
+    - adjustment_set       # → W，只进 nuisance 模型、不进 CATE 的协变量
+    - time_zero
   key_non_edges:
     - instrument 除经 treatment 外不影响 outcome    # exclusion restriction
     - instrument 与未测混杂无关
+
+  # effect_modifiers 与 adjustment_set 必须分别确认，不能合成一个列表。
+  # 研究代码里定义了 controls（75 列）和 features（60 列），实际只把 features
+  # 传给 X、W=None，两者之差被静默丢弃——spec 层面把它们分开就是为了堵这个。
+  note_x_vs_w: >
+    X 决定效应异质性的方向，W 只用于去除混杂。放错位置不会报错，只会悄悄改变
+    估计对象：进了 X 的变量会被当作效应修饰因子，进了 W 的不会。
 
 assumptions:
   - id: relevance
@@ -35,14 +89,18 @@ assumptions:
     statement: instrument 只通过 treatment 影响 outcome
   - id: monotonicity
     category: untestable
-    statement: 不存在 defier
-
-estimator:
-  primary: DMLIV           # 作者研究代码，Phase 0 任务 3 迁入
-  calibration: null        # TODO: IV 版本的 DR 得分，自写（design.md 第 9 节）
+    statement: 不存在 defier（二值 instrument）
+  - id: uniformity
+    category: untestable
+    statement: 一阶段对 instrument 的响应方向对所有个体一致（连续 instrument）
 
 diagnostics:
   instrument_relevance:
-    # 不使用统一的 first-stage F；线性诊断可选复用 StatsPAI（MIT）
-    - effective_f_test        # Montiel Olea–Pflueger
-    - anderson_rubin_test
+    # 不使用统一的 first-stage F：treatment 是二值，一阶段用 Probit/Logit。
+    # 线性一阶段的稳健 F 与 partial R² 作为补充。
+    - first_stage_probit_lr_test
+    - first_stage_pseudo_r2
+    - first_stage_f_robust
+    - partial_r2_iv
+  exogeneity:
+    - covariate_balance_by_instrument     # 各协变量对 instrument 回归的 p 值

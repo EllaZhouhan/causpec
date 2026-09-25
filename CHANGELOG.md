@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Added
+- **合成数据集 A 生成器**（`data/generators/dataset_a.py`）：带个体真值的结构因果模型，
+  未观测混杂让朴素估计与后门调整都有偏、只有 IV 能识别；二值与连续 instrument 两种形态；
+  `realistic` / `high_power` 两套预设
+- **`hte_iv` family**：两个后端（`ivforest` = CausalIVForest 解析区间，默认；
+  `dmliv` = NonParamDMLIV + bootstrap，与研究代码最终版一致），二值与连续 instrument 都支持
+- `causpec[hte]` extra：econml 与 scikit-learn；依赖缺失时给结构化错误 + 安装命令
 - 仓库骨架：uv、ruff、pyright、pytest、pre-commit、CI、import-linter
 - 数据文件拦截（`.gitignore` + pre-commit 钩子）
 - 全目录结构与各层职责说明；三个 family 的 `family.yaml` 声明
@@ -12,6 +18,11 @@
 - ADR-0001（报告中的字面量数字）、ADR-0002（数据源边界）
 
 ### Changed
+- 注册表改为按 id 动态导入，core 不再写死任何 family 的 import；
+  `family.yaml` 的 `requires_extra` 驱动安装提示
+- 全项目统一用 pandas DataFrame 传数据（原先 `list[dict[str, str]]`）
+- 估计器超参移到 `spec.estimation.params`（design.md 7.2），不再写死在 family 代码里——
+  它们影响结果，必须进 spec_hash 与 manifest
 - design.md 0.4：
   - 派生快照不再承诺 DuckDB，只规定两条契约（可写工作副本 + 规范化内容指纹）；
     默认实现为 parquet，数据超出单机内存时再换列式引擎

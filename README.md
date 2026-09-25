@@ -60,14 +60,53 @@ docs/                      design.md、plan.md、decisions/
 - [开发计划](docs/plan.md)
 - [决策记录](docs/decisions/)
 
+## 安装
+
+core 保持轻量（pydantic、pyyaml、pandas、numpy）。分析 family 的重依赖走 extra，按需安装：
+
+| extra | 拉进来什么 | 哪些 family 需要 |
+|---|---|---|
+| `hte` | EconML、scikit-learn | `hte_iv`、`hte_backdoor` |
+
+```bash
+# 只用 spec、质量检查、报告渲染
+uv sync
+
+# 要跑 HTE 估计
+uv sync --extra hte
+```
+
+pip 用户：`pip install causpec` 或 `pip install 'causpec[hte]'`。
+
+**没装 extra 时不会崩在 `ImportError` 上**——注册表返回结构化错误并给出安装命令：
+
+```console
+$ causpec estimate --spec spec.yaml --data cohort.csv
+[FAMILY_DEPENDENCY_MISSING] family hte_iv 的依赖未安装（econml）
+  修复：安装 causpec[hte]：uv sync --extra hte（或 pip install 'causpec[hte]'）
+```
+
 ## 开发
 
 ```bash
-uv sync --all-extras       # 安装依赖
-uv run pytest              # 测试
-uv run ruff check .        # lint
-pre-commit install         # 启用提交前检查（含数据文件拦截）
+uv sync --all-extras --dev   # 全部依赖
+uv run pytest                # 测试
+uv run ruff check .          # lint
+uv run lint-imports          # 架构契约：core 不导入 family
+pre-commit install           # 启用提交前检查（含数据文件拦截）
 ```
+
+## 合成数据
+
+```bash
+# 带真值的数据集 A。生成的数据不入库。
+uv run python data/generators/dataset_a.py --out /tmp/a.csv --preset realistic
+uv run python data/generators/dataset_a.py --out /tmp/a.csv --preset high_power --instrument-kind binary
+```
+
+`realistic` 照真实 ICU 研究的量级（处理率约 9.5%、死亡率约 4%），用于演示与质量检查；
+`high_power` 把 complier 份额与事件率提上去，供数值 evals——在 realistic 量级下
+IV 的标准误比真值本身还大，数值测试会被噪声淹没。
 
 ## 许可
 

@@ -8,13 +8,12 @@
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 
-import causpec.families.hte_backdoor  # noqa: F401  触发注册
 from causpec.core import registry
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Source, Spec, SpecField, Status
@@ -29,13 +28,12 @@ def load_spec(name: str) -> Spec:
 
 
 @pytest.fixture
-def rows() -> list[dict[str, str]]:
-    with (FIXTURES / "mini_icu.csv").open(encoding="utf-8", newline="") as f:
-        return list(csv.DictReader(f))
+def rows() -> pd.DataFrame:
+    return pd.read_csv(FIXTURES / "mini_icu.csv")
 
 
 @pytest.fixture
-def result(rows: list[dict[str, str]]) -> Result:
+def result(rows: pd.DataFrame) -> Result:
     spec = load_spec("spec_confirmed.yaml")
     return registry.get(spec.family).estimate(rows, spec, seed=42)
 
@@ -105,22 +103,11 @@ def test_spec_hash_is_stable_and_content_sensitive() -> None:
     assert spec.spec_hash() != load_spec("spec_drafted.yaml").spec_hash()
 
 
-# ---- design.md 第 4 节：注册表 ----
+# 注册表的行为（动态导入、声明读取、缺依赖）见 tests/test_registry.py
 
 
-def test_family_registered_and_declares_estimands() -> None:
-    assert "hte_backdoor" in registry.list_families()
+def test_hte_backdoor_declares_backdoor_estimands() -> None:
     assert set(registry.declared_estimands("hte_backdoor")) == {"ate", "att", "cate"}
-
-
-def test_hte_iv_declares_only_conditional_late() -> None:
-    """design.md 7.6：IV 只假设 monotonicity 时识别的是条件 LATE，不是 CATE。"""
-    assert registry.declared_estimands("hte_iv") == ["conditional_late"]
-
-
-def test_unknown_family_raises() -> None:
-    with pytest.raises(KeyError, match="未注册的 family"):
-        registry.get("did")
 
 
 # ---- design.md 10.1：数字只能由代码填 ----
@@ -161,7 +148,7 @@ def test_render_exempts_markdown_structure(result: Result) -> None:
 # ---- 估计 ----
 
 
-def test_estimate_is_reproducible(rows: list[dict[str, str]]) -> None:
+def test_estimate_is_reproducible(rows: pd.DataFrame) -> None:
     spec = load_spec("spec_confirmed.yaml")
     family = registry.get(spec.family)
     assert family.estimate(rows, spec, seed=42) == family.estimate(rows, spec, seed=42)

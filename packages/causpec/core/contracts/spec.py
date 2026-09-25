@@ -78,6 +78,15 @@ class Spec(BaseModel):
     question: str
     family: str
     fields: dict[str, SpecField] = Field(default_factory=dict)
+    # design.md 7.2 的 estimation: {family, params, seed}。
+    # 估计器超参放这里而不是写死在 family 代码里——它们影响结果，
+    # 因此必须随 spec 一起被确认、进 spec_hash、进 manifest。
+    estimation: dict[str, Any] = Field(default_factory=dict)
+
+    def param(self, name: str, default: Any) -> Any:
+        """取一个估计器超参，没有则用默认值。"""
+        params = self.estimation.get("params") or {}
+        return params.get(name, default)
 
     def unconfirmed_critical_fields(self) -> list[str]:
         """返回尚未确认的关键字段，按 CRITICAL_FIELDS 的顺序。缺失也算未确认。"""

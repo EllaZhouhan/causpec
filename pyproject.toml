@@ -9,6 +9,16 @@ requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
     "pyyaml>=6.0",
+    "pandas>=2.2",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# family 的重依赖走 extra：core 保持轻量，装不装由用户按需要决定。
+# 缺失时 registry 给结构化错误 + 安装命令，不是裸的 ImportError。
+hte = [
+    "econml>=0.15",
+    "scikit-learn>=1.4",
 ]
 
 [project.scripts]
@@ -43,10 +53,13 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["packages"]
+# data/generators 不是包的一部分（生成器不随 wheel 分发），但测试要验证它，
+# 所以在测试时加进路径。
+pythonpath = ["packages", "data/generators"]
 
 [tool.pyright]
-include = ["packages", "tests"]
+include = ["packages", "tests", "data/generators"]
+extraPaths = ["packages", "data/generators"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
 

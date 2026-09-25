@@ -15,7 +15,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: 安装依赖
+      - name: 安装依赖（含 hte extra，family 测试需要 econml）
         run: uv sync --all-extras --dev
 
       - name: ruff
@@ -32,3 +32,5 @@ jobs:
 
       - name: pytest
         run: uv run pytest
+        env:
+          PYTHONWARNINGS: ignore

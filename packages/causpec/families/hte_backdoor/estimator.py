@@ -9,11 +9,14 @@ Phase 1 任务 7 换成 EconML 的 CausalForestDML（MIT）。
 
 from __future__ import annotations
 
-from statistics import fmean
+from typing import TYPE_CHECKING
 
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.registry import register
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class HteBackdoor:
@@ -21,25 +24,25 @@ class HteBackdoor:
 
     id = "hte_backdoor"
 
-    def estimate(self, rows: list[dict[str, str]], spec: Spec, seed: int) -> Result:
+    def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
         treatment_col = str(spec.fields["treatment"].value)
         outcome_col = str(spec.fields["outcome"].value)
 
-        treated = [float(r[outcome_col]) for r in rows if r[treatment_col] == "1"]
-        control = [float(r[outcome_col]) for r in rows if r[treatment_col] == "0"]
-        if not treated or not control:
+        treated = data.loc[data[treatment_col] == 1, outcome_col].astype(float)
+        control = data.loc[data[treatment_col] == 0, outcome_col].astype(float)
+        if treated.empty or control.empty:
             raise ValueError("处理组或对照组为空，无法估计")
 
         return Result(
             family=self.id,
             seed=seed,
             values={
-                "res:primary.estimate": round(fmean(treated) - fmean(control), 4),
-                "res:primary.n": len(rows),
-                "res:primary.n_treated": len(treated),
-                "res:primary.n_control": len(control),
-                "res:primary.mean_treated": round(fmean(treated), 4),
-                "res:primary.mean_control": round(fmean(control), 4),
+                "res:primary.estimate": round(float(treated.mean() - control.mean()), 4),
+                "res:primary.n": int(len(data)),
+                "res:primary.n_treated": int(len(treated)),
+                "res:primary.n_control": int(len(control)),
+                "res:primary.mean_treated": round(float(treated.mean()), 4),
+                "res:primary.mean_control": round(float(control.mean()), 4),
             },
         )
 
