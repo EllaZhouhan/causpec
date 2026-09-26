@@ -186,3 +186,40 @@ def test_render_exempts_markdown_structure(result: Result) -> None:
 
 def test_addresses_are_namespaced(result: Result) -> None:
     assert all(address.startswith("res:") for address in result.values)
+
+
+# ---- 错误信息的可读性 ----
+
+
+def test_bare_number_error_suggests_the_fix(result: Result) -> None:
+    """冷启动测试里踩到的坑：术语里的数字被拦下时，要直接给出该写什么。"""
+    with pytest.raises(RenderError) as excinfo:
+        render("结局是 28 天死亡率。", result.values)
+    message = str(excinfo.value)
+    assert "{{lit:28}}" in message
+    assert "术语" in message
+
+
+def test_bare_number_error_points_at_a_matching_address(result: Result) -> None:
+    """裸数字恰好等于某个结果时，提示该引用哪个地址，而不是笼统地报错。"""
+    estimate = result.values["res:primary.estimate"]
+    with pytest.raises(RenderError) as excinfo:
+        render(f"效应是 {estimate}。", result.values)
+    assert "{{res:primary.estimate}}" in str(excinfo.value)
+
+
+def test_unknown_address_error_is_scoped_to_the_namespace(result: Result) -> None:
+    """错误信息不再把几十个地址糊成一坨——只列同命名空间的。"""
+    addresses = {**result.values, "qc:some_check.passed": "yes", "claim:level": "suggestive"}
+    with pytest.raises(RenderError) as excinfo:
+        render("{{res:primary.nonexistent}}", addresses)
+    message = str(excinfo.value)
+    assert "res:" in message
+    assert "claim:level" not in message  # 别的命名空间不该出现
+
+
+def test_address_list_is_truncated(result: Result) -> None:
+    many = {f"res:x.f{i:03d}": float(i) for i in range(40)}
+    with pytest.raises(RenderError) as excinfo:
+        render("{{res:x.missing}}", many)
+    assert "另有" in str(excinfo.value)

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import contextlib
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 
 # {{res:primary.ate}} 或 {{res:primary.ate|.3f}}——竖线后是 Python 的格式说明。
 # 有格式说明这件事是必要的：不给的话，报告里会出现 -0.017936448014042473，
@@ -68,6 +68,35 @@ def _format(value: object, spec: str | None, *, address: str) -> str:
         raise RenderError(
             f"{address} 的格式说明 {spec!r} 无法应用于值 {value!r}：{error}"
         ) from error
+
+
+def _format_address_list(addresses: Iterable[str], limit: int = 12) -> str:
+    """把地址列成人能读的样子。
+
+    全量列出会有几十个，糊成一坨反而把真正的修复建议淹没——冷启动测试里
+    就是这么翻车的。按命名空间分组，每组截断。
+    """
+    grouped: dict[str, list[str]] = {}
+    for address in sorted(addresses):
+        grouped.setdefault(address.split(":", 1)[0], []).append(address)
+    lines = []
+    for namespace, items in grouped.items():
+        shown = ", ".join(items[:limit])
+        more = f"…（另有 {len(items) - limit} 个）" if len(items) > limit else ""
+        lines.append(f"  {namespace}: {shown}{more}")
+    return "\n".join(lines)
+
+
+def _addresses_near(
+    number: float, addresses: Mapping[str, float | int | str], tolerance: float = 0.05
+) -> list[str]:
+    """数值与给定数字接近的地址——裸数字多半就是想引用它们中的一个。"""
+    near = []
+    for address, value in addresses.items():
+        candidate = _as_float(value)
+        if candidate is not None and abs(candidate - number) <= tolerance * max(abs(number), 1e-9):
+            near.append(address)
+    return sorted(near)
 
 
 def _as_float(value: object) -> float | None:
@@ -127,20 +156,36 @@ def render(template: str, addresses: Mapping[str, float | int | str]) -> str:
     rendered = PLACEHOLDER.sub(substitute, template)
 
     if unknown:
+        # 只列出同命名空间的地址：想引用的多半就在那里面。
+        namespaces = {address.split(":", 1)[0] for address in unknown}
+        candidates = [a for a in addresses if a.split(":", 1)[0] in namespaces] or list(addresses)
         raise RenderError(
-            f"引用了不存在的地址：{'、'.join(unknown)}。\n"
-            f"可用地址：{', '.join(sorted(addresses))}。\n"
+            f"引用了不存在的地址：{'、'.join(unknown)}。\n\n"
+            f"同命名空间下可用的地址：\n{_format_address_list(candidates)}\n\n"
             f"请只引用上述地址，不要自己写数字。"
         )
 
     bare = BARE_NUMBER.findall(_strip_exempt(template))
     if bare:
-        raise RenderError(
-            f"正文中出现未经占位的数字：{'、'.join(bare)}。\n"
-            f"计算结果写成 {{{{res:...}}}}，术语里的固定数字写成 {{{{lit:28}}}}。\n"
-            f"需要控制精度时在地址后加格式说明，例如 {{{{res:primary.ate|.3f}}}}。\n"
-            f"可用地址：{', '.join(sorted(addresses))}。"
-        )
+        lines = [f"正文中出现未经占位的数字：{'、'.join(bare)}。", ""]
+        for text in dict.fromkeys(bare):  # 去重但保持出现顺序
+            number = _as_float(text)
+            matches = _addresses_near(number, addresses) if number is not None else []
+            if matches:
+                lines.append(
+                    f"  {text} → 可能是想引用 {'、'.join(f'{{{{{a}}}}}' for a in matches)}"
+                )
+            else:
+                lines.append(
+                    f"  {text} → 如果这是术语的一部分（例如「{text} 天死亡率」），"
+                    f"写成 {{{{lit:{text}}}}}"
+                )
+        lines += [
+            "",
+            "计算结果写成 {{res:...}}，术语里的固定数字写成 {{lit:28}}。",
+            "需要控制精度时在地址后加格式说明，例如 {{res:primary.ate|.3f}}。",
+        ]
+        raise RenderError("\n".join(lines))
 
     _check_literals_are_not_results(literals, addresses)
     return rendered
