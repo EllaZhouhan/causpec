@@ -82,6 +82,20 @@ estimation:
 
 调低次数会让区间失真：实测同一份数据，20 次重抽样与 GRF 解析区间给出的「个体显著获益人数」差了两个数量级（416 对 3）。所以次数不够时结果里会打标记，报告必须把这件事摆出来。
 
+## skill 形态
+
+`skill/causpec-analyst/` 是 claude.ai 上用的形态（best-effort）。打包：
+
+```bash
+./scripts/build_skill.sh     # 构建 wheel 放进 assets，打出 dist/causpec-analyst-skill.zip
+```
+
+wheel 是构建产物，不入库——入库的 wheel 会和源码悄悄脱节，而 skill 在 claude.ai 上跑的正是它。
+
+**为什么是 best-effort**：agent 在技术上可以绕过 `scripts/run.py` 直接读数据自己算，
+所以「数字只由代码产生」这条保证在 skill 形态下依赖 agent 遵守规则。报告页眉会注明这一点。
+MCP 形态没有这个问题——那边模型只能通过声明过的工具与数据交互（尚未实现）。
+
 ## 文档
 
 - [设计文档](docs/design.md)

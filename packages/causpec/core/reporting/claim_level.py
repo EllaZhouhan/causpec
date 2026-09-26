@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.resources as resources
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.spec import Spec
 
-RULES_PATH = Path(__file__).parent / "claim_levels.yaml"
+# 同 registry：走 importlib.resources，skill 形态下包是从 wheel（zip）里 import 的。
+RULES_PACKAGE = "causpec.core.reporting"
+RULES_NAME = "claim_levels.yaml"
 
 # 用户显式同意以因果措辞陈述的字段名（design.md 10.2）。
 CAUSAL_APPROVAL_FIELD = "causal_claim_approved"
@@ -47,14 +50,19 @@ class ClaimLevel(StrEnum):
 _ORDER = {level: index for index, level in enumerate(ClaimLevel)}
 
 
+def _rules_bytes(path: Path | None = None) -> bytes:
+    if path is not None:
+        return path.read_bytes()
+    return resources.files(RULES_PACKAGE).joinpath(RULES_NAME).read_bytes()
+
+
 def load_rules(path: Path | None = None) -> dict[str, Any]:
-    return yaml.safe_load((path or RULES_PATH).read_text(encoding="utf-8"))
+    return yaml.safe_load(_rules_bytes(path).decode("utf-8"))
 
 
 def rules_hash(path: Path | None = None) -> str:
     """规则文件的哈希，进 manifest——半年后能复现当时的判定依据。"""
-    raw = (path or RULES_PATH).read_bytes()
-    return hashlib.sha256(raw).hexdigest()[:16]
+    return hashlib.sha256(_rules_bytes(path)).hexdigest()[:16]
 
 
 class ClaimLevelDecision(BaseModel):

@@ -1,35 +1,73 @@
-# claim-levels
+# 措辞等级
 
-> 占位。Phase 2（W4）填充。
+四级：`causal` > `suggestive` > `associational` > `descriptive`。
 
-对应 design.md 10.2。四级措辞：causal / suggestive / associational / descriptive。
+**等级由代码判定，你不得自行升级。** 你的工作是让正文措辞与判定结果一致。
 
-等级由**代码**判定，skill 只负责让正文措辞与判定的等级一致，不得自行升级。
-
-## 代码只能降级，不能授予 causal
-
-untestable 类假设（unconfoundedness、exclusion restriction、monotonicity）不管跑多少检验都验证不了，所以**代码自动判定的上限是 suggestive**。升到 causal 需要人担保：每条 untestable 假设都填了 justification 且 `source=user`，加上用户显式确认愿意以因果措辞陈述。
-
-## 只有两项阻断检验
-
-取舍原则：**置信区间已经表达的，不再设闸。** 样本量、精度这些 CI 自己会说；CI 说不了的只有系统性偏倚。
-
-| 阻断检验 | 通过线 |
-|---|---|
-| Overlap / positivity | 倾向得分落在 [0.05, 0.95] 之外的样本 ≤ 5% |
-| Instrument relevance（仅 IV） | effective F 超过 MOP 表对应临界值 |
-
-E-value、反驳检验、SMD、排序稳定性**照印不设闸**，进报告供读者判断。
-
-## 定级
+## 判定规则
 
 ```
-descriptive    ← 门控没过
-associational  ← 两项阻断任一不通过
-suggestive     ← 两项都通过
-causal         ← suggestive + 人担保 untestable 假设 + 用户显式确认
+descriptive    ← 门控没过（spec 未确认，或有未豁免的 blocking 质量问题）
+associational  ← 两项阻断检验任一不通过（即使被豁免）
+suggestive     ← 两项都通过 —— 这是代码能给的最高级
+causal         ← suggestive + 全部 untestable 假设由用户论证 + 用户显式确认
 ```
 
-降级必须在报告里写明：哪项检验、实测值多少、线在哪。
+## 代码为什么给不出 `causal`
 
-改写自 Baygent causal-inference 的 `scripts/check_refutation.py` 与 `references/refutation.md`（MIT，保留版权声明）；取消了原脚本的 marginal 一档，阻断项收缩到两项，并改为频率学派诊断。
+`untestable` 类假设（unconfoundedness、exclusion restriction、monotonicity）
+**原则上无法由数据检验**。跑再多诊断也证明不了它们。
+
+所以责任是分开的：
+
+- **代码**保证「诊断没发现问题」
+- **人**担保「假设成立」
+
+报告里会写明是谁认的。这不是形式主义——用因果措辞陈述一个观测性研究的结论，
+是有后果的，做这个决定的应该是能承担后果的人。
+
+## 怎么和用户谈这件事
+
+用户看到 `suggestive` 可能会问「为什么不能说是因果的」。照实说：
+
+> 「诊断都通过了，数据这一侧没发现问题。但『给定这些协变量后透析与预后无关』
+> 这条假设，没有任何检验能验证——它成立与否是临床判断。
+> 如果您愿意为它背书并说明理由，我可以把措辞升到因果级，
+> 报告里会写明这个判断是您做出的。」
+
+**不要替用户做这个决定，也不要暗示这只是个手续。**
+
+## 模型自己的论证不算数
+
+```yaml
+- id: unconfoundedness
+  justification: 我认为已经控制了主要混杂因素
+  justified_by: model        # ← 不算数，仍然停在 suggestive
+```
+
+模型论证自己的假设成立是循环的。`justified_by` 必须是 `user`。
+
+## 豁免不改变诊断结论
+
+被豁免的阻断检验仍然把等级压到 `associational`，理由里会写
+「已豁免，但诊断结论不变」。而且豁免过的分析**永远达不到 `causal`**。
+
+豁免让分析得以进行，不让问题消失。
+
+## 各级的写法
+
+| 等级 | 能怎么说 | 不能怎么说 |
+|---|---|---|
+| `causal` | 「透析使 28 天死亡率降低了 X」 | — |
+| `suggestive` | 「数据提示透析可能与死亡率降低有关，效应量为 X」 | 「降低了」 |
+| `associational` | 「接受透析的患者死亡率低 X，本分析不足以支持因果解读」 | 「与……有关」这种暗示方向的说法 |
+| `descriptive` | 「处理组死亡率 X，对照组 Y」 | 任何组间比较的推断 |
+
+`descriptive` 级只陈述数值，**连「低了多少」都不说**——因为门控没过意味着
+连这个比较本身都不可靠。
+
+## 规则可查
+
+判定规则写在 `claim_levels.yaml` 里，报告会记下它的版本与哈希。
+阈值和规则都是惯例而非定律，可以被质疑——重要的是它们事先定死、
+写进报告、半年后能复现。

@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Added
+- **skill 形态可用**：完整的 SKILL.md（八条关键规则 + 八步流程）、
+  八份 references、narrative 模板、`scripts/run.py`（沙箱里没装 causpec 时
+  从捆绑的 wheel 直接 zip 导入）、`scripts/build_skill.sh` 打包
+- **skill 一致性测试**：文档里列的 family、检查、可撰写段落、措辞等级
+  必须与代码实际行为一致——文档会悄悄过期，这些测试把两边钉在一起
 - **报告固定结构**（design.md 10.3）：十个段落顺序由代码决定，
   「假设写在结果之前」是结构保证而非提醒。spec 来源表与措辞等级判定由代码生成，
   模型不得为这两节撰稿；其余段落可提供解读，一律走占位符渲染
@@ -59,6 +64,11 @@
 - ADR-0001（报告中的字面量数字）、ADR-0002（数据源边界）
 
 ### Changed
+- **包内资源改用 `importlib.resources` 读取**（`family.yaml`、`claim_levels.yaml`）。
+  原先用 `Path(__file__).parent`，从 wheel（zip）里 import 时找不到文件——
+  这个 bug 是在干净环境里实跑 skill 的 `run.py` 时发现的
+- 读 family 声明不再 import 该 family 的包：`resources.files("causpec.families.hte_iv")`
+  会执行它的 `__init__` 进而拉 econml，导致「依赖缺失」被误报成「未知的 family」
 - 注册表改为按 id 动态导入，core 不再写死任何 family 的 import；
   `family.yaml` 的 `requires_extra` 驱动安装提示
 - 全项目统一用 pandas DataFrame 传数据（原先 `list[dict[str, str]]`）

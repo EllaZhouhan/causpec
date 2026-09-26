@@ -16,8 +16,8 @@ core 永远不认识任何具体的 family——``get()`` 按 id 动态导入，
 from __future__ import annotations
 
 import importlib
+import importlib.resources as resources
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import yaml
@@ -29,7 +29,7 @@ from causpec.core.contracts.spec import Spec
 if TYPE_CHECKING:
     import pandas as pd
 
-FAMILIES_DIR = Path(__file__).parent.parent / "families"
+FAMILIES_PACKAGE = "causpec.families"
 
 
 @runtime_checkable
@@ -75,8 +75,18 @@ def register(family: Family) -> Family:
 
 
 def declared_families() -> list[str]:
-    """磁盘上声明了 family.yaml 的所有 family，与是否已导入无关。"""
-    return sorted(p.parent.name for p in FAMILIES_DIR.glob("*/family.yaml"))
+    """声明了 family.yaml 的所有 family，与是否已导入无关。
+
+    走 importlib.resources 而不是文件系统路径：skill 形态下 causpec 是从
+    wheel（一个 zip）里直接 import 的，那时 ``Path(__file__)`` 不指向真实文件。
+    这个 bug 是在干净环境里实跑 skill/scripts/run.py 时发现的。
+    """
+    root = resources.files(FAMILIES_PACKAGE)
+    return sorted(
+        entry.name
+        for entry in root.iterdir()
+        if entry.is_dir() and entry.joinpath("family.yaml").is_file()
+    )
 
 
 def load_declaration(family_id: str) -> dict[str, Any]:
@@ -85,11 +95,16 @@ def load_declaration(family_id: str) -> dict[str, Any]:
     声明里写着这个 family 回答什么问题、能识别哪些 estimand、需要什么、假设什么，
     是 design.md 7.6 estimand 对账的依据。
     """
-    path = FAMILIES_DIR / family_id / "family.yaml"
-    if not path.exists():
+    # 从父包导航，**不 import 子包**：resources.files("causpec.families.hte_iv")
+    # 会执行那个包的 __init__，进而拉 econml。读一份声明不该需要它的依赖——
+    # requires_extra 这个字段存在的意义就是让人在装依赖之前先知道要装什么。
+    resource = resources.files(FAMILIES_PACKAGE).joinpath(family_id).joinpath("family.yaml")
+    try:
+        text = resource.read_text(encoding="utf-8")
+    except (FileNotFoundError, NotADirectoryError, OSError, KeyError) as error:
         known = "、".join(declared_families()) or "（无）"
-        raise FileNotFoundError(f"未知的 family：{family_id}。已声明的：{known}")
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+        raise FileNotFoundError(f"未知的 family：{family_id}。已声明的：{known}") from error
+    return yaml.safe_load(text)
 
 
 def declared_estimands(family_id: str) -> list[str]:
