@@ -1,18 +1,22 @@
-"""hte_iv 的专属质量检查：instrument 的相关性与外生性。
+"""hte_iv's own quality checks: instrument relevance and exogeneity.
 
-对应 design.md 8.2（instrument relevance）与 10.2（两项阻断检验之一）。
-迁自研究代码的 ``test_iv_validity``（IV.ipynb 的 robust 版本），保留全部诊断量，
-输出改为带地址的 QualityIssue，并补上两处：
+Mirrors design.md 8.2 (instrument relevance) and 10.2 (one of the two blocking
+checks). Migrated from the research code's ``test_iv_validity`` (the robust version
+in IV.ipynb), keeping every diagnostic but emitting addressed QualityIssues, and
+adding two things the original lacked:
 
-1. **多重比较校正。** 原代码逐个协变量报 p 值。60 个协变量里平均有 3 个会在
-   0.05 下"显著"纯属偶然，不校正就会把噪声读成失衡。这里用 Benjamini–Hochberg
-   控制 FDR。
-2. **阈值外置。** 通过或不通过的线写在 family.yaml 里，不埋在代码中——
-   它们决定结论能用多强的措辞，必须事先定死、进报告、进 manifest。
+1. **A multiple-comparison correction.** The original reported a p-value per
+   covariate. Out of 60 covariates, roughly 3 will be "significant" at 0.05 by chance
+   alone; without a correction that noise reads as imbalance. Benjamini-Hochberg
+   controls the FDR here.
+2. **Thresholds outside the code.** Where the line falls is declared in family.yaml,
+   not buried here — thresholds decide how strongly a conclusion may be worded, so
+   they must be fixed in advance and end up in the report and the manifest.
 
-诊断形式由 family 决定，不统一使用 first-stage F（design.md 8.2）：treatment 是
-二值，所以一阶段同时给出 Probit 的 LR 检验与 McFadden 增量 R²，以及线性一阶段的
-稳健 F 与 partial R²。三者一并进报告，由读者判断。
+The form of the diagnostic is the family's business, not a universal first-stage F
+(design.md 8.2): the treatment is binary, so the first stage reports both a probit LR
+test with a McFadden increment and a linear robust F with a partial R-squared. All of
+them go into the report for the reader to weigh.
 """
 
 from __future__ import annotations
@@ -46,17 +50,18 @@ def _issue_settings(config: dict[str, Any], check_id: str) -> tuple[Layer, Sever
 
 
 def benjamini_hochberg(p_values: np.ndarray, level: float) -> np.ndarray:
-    """BH 过程：返回哪些假设在给定 FDR 水平下被拒绝。
+    """The BH procedure: which hypotheses are rejected at a given FDR level.
 
-    自写而非引入 statsmodels.multitest，因为这是六行的闭式过程，
-    自己写便于对照原文（Benjamini & Hochberg 1995, JRSS-B）。
+    Written by hand rather than pulled from statsmodels.multitest: it is a six-line
+    closed-form procedure, and having it here makes it easy to check against the
+    original paper (Benjamini & Hochberg 1995, JRSS-B).
     """
     n = len(p_values)
     if n == 0:
         return np.zeros(0, dtype=bool)
     order = np.argsort(p_values)
     ranked = p_values[order]
-    # 最大的 k 使得 p_(k) <= k/n * level；该 k 及之前全部拒绝
+    # The largest k with p_(k) <= k/n * level; that k and everything before it is rejected.
     below = ranked <= (np.arange(1, n + 1) / n) * level
     rejected = np.zeros(n, dtype=bool)
     if below.any():
@@ -73,14 +78,16 @@ def _design_matrix(data: pd.DataFrame, columns: list[str]) -> np.ndarray:
 def _first_stage_linear(
     treatment: np.ndarray, data: pd.DataFrame, instruments: list[str], controls: list[str]
 ) -> dict[str, float]:
-    """线性一阶段：稳健 F、partial R²。
+    """Linear first stage: robust F and partial R-squared.
 
-    partial R² 走 Frisch–Waugh–Lovell：把 T 和 Z 都对 controls 回归取残差，
-    再看残差之间的 R²——这就是控制住 controls 之后 Z 对 T 的解释力。
+    The partial R-squared goes through Frisch-Waugh-Lovell: residualise both T and Z
+    on the controls, then take the R-squared between the residuals — that is Z's
+    explanatory power for T once the controls are held fixed.
     """
     full = sm.OLS(treatment, _design_matrix(data, instruments + controls)).fit(cov_type=ROBUST_COV)
 
-    # 联合检验 instrument 的系数全为零。常数项在第 0 列，instrument 紧随其后。
+    # Joint test that every instrument coefficient is zero. The constant sits in column
+    # 0 and the instruments follow immediately.
     n_params = full.params.shape[0]
     restriction = np.zeros((len(instruments), n_params))
     for row, col in enumerate(range(1, len(instruments) + 1)):
@@ -109,10 +116,11 @@ def _first_stage_linear(
 def _first_stage_probit(
     treatment: np.ndarray, data: pd.DataFrame, instruments: list[str], controls: list[str]
 ) -> dict[str, float]:
-    """Probit 一阶段：LR 联合显著性检验与 McFadden 增量 R²。
+    """Probit first stage: an LR test for joint significance and a McFadden increment.
 
-    treatment 是二值，线性一阶段的 F 只是近似；Probit 版本更贴合设定，
-    两者都报出来（design.md 8.2：诊断形式由 family 决定）。
+    The treatment is binary, so the linear first-stage F is only an approximation; the
+    probit version fits the setting better. Both are reported (design.md 8.2: the form
+    of the diagnostic is the family's business).
     """
     unrestricted = sm.Probit(treatment, _design_matrix(data, instruments + controls)).fit(
         disp=False, maxiter=200
@@ -125,7 +133,7 @@ def _first_stage_probit(
     return {
         "lr_statistic": lr_stat,
         "lr_p_value": float(stats.chi2.sf(lr_stat, df)),
-        # 相对「只有 controls」的增量 McFadden R²：加入 instrument 多解释了多少
+        # McFadden R-squared relative to "controls only": how much the instruments add.
         "mcfadden_r2_increment": float(1.0 - unrestricted.llf / restricted.llf),
     }
 
@@ -133,11 +141,13 @@ def _first_stage_probit(
 def _covariate_balance(
     data: pd.DataFrame, instruments: list[str], covariates: list[str], level: float
 ) -> tuple[dict[str, float], np.ndarray]:
-    """逐个协变量对 instrument 回归，取 instrument 的联合 p 值，再做 BH 校正。
+    """Regress each covariate on the instruments, take the joint p-value, apply BH.
 
-    instrument 若真的近似随机分配，协变量在它上面应当是平衡的。这是
-    「instrument 与未测混杂无关」的**必要条件**——不平衡是坏信号，
-    平衡不构成 exclusion restriction 成立的证据（那一条本就无法检验）。
+    If the instrument really is close to randomly assigned, the covariates should be
+    balanced across it. This is a **necessary** condition for "the instrument is
+    independent of unmeasured confounders" — imbalance is a bad sign, but balance is
+    not evidence that the exclusion restriction holds, since that one cannot be tested
+    at all.
     """
     p_values = []
     z_design = _design_matrix(data, instruments)
@@ -158,9 +168,10 @@ def _covariate_balance(
 def check_instrument(
     data: pd.DataFrame, spec: Spec, config: dict[str, Any] | None = None
 ) -> QualityReport:
-    """跑 hte_iv 的全部 instrument 检查，返回带地址的 issue 列表。
+    """Run every instrument check for hte_iv and return addressed issues.
 
-    ``config`` 是 family.yaml 的 ``checks`` 段；不给则用代码里的默认阈值。
+    ``config`` is the ``checks`` section of family.yaml; omitting it falls back to the
+    defaults written here.
     """
     from causpec.families.hte_iv.estimator import _column_names
 
@@ -169,12 +180,12 @@ def check_instrument(
     instruments = _column_names(spec, "instrument")
     covariates = _column_names(spec, "effect_modifiers") + _column_names(spec, "adjustment_set")
     if not instruments:
-        raise ValueError("hte_iv 的质量检查需要 spec.instrument")
+        raise ValueError("hte_iv's quality checks require spec.instrument")
 
     treatment = data[treatment_col].astype(float).to_numpy()
     issues: list[QualityIssue] = []
 
-    # ---- 1. instrument 有没有变异 ----
+    # ---- 1. does the instrument vary at all ----
     layer, severity, waivable = _issue_settings(config, "iv_zero_variation")
     min_unique = int(_threshold(config, "iv_zero_variation", "min_unique_values", 2))
     min_std = _threshold(config, "iv_zero_variation", "min_std", 1e-8)
@@ -190,22 +201,28 @@ def check_instrument(
                 layer=layer,
                 severity=severity,
                 waivable=waivable,
-                summary=f"instrument 在本人群中几乎没有变异：{'、'.join(degenerate)}",
+                summary=(
+                    f"the instrument barely varies in this population: {', '.join(degenerate)}"
+                ),
                 evidence={
                     "n_degenerate": len(degenerate),
                     "min_unique_values": min_unique,
                     "passed": False,
                 },
                 affected_columns=degenerate,
-                impact_on_analysis="一阶段无从识别，IV 估计不可进行。",
+                impact_on_analysis=(
+                    "There is nothing for the first stage to identify, so an IV estimate "
+                    "cannot be produced."
+                ),
                 recommended_repair=(
-                    "检查人群过滤是否把 instrument 的变异筛掉了，或改用其他 instrument。"
+                    "Check whether the population filter removed the instrument's "
+                    "variation, or choose a different instrument."
                 ),
             )
         )
-        return QualityReport(issues=issues)  # 没有变异就不必往下算了
+        return QualityReport(issues=issues)  # nothing further is computable
 
-    # ---- 2. 一阶段强度（阻断）----
+    # ---- 2. first-stage strength (blocking) ----
     linear = _first_stage_linear(treatment, data, instruments, covariates)
     probit = _first_stage_probit(treatment, data, instruments, covariates)
     layer, severity, waivable = _issue_settings(config, "iv_weak_first_stage")
@@ -219,8 +236,8 @@ def check_instrument(
             severity=severity if not passed else Severity.INFO,
             waivable=waivable,
             summary=(
-                f"一阶段稳健 F = {linear['robust_f']:.2f}"
-                f"（线 {min_f:g}），Probit LR 检验 p = {probit['lr_p_value']:.4f}"
+                f"first-stage robust F = {linear['robust_f']:.2f} (threshold {min_f:g}), "
+                f"probit LR test p = {probit['lr_p_value']:.4f}"
             ),
             evidence={
                 "robust_f": round(linear["robust_f"], 4),
@@ -235,21 +252,23 @@ def check_instrument(
             },
             affected_columns=instruments,
             impact_on_analysis=(
-                "弱工具下 IV 估计的偏倚可以任意大，置信区间的覆盖率失效；"
-                "结论措辞不得超过 associational 级。"
+                "Under a weak instrument the bias in an IV estimate can be arbitrarily "
+                "large and the confidence interval loses its coverage; the conclusion "
+                "may not be worded above associational."
                 if not passed
-                else "一阶段强度达到设定的线。"
+                else "First-stage strength meets the threshold."
             ),
             recommended_repair=(
-                "改用更强的 instrument，或改用不依赖 instrument 的识别策略"
-                "（若可论证无未测混杂）。豁免须写明理由。"
+                "Use a stronger instrument, or switch to an identification strategy that "
+                "does not need one (if no unmeasured confounding can be argued). A waiver "
+                "must state its reason."
                 if not passed
                 else ""
             ),
         )
     )
 
-    # ---- 3. complier 占比（仅二值 instrument）----
+    # ---- 3. complier share (binary instruments only) ----
     if len(instruments) == 1 and set(data[instruments[0]].dropna().unique()) <= {0, 1}:
         z = data[instruments[0]].to_numpy()
         share = float(treatment[z == 1].mean() - treatment[z == 0].mean())
@@ -262,7 +281,7 @@ def check_instrument(
                 layer=layer,
                 severity=severity if not passed else Severity.INFO,
                 waivable=waivable,
-                summary=f"complier 占比约 {share:.1%}（线 {min_share:.0%}）",
+                summary=f"complier share about {share:.1%} (threshold {min_share:.0%})",
                 evidence={
                     "complier_share": round(share, 6),
                     "threshold": min_share,
@@ -272,14 +291,19 @@ def check_instrument(
                 },
                 affected_columns=instruments,
                 impact_on_analysis=(
-                    "估计对象是 complier 的条件 LATE。complier 占比小意味着结论只对"
-                    "人群中很窄的一部分成立，且无法识别到个体——报告必须写明这一点。"
+                    "The estimand is the conditional LATE among compliers. A small "
+                    "complier share means the conclusion holds only for a narrow slice of "
+                    "the population, and compliers cannot be identified individually — "
+                    "the report has to say so."
                 ),
-                recommended_repair="不必修复，但报告中须明确 estimand 的适用人群。",
+                recommended_repair=(
+                    "Nothing to repair, but the report must state which population the "
+                    "estimand applies to."
+                ),
             )
         )
 
-    # ---- 4. 协变量平衡（BH 校正）----
+    # ---- 4. covariate balance (BH-corrected) ----
     if covariates:
         layer, severity, waivable = _issue_settings(config, "iv_covariate_imbalance")
         fdr = _threshold(config, "iv_covariate_imbalance", "fdr_level", 0.10)
@@ -296,8 +320,8 @@ def check_instrument(
                 severity=severity if not passed else Severity.INFO,
                 waivable=waivable,
                 summary=(
-                    f"{len(imbalanced)}/{len(covariates)} 个协变量在 instrument 上失衡"
-                    f"（BH FDR {fdr:g}）"
+                    f"{len(imbalanced)}/{len(covariates)} covariates are imbalanced across "
+                    f"the instrument (BH FDR {fdr:g})"
                 ),
                 evidence={
                     "n_covariates": len(covariates),
@@ -305,18 +329,24 @@ def check_instrument(
                     "imbalanced_fraction": round(fraction, 6),
                     "threshold": max_fraction,
                     "fdr_level": fdr,
-                    # 不校正时会「显著」的个数，用来说明校正的必要性
+                    # How many would look "significant" without the correction, to show
+                    # why the correction is needed.
                     "n_nominally_significant": n_naive,
                     "min_p_value": round(min(p_values.values()), 6),
                     "passed": passed,
                 },
                 affected_columns=imbalanced,
                 impact_on_analysis=(
-                    "instrument 与协变量相关，说明它未必接近随机分配，"
-                    "「instrument 与未测混杂无关」这条假设的可信度下降。"
-                    "这是必要条件不成立的信号——平衡本身不构成 exclusion restriction 的证据。"
+                    "The instrument is associated with covariates, so it may not be close "
+                    "to randomly assigned, which weakens the case for 'the instrument is "
+                    "independent of unmeasured confounders'. This is a failed necessary "
+                    "condition — balance on its own would not be evidence for the "
+                    "exclusion restriction."
                 ),
-                recommended_repair="把失衡的协变量纳入调整集，或重新论证 instrument 的外生性。",
+                recommended_repair=(
+                    "Add the imbalanced covariates to the adjustment set, or re-argue the "
+                    "instrument's exogeneity."
+                ),
             )
         )
 

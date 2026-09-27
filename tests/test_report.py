@@ -1,6 +1,7 @@
-"""报告组装：固定结构、代码生成的事实、模型撰写的解读。
+"""Report assembly: fixed structure, code-generated facts, model-written interpretation.
 
-对应 design.md 10.3。锁两条性质：段落顺序不可协商；纯事实段落模型碰不到。
+Mirrors design.md 10.3. Two properties are pinned here: the section order is not
+negotiable, and purely factual sections are out of the model's reach.
 """
 
 from __future__ import annotations
@@ -35,29 +36,29 @@ ADDRESSES: dict[str, float | int | str] = {
 }
 
 
-def confirmed(value: object, said: str = "确认", turn: int = 1) -> SpecField:
+def confirmed(value: object, said: str = "confirmed", turn: int = 1) -> SpecField:
     return SpecField(value=value, source=Source.USER, said=said, turn=turn, status=Status.CONFIRMED)
 
 
 SPEC = Spec(
-    question="透析对 ICU 患者死亡率的平均效应？",
+    question="What is the average effect of dialysis on ICU mortality?",
     family="hte_backdoor",
     assumptions=[
         Assumption(
             id="unconfoundedness",
             category=AssumptionCategory.UNTESTABLE,
-            statement="给定调整集后处理分配与潜在结局独立",
+            statement="given the adjustment set, assignment is independent of potential outcomes",
         ),
         Assumption(
             id="positivity",
             category=AssumptionCategory.EMPIRICALLY_ASSESSED,
-            statement="每个协变量取值下两种处理都有正概率",
+            statement="both treatments have positive probability at every covariate value",
         ),
     ],
     fields={
-        "treatment": confirmed("isDialysisICU", "处理是 ICU 内开始透析", 2),
-        "outcome": confirmed("death", "结局看院内死亡", 4),
-        "estimand": confirmed("ate", "对，全人群平均效应", 6),
+        "treatment": confirmed("isDialysisICU", "treatment means starting dialysis in the ICU", 2),
+        "outcome": confirmed("death", "the outcome is in-hospital death", 4),
+        "estimand": confirmed("ate", "yes, the population average effect", 6),
     },
 )
 
@@ -68,7 +69,7 @@ QUALITY = QualityReport(
             layer=Layer.IDENTIFICATION,
             severity=Severity.INFO,
             waivable=True,
-            summary="0.2% 的样本落在阈值之外",
+            summary="0.2% of the sample falls outside the threshold",
             evidence={"passed": True},
         )
     ]
@@ -80,10 +81,10 @@ FAILING_QUALITY = QualityReport(
             layer=Layer.IDENTIFICATION,
             severity=Severity.BLOCKING,
             waivable=True,
-            summary="88% 的样本落在阈值之外",
+            summary="88% of the sample falls outside the threshold",
             evidence={"passed": False},
-            impact_on_analysis="估计是外推出来的。",
-            recommended_repair="限制人群。",
+            impact_on_analysis="the estimate is extrapolated rather than observed.",
+            recommended_repair="Restrict the population.",
         )
     ]
 )
@@ -94,21 +95,21 @@ def sections_of(markdown: str) -> list[str]:
     return [line[3:] for line in markdown.splitlines() if line.startswith("## ")]
 
 
-# ---- 结构 ----
+# ---- structure ----
 
 
 def test_assumptions_come_before_results() -> None:
-    """design.md 10.3 的要点：人是先看到假设才看到数字的。"""
+    """The point of design.md 10.3: a reader sees the assumptions before the numbers."""
     order = sections_of(build(SPEC, QUALITY, DECISION, ADDRESSES))
     assert order.index(TITLES[Section.ASSUMPTIONS]) < order.index(TITLES[Section.PRIMARY_RESULTS])
 
 
 def test_section_order_is_fixed_regardless_of_narrative_order() -> None:
-    """模型按什么顺序交稿都不影响报告的顺序。"""
+    """Whatever order the model submits in, the report's order is unchanged."""
     reversed_narrative = {
-        Section.LIMITATIONS: "局限文字",
-        Section.PRIMARY_RESULTS: "结果文字",
-        Section.ESTIMAND: "估计对象文字",
+        Section.LIMITATIONS: "limitations prose",
+        Section.PRIMARY_RESULTS: "results prose",
+        Section.ESTIMAND: "estimand prose",
     }
     order = sections_of(build(SPEC, QUALITY, DECISION, ADDRESSES, narrative=reversed_narrative))
     expected = [TITLES[s] for s in SECTION_ORDER if s is not Section.POST_HOC]
@@ -121,26 +122,32 @@ def test_post_hoc_section_is_omitted_when_empty() -> None:
 
 def test_post_hoc_section_appears_last_when_present() -> None:
     order = sections_of(
-        build(SPEC, QUALITY, DECISION, ADDRESSES, narrative={Section.POST_HOC: "事后分析"})
+        build(SPEC, QUALITY, DECISION, ADDRESSES, narrative={Section.POST_HOC: "post-hoc analysis"})
     )
     assert order[-1] == TITLES[Section.POST_HOC]
 
 
 def test_unimplemented_sections_say_so_rather_than_vanish() -> None:
-    """读者要知道这份报告缺了什么——留空不等于通过。"""
+    """The reader needs to know what is missing; an empty section is not a pass."""
     markdown = build(SPEC, QUALITY, DECISION, ADDRESSES)
     assert TITLES[Section.SENSITIVITY] in sections_of(markdown)
-    assert "尚未实现" in markdown
-    assert "留空不代表该项检查已通过" in markdown
+    assert "not implemented yet" in markdown
+    assert "does **not** mean the check passed" in markdown
 
 
-# ---- 模型碰不到的段落 ----
+# ---- sections out of the model's reach ----
 
 
 @pytest.mark.parametrize("section", sorted(set(Section) - MODEL_AUTHORED_SECTIONS, key=str))
 def test_factual_sections_reject_model_text(section: Section) -> None:
-    with pytest.raises(ReportError, match="由代码生成"):
-        build(SPEC, QUALITY, DECISION, ADDRESSES, narrative={section: "模型想写点什么"})
+    with pytest.raises(ReportError, match="generated by code"):
+        build(
+            SPEC,
+            QUALITY,
+            DECISION,
+            ADDRESSES,
+            narrative={section: "the model would like to write something"},
+        )
 
 
 def test_error_lists_the_writable_sections(section: Section = Section.CLAIM_LEVEL) -> None:
@@ -149,39 +156,41 @@ def test_error_lists_the_writable_sections(section: Section = Section.CLAIM_LEVE
 
 
 def test_narrative_accepts_plain_string_keys() -> None:
-    markdown = build(SPEC, QUALITY, DECISION, ADDRESSES, narrative={"limitations": "局限文字"})
-    assert "局限文字" in markdown
+    markdown = build(
+        SPEC, QUALITY, DECISION, ADDRESSES, narrative={"limitations": "limitations prose"}
+    )
+    assert "limitations prose" in markdown
 
 
-# ---- spec 来源表 ----
+# ---- the spec provenance table ----
 
 
 def test_spec_table_shows_source_and_verbatim_words() -> None:
-    """design.md 7.1 的缓解措施：把来源摆出来供人事后核查。"""
+    """design.md 7.1's mitigation: show the provenance so a person can audit it."""
     markdown = build(SPEC, QUALITY, DECISION, ADDRESSES)
-    assert "处理是 ICU 内开始透析" in markdown
-    assert "无法验证用户是否真的看过" in markdown
+    assert "treatment means starting dialysis in the ICU" in markdown
+    assert "cannot verify that the user actually read" in markdown
     assert SPEC.spec_hash() in markdown
 
 
 def test_skill_mode_is_flagged_as_best_effort() -> None:
-    """design.md 第 3 节：skill 形态 best-effort，报告页眉注明。"""
+    """design.md section 3: the skill form is best-effort, noted in the report header."""
     markdown = build(SPEC, QUALITY, DECISION, ADDRESSES, execution_mode=ExecutionMode.SKILL)
     assert "best-effort" in markdown
-    assert "绕过脚本直接读取数据" in markdown
+    assert "bypass the scripts and read the data directly" in markdown
 
 
 def test_cli_mode_has_no_best_effort_warning() -> None:
     assert "best-effort" not in build(SPEC, QUALITY, DECISION, ADDRESSES)
 
 
-# ---- 假设分列 ----
+# ---- assumptions by category ----
 
 
 def test_untestable_assumptions_are_marked_unjustified() -> None:
     markdown = build(SPEC, QUALITY, DECISION, ADDRESSES)
-    assert "无法检验" in markdown
-    assert "尚未获得论证" in markdown
+    assert "Untestable" in markdown
+    assert "No justification given" in markdown
 
 
 def test_justified_assumption_names_who_justified_it() -> None:
@@ -189,46 +198,51 @@ def test_justified_assumption_names_who_justified_it() -> None:
         update={
             "assumptions": [
                 SPEC.assumptions[0].model_copy(
-                    update={"justification": "方案变量已全部纳入", "justified_by": Source.USER}
+                    update={
+                        "justification": "every protocol variable is included",
+                        "justified_by": Source.USER,
+                    }
                 )
             ]
         }
     )
     markdown = build(justified, QUALITY, DECISION, ADDRESSES)
-    assert "论证（user）：方案变量已全部纳入" in markdown
-    assert "尚未获得论证" not in markdown
+    assert "Justification (user): every protocol variable is included" in markdown
+    assert "No justification given" not in markdown
 
 
 def test_missing_assumptions_are_called_out() -> None:
     bare = SPEC.model_copy(update={"assumptions": []})
-    assert "没有假设就没有识别" in build(bare, QUALITY, DECISION, ADDRESSES)
+    assert "without assumptions there is no identification" in build(
+        bare, QUALITY, DECISION, ADDRESSES
+    )
 
 
-# ---- 质量与措辞等级 ----
+# ---- quality and claim level ----
 
 
 def test_failing_check_reports_impact_and_repair() -> None:
     decision = determine(SPEC, FAILING_QUALITY, gate_passed=True)
     markdown = build(SPEC, FAILING_QUALITY, decision, ADDRESSES)
-    assert "估计是外推出来的。" in markdown
-    assert "建议：限制人群。" in markdown
+    assert "extrapolated rather than observed" in markdown
+    assert "Restrict the population" in markdown
 
 
 def test_claim_level_section_states_allowed_wording() -> None:
     markdown = build(SPEC, QUALITY, DECISION, ADDRESSES)
     assert "`suggestive`" in markdown
-    assert "不断言因果" in markdown
+    assert "asserts no causation" in markdown
     assert DECISION.rules_hash in markdown
 
 
 def test_pipe_characters_are_escaped_in_tables() -> None:
-    """|SMD| 这样的写法会把表格劈成两列。"""
-    issue = QUALITY.issues[0].model_copy(update={"summary": "最大 |SMD| 为 0.04"})
+    """A phrase like |SMD| would otherwise split a table column in two."""
+    issue = QUALITY.issues[0].model_copy(update={"summary": "max |SMD| is 0.04"})
     markdown = build(SPEC, QualityReport(issues=[issue]), DECISION, ADDRESSES)
     assert "\\|SMD\\|" in markdown
 
 
-# ---- 解读文字走占位符渲染 ----
+# ---- interpretation goes through placeholder rendering ----
 
 
 def test_narrative_placeholders_are_substituted() -> None:
@@ -237,19 +251,19 @@ def test_narrative_placeholders_are_substituted() -> None:
         QUALITY,
         DECISION,
         ADDRESSES,
-        narrative={Section.PRIMARY_RESULTS: "共 {{res:sample.n}} 人。"},
+        narrative={Section.PRIMARY_RESULTS: "a total of {{res:sample.n}} patients."},
     )
-    assert "共 2000 人。" in markdown
+    assert "a total of 2000 patients." in markdown
 
 
 def test_narrative_rejects_bare_numbers() -> None:
-    with pytest.raises(RenderError, match="未经占位的数字"):
+    with pytest.raises(RenderError, match="Un-placeheld number"):
         build(
             SPEC,
             QUALITY,
             DECISION,
             ADDRESSES,
-            narrative={Section.PRIMARY_RESULTS: "效应约为 -0.018。"},
+            narrative={Section.PRIMARY_RESULTS: "the effect is about -0.018."},
         )
 
 
@@ -259,6 +273,10 @@ def test_narrative_can_reference_quality_addresses() -> None:
         QUALITY,
         DECISION,
         ADDRESSES,
-        narrative={Section.DATA_QUALITY: "落线外 {{qc:backdoor_overlap.extreme_fraction|.1%}}。"},
+        narrative={
+            Section.DATA_QUALITY: (
+                "outside the threshold: {{qc:backdoor_overlap.extreme_fraction|.1%}}."
+            )
+        },
     )
-    assert "落线外 0.2%。" in markdown
+    assert "outside the threshold: 0.2%." in markdown

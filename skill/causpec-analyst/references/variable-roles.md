@@ -1,62 +1,74 @@
-# 变量角色
+# Variable roles
 
-## `effect_modifiers`（X）与 `adjustment_set`（W）必须分开
+## `effect_modifiers` (X) and `adjustment_set` (W) are separate
 
-这是 spec 里最容易出错、而且**出错不会报错**的地方。
+This is the easiest place in the spec to get wrong, and getting it wrong **raises no
+error**.
 
-| 字段 | 作用 | 放错的后果 |
+| Field | Purpose | Cost of misplacing a variable |
 |---|---|---|
-| `effect_modifiers` | 效应随之变化的变量，进 CATE 模型 | 本不该被当作效应修饰因子的变量被当成了 |
-| `adjustment_set` | 只用于去除混杂，不进 CATE | 本该解释异质性的变量被降级成纯混杂控制 |
+| `effect_modifiers` | Variables the effect varies over; enters the CATE model | A variable that should not be treated as an effect modifier is treated as one |
+| `adjustment_set` | Removes confounding only; does not enter the CATE | A variable that should explain heterogeneity is demoted to pure confounding control |
 
-两者都只是「传给估计器的列」，放错位置不会抛异常，只会**悄悄改变估计对象**。
+Both are just "columns handed to the estimator". Putting one in the wrong place
+throws no exception — it **quietly changes the estimand**.
 
-这条规则来自一次真实的教训：一份研究代码定义了 75 列 `controls` 和 60 列
-`features`，实际只把 `features` 传给了 X、`W=None`，两者之差的十几列
-被静默丢弃，没有任何提示。CauSpec 把它们做成两个必须分别确认的字段，就是为了堵这个。
+The rule comes from a real lesson: a piece of research code defined 75 `controls` and
+60 `features`, passed only `features` as X with `W=None`, and silently dropped the
+dozen-odd columns in between with no warning at all. CauSpec makes them two fields,
+each confirmed separately, to prevent a repeat.
 
-**怎么问用户**：
+**How to ask**:
 
-> 「`sofa_total_24h` 这个变量，您是想看效应**是否随它变化**（比如"病情越重获益越多"），
-> 还是只把它当作需要控制的混杂因素？」
+> "For `sofa_total_24h` — do you want to see whether the **effect varies with it**
+> (say, sicker patients benefiting more), or is it just a confounder you want
+> controlled?"
 
-前者进 `effect_modifiers`，后者进 `adjustment_set`。都想要就两边都放。
+The former goes in `effect_modifiers`, the latter in `adjustment_set`. Both, if they
+want both.
 
-## 什么变量绝对不能进调整集
+## Variables that can never enter the adjustment set
 
-**处理后测量的变量。** 调整一个处理后变量会堵住因果路径本身，或者打开
-collider 路径——两种都会引入偏倚，而且偏倚方向无法预判。
+**Anything measured after treatment.** Adjusting for a post-treatment variable either
+blocks the causal path itself or opens a collider path; both introduce bias, and the
+direction cannot be predicted.
 
-所以判断顺序是：**先看测量时间，再看角色**。
+So the order of reasoning is: **measurement time first, role second**.
 
 ```
-这个变量是在 time zero 之前测的吗？
-  ├─ 否 → 不能进调整集。哪怕它看起来像个混杂因素。
-  └─ 是 → 再问它是混杂、效应修饰，还是无关
+Was this measured before time zero?
+  |- no  -> it cannot enter the adjustment set, however much it looks like a confounder
+  `- yes -> now ask whether it is a confounder, an effect modifier, or irrelevant
 ```
 
-没有时间信息时不要猜——问用户：「`max_creatinine` 是入 ICU 时测的，
-还是包含了开始透析之后的值？」
+When the timing is unclear, do not guess — ask: "Was `max_creatinine` measured at ICU
+admission, or does it include values after dialysis started?"
 
-## 处理前是必要条件，不是充分条件
+## Pre-treatment is necessary, not sufficient
 
-处理前变量也可能是后门路径上的 collider（M-bias）。高维 DML 的常规做法是
-调整全部处理前变量；文献对此有分歧——Ding 与 Miratrix（2015）的分析表明
-M-bias 通常小于不调整造成的混杂偏倚，Pearl（2015）对这一结论的适用范围提出了异议。
+A pre-treatment variable can still be a collider on a backdoor path (M-bias). The
+usual practice in high-dimensional DML is to adjust for every pre-treatment variable;
+the literature disagrees about this — Ding and Miratrix (2015) argue that M-bias is
+usually smaller than the confounding bias from not adjusting, while Pearl (2015)
+disputes the scope of that conclusion.
 
-实践上：**不要因为担心 M-bias 就排除处理前变量**，但如果用户明确指出某个变量
-可能是 collider，把它记进 spec 的 `assumptions`（category 为 `requires_justification`），
-并在报告里说明。
+In practice: **do not exclude pre-treatment variables out of fear of M-bias**, but if
+the user identifies one as a possible collider, record it in the spec's `assumptions`
+(category `requires_justification`) and note it in the report.
 
-## 不要求用户画完整的 DAG
+## Do not ask the user to draw a full DAG
 
-EHR 场景的协变量动辄几十个，强制画完整图在实践中只会流于形式。
-要的是两样东西：
+EHR settings routinely have dozens of covariates, and forcing a complete diagram
+produces a formality rather than a model. Two things are wanted instead:
 
-1. 每个变量（或变量组）的角色——依据它的**测量窗口**起草，请用户确认
-2. 少数几条决定识别成立的「无边」假设，写进 `assumptions`
+1. A role for each variable or group, drafted from its **measurement window** and
+   confirmed by the user
+2. The few "no edge" assumptions that decide whether identification holds, recorded
+   in `assumptions`
 
-IV 设定下至少要包括：instrument 除经 treatment 外不影响 outcome
-（exclusion restriction），instrument 与未测混杂无关。
+Under IV, those must at least include: the instrument does not affect the outcome
+except through the treatment (the exclusion restriction), and the instrument is
+independent of unmeasured confounders.
 
-> 变量角色图的自动渲染尚未实现，报告里那一节会注明这一点。
+> Automatic rendering of the variable-role diagram is not implemented; the report says
+> so in that section.

@@ -1,9 +1,9 @@
-"""垂直切片的回归测试：门控、渲染、注册表。
+"""Regression tests for the vertical slice: gate, rendering, registry.
 
-这些测试固定的是 design.md 里三个机制的**行为**，不是实现：
-- 11.2 门控：关键字段未确认时拒绝估计
-- 10.1 渲染：数字只能由代码填
-- 第 4 节：core 不认识具体 family，family 向注册表报到
+These pin the **behaviour** of three mechanisms from design.md, not their implementation:
+- 11.2 gate: refuse to estimate while a critical field is unconfirmed
+- 10.1 rendering: only code puts numbers in the report
+- section 4: core knows no specific family; families register themselves
 """
 
 from __future__ import annotations
@@ -28,10 +28,11 @@ def load_spec(name: str) -> Spec:
 
 @pytest.fixture
 def result() -> Result:
-    """手写的结果，不跑估计器。
+    """A hand-written Result; no estimator runs.
 
-    这个文件锁的是门控、渲染、spec 契约——它们不该依赖任何 family 能不能跑起来，
-    也不该为此付出拟合一片森林的代价。估计器本身的行为见 test_hte_iv.py 与
+    This file pins the gate, the renderer and the spec contract, none of which should
+    depend on any family being runnable, or pay the cost of fitting a forest to find
+    out. For the estimators themselves see test_hte_iv.py and
     test_hte_backdoor.py。
     """
     return Result(
@@ -48,11 +49,11 @@ def result() -> Result:
     )
 
 
-# ---- design.md 7.1：用户话语是证据，要原样留底 ----
+# ---- design.md 7.1: the user's words are the evidence, kept verbatim ----
 
 
 def test_user_sourced_field_requires_quote() -> None:
-    with pytest.raises(ValueError, match="用户原话"):
+    with pytest.raises(ValueError, match="user's own words"):
         SpecField(value="rrt", source=Source.USER)
 
 
@@ -61,24 +62,29 @@ def test_model_sourced_draft_needs_no_quote() -> None:
 
 
 def test_confirmed_field_requires_quote_even_when_model_sourced() -> None:
-    """design.md 7.1：确认必附原话，堵门控的根部漏洞。
+    """design.md 7.1: confirmation requires a quote, which plugs the gate's root hole.
 
-    模型可以自己调 update_field 宣布「用户确认了」。要求 confirmed 必须带上用户
-    当时那句话，模型想跳过确认就得编造引语，而引语会印在报告首页供人核对。
+    The model can call update_field and announce that the user confirmed. Requiring a
+    quote means skipping confirmation requires fabricating one, and the fabricated
+    quote lands on the report's front page where the user can check it.
     """
-    with pytest.raises(ValueError, match="确认时的原话"):
+    with pytest.raises(ValueError, match="words at confirmation"):
         SpecField(value="ate", source=Source.MODEL, status=Status.CONFIRMED)
 
 
 def test_model_inferred_value_can_be_confirmed_by_user() -> None:
-    """值由模型推断、确认由用户给出——source 仍是 model，said 记用户认可时的原话。"""
+    """Value inferred by the model, confirmed by the user: source stays model while said
+    records the user's words at confirmation."""
     field = SpecField(
-        value="ate", source=Source.MODEL, said="对，我想知道整体平均效应", status=Status.CONFIRMED
+        value="ate",
+        source=Source.MODEL,
+        said="yes, I want the overall average effect",
+        status=Status.CONFIRMED,
     )
     assert field.source is Source.MODEL and field.status is Status.CONFIRMED
 
 
-# ---- design.md 11.2：门控 ----
+# ---- design.md 11.2: the gate ----
 
 
 def test_gate_rejects_unconfirmed_spec() -> None:
@@ -100,7 +106,7 @@ def test_missing_critical_field_counts_as_unconfirmed() -> None:
         family="hte_backdoor",
         fields={
             "treatment": SpecField(
-                value="rrt", source=Source.MODEL, said="就用 rrt 这列", status=Status.CONFIRMED
+                value="rrt", source=Source.MODEL, said="use the rrt column", status=Status.CONFIRMED
             )
         },
     )
@@ -113,51 +119,53 @@ def test_spec_hash_is_stable_and_content_sensitive() -> None:
     assert spec.spec_hash() != load_spec("spec_drafted.yaml").spec_hash()
 
 
-# 注册表的行为（动态导入、声明读取、缺依赖）见 tests/test_registry.py
+# Registry behaviour (dynamic import, declaration loading, missing deps) is in
+# tests/test_registry.py
 
 
 def test_hte_backdoor_declares_backdoor_estimands() -> None:
     assert set(registry.declared_estimands("hte_backdoor")) == {"ate", "att", "cate"}
 
 
-# ---- design.md 10.1：数字只能由代码填 ----
+# ---- design.md 10.1: only code puts numbers in the report ----
 
 
 def test_render_substitutes_addresses(result: Result) -> None:
     assert (
-        render("效应 {{res:primary.estimate}}。", result.values)
-        == f"效应 {result.values['res:primary.estimate']}。"
+        render("effect {{res:primary.estimate}}。", result.values)
+        == f"effect {result.values['res:primary.estimate']}。"
     )
 
 
 def test_render_rejects_bare_number(result: Result) -> None:
-    with pytest.raises(RenderError, match="未经占位的数字"):
-        render("效应大约是 -0.08。", result.values)
+    with pytest.raises(RenderError, match="Un-placeheld number"):
+        render("the effect is about -0.08.", result.values)
 
 
 def test_render_rejects_unknown_address(result: Result) -> None:
-    with pytest.raises(RenderError, match="地址"):
-        render("置信区间 {{res:primary.ci_lower}}。", result.values)
+    with pytest.raises(RenderError, match="No such address"):
+        render("confidence interval {{res:primary.ci_lower}}.", result.values)
 
 
 def test_render_allows_literal_in_terminology(result: Result) -> None:
-    assert render("{{lit:28}} 天死亡率。", result.values) == "28 天死亡率。"
+    assert render("{{lit:28}}-day mortality.", result.values) == "28-day mortality."
 
 
 def test_render_rejects_result_smuggled_as_literal(result: Result) -> None:
     estimate = result.values["res:primary.estimate"]
-    with pytest.raises(RenderError, match="与计算结果"):
-        render(f"差值 {{{{lit:{estimate}}}}}。", result.values)
+    with pytest.raises(RenderError, match="equals the computed result"):
+        render(f"difference {{{{lit:{estimate}}}}}。", result.values)
 
 
-# ---- 格式说明 ----
+# ---- format specs ----
 
 
 def test_format_spec_controls_precision(result: Result) -> None:
-    """没有这个，报告里会出现 17 位有效数字，而模型面对它的自然反应是
-    自己写成 -0.018——那就绕过 G4 了。让它能声明精度，比让它自己动手安全。"""
+    """Without this the report shows 17 significant digits, and a model's natural
+    response is to round it to -0.018 itself, which defeats G4. Letting it declare
+    precision is safer than letting it do the maths."""
     addresses = {"res:primary.ate": -0.017936448014042473}
-    assert render("效应 {{res:primary.ate|+.3f}}。", addresses) == "效应 -0.018。"
+    assert render("effect {{res:primary.ate|+.3f}}。", addresses) == "effect -0.018。"
 
 
 def test_percent_format(result: Result) -> None:
@@ -165,22 +173,23 @@ def test_percent_format(result: Result) -> None:
 
 
 def test_format_spec_works_on_literals(result: Result) -> None:
-    assert render("{{lit:95}}% 置信区间", result.values) == "95% 置信区间"
+    assert render("{{lit:95}}% confidence interval", result.values) == "95% confidence interval"
 
 
 def test_invalid_format_spec_raises_instead_of_falling_back(result: Result) -> None:
-    """格式写错要报错，不能悄悄回退到默认格式——那会让报告里的精度不可预期。"""
-    with pytest.raises(RenderError, match="格式说明"):
+    """A bad format spec must raise rather than fall back silently, or the report's
+    precision becomes unpredictable."""
+    with pytest.raises(RenderError, match="format spec"):
         render("{{res:primary.n|.2%x}}", result.values)
 
 
 def test_format_spec_does_not_exempt_bare_numbers(result: Result) -> None:
-    with pytest.raises(RenderError, match="未经占位的数字"):
-        render("效应 {{res:primary.estimate|.3f}}，另有 0.5 没占位。", result.values)
+    with pytest.raises(RenderError, match="Un-placeheld number"):
+        render("effect {{res:primary.estimate|.3f}}, plus a stray 0.5.", result.values)
 
 
 def test_render_exempts_markdown_structure(result: Result) -> None:
-    template = "## 结果\n\n1. 第一条\n2. 第二条\n\n| a | b |\n|---|---|\n| x | y |\n"
+    template = "## Results\n\n1. first\n2. second\n\n| a | b |\n|---|---|\n| x | y |\n"
     assert render(template, result.values) == template
 
 
@@ -188,38 +197,40 @@ def test_addresses_are_namespaced(result: Result) -> None:
     assert all(address.startswith("res:") for address in result.values)
 
 
-# ---- 错误信息的可读性 ----
+# ---- readability of error messages ----
 
 
 def test_bare_number_error_suggests_the_fix(result: Result) -> None:
-    """冷启动测试里踩到的坑：术语里的数字被拦下时，要直接给出该写什么。"""
+    """The trap hit during the cold-start test: when a number inside a term is caught,
+    say plainly what to write instead."""
     with pytest.raises(RenderError) as excinfo:
-        render("结局是 28 天死亡率。", result.values)
+        render("the outcome is 28-day mortality.", result.values)
     message = str(excinfo.value)
     assert "{{lit:28}}" in message
-    assert "术语" in message
+    assert "term" in message
 
 
 def test_bare_number_error_points_at_a_matching_address(result: Result) -> None:
-    """裸数字恰好等于某个结果时，提示该引用哪个地址，而不是笼统地报错。"""
+    """When a bare number equals a result, name the address to cite rather than erroring
+    vaguely."""
     estimate = result.values["res:primary.estimate"]
     with pytest.raises(RenderError) as excinfo:
-        render(f"效应是 {estimate}。", result.values)
+        render(f"the effect is {estimate}。", result.values)
     assert "{{res:primary.estimate}}" in str(excinfo.value)
 
 
 def test_unknown_address_error_is_scoped_to_the_namespace(result: Result) -> None:
-    """错误信息不再把几十个地址糊成一坨——只列同命名空间的。"""
+    """The message no longer dumps dozens of addresses; only the same namespace."""
     addresses = {**result.values, "qc:some_check.passed": "yes", "claim:level": "suggestive"}
     with pytest.raises(RenderError) as excinfo:
         render("{{res:primary.nonexistent}}", addresses)
     message = str(excinfo.value)
     assert "res:" in message
-    assert "claim:level" not in message  # 别的命名空间不该出现
+    assert "claim:level" not in message  # other namespaces must not appear
 
 
 def test_address_list_is_truncated(result: Result) -> None:
     many = {f"res:x.f{i:03d}": float(i) for i in range(40)}
     with pytest.raises(RenderError) as excinfo:
         render("{{res:x.missing}}", many)
-    assert "另有" in str(excinfo.value)
+    assert "more" in str(excinfo.value)

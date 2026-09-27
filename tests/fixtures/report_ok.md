@@ -1,7 +1,9 @@
-# 分析报告
+# Analysis report
 
-在 {{res:primary.n}} 名患者中，{{res:primary.n_treated}} 人接受了 CRRT。
-处理组 {{lit:28}} 天死亡率为 {{res:primary.mean_treated}}，对照组为 {{res:primary.mean_control}}。
-朴素组均值差为 {{res:primary.estimate}}。
+Among {{res:primary.n}} patients, {{res:primary.n_treated}} received CRRT.
+Mortality at {{lit:28}} days was {{res:primary.mean_treated}} in the treated group
+and {{res:primary.mean_control}} in the control group.
+The naive difference in group means is {{res:primary.estimate}}.
 
-> 措辞等级：descriptive。本切片未做任何混杂调整与诊断，结果不可作因果解读。
+> Claim level: descriptive. This slice performs no confounding adjustment and no
+> diagnostics, so the result carries no causal reading.

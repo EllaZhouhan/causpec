@@ -1,116 +1,130 @@
-# 八步流程
+# The eight steps
 
-顺序是有理由的，不要跳步。每一步都给了具体的问法。
-
----
-
-## 1. 问题与 estimand ——**不看数据**
-
-先问清楚要回答什么，再去看数据里有什么列。反过来做会被现成有的变量牵着走——
-「哦数据里有个 `los` 列，那顺便看看住院天数吧」，这就偏离了用户真正的问题。
-
-**问什么**（一轮一个）：
-
-> 「您想比较的是接受什么处理 vs 不接受？」
-> 「结局看什么？发生在什么时间窗内？」
-> 「您想知道的是**整体平均**效应，还是**哪些人更获益**？」
-
-第三问决定 estimand：整体 → `ate`；哪些人 → CATE（此时 `effect_modifiers` 是核心）。
-
-写进 spec，每个字段附用户原话，`status: confirmed`。
+The order exists for a reason. Do not skip. Each step below suggests how to ask.
 
 ---
 
-## 2. 查看数据
+## 1. Question and estimand — **without looking at the data**
 
-现在才看 schema。**不要把原始行贴进对话。**
+Settle what is being asked before looking at what columns exist. The other way round
+lets whatever happens to be in the data drive the question — "oh, there's a `los`
+column, shall we look at length of stay too?" — and that is no longer the user's
+question.
 
-把用户的概念对应到具体列，逐个确认：
+**What to ask** (one per turn):
 
-> 「您说的『透析』，对应的是 `isDialysisICU` 这一列吗？它是 0/1 的。」
-> 「`death` 这一列记的是院内死亡还是 28 天死亡？」
+> "What are you comparing: receiving what treatment, versus not receiving it?"
+> "What counts as the outcome, and within what time window?"
+> "Do you want the **overall average** effect, or **which patients benefit more**?"
 
-遇到含义不明的列名，问，不要猜。
+The third decides the estimand: overall -> `ate`; which patients -> a CATE, in which
+case `effect_modifiers` is central.
 
----
-
-## 3. 变量角色
-
-`effect_modifiers`（X）与 `adjustment_set`（W）**分开确认**。
-详见 `variable-roles.md`——这是最容易出错且出错不报错的地方。
-
-**先看测量时间**：处理后测的变量一律不能进调整集。
-
-> 「`max_creatinine` 是入 ICU 时测的，还是包含了开始透析之后的值？」
+Write it into the spec, each field carrying the user's own words, `status: confirmed`.
 
 ---
 
-## 4. 识别策略与假设
+## 2. Look at the data
 
-关键一问：
+Only now inspect the schema. **Do not paste raw rows into the conversation.**
 
-> 「有没有什么因素同时影响了谁接受处理、以及结局，但数据里没记录？」
+Map the user's concepts onto specific columns and confirm each:
 
-- 没有（用户有把握）→ `hte_backdoor`
-- 有，但存在可信的 instrument → `hte_iv`
-- 有，也没有 instrument → **如实说明这个问题回答不了**，但质量报告仍可交付
+> "By 'dialysis', do you mean the `isDialysisICU` column? It's 0/1."
+> "Does `death` record in-hospital death or death within 28 days?"
 
-把假设写进 `assumptions`，按三类标注。`untestable` 那些要当面讲清楚：
-
-> 「『给定这些协变量后，谁接受透析与患者的预后无关』——这一条没有任何统计检验
-> 能验证。它成立与否只能靠临床判断。您愿意为它背书吗？如果愿意，
-> 请说明理由，我记进报告。」
+When a column name is ambiguous, ask. Do not guess.
 
 ---
 
-## 5. 选 family 并对账 estimand
+## 3. Variable roles
 
-比对用户想要的与 family 能识别的。不一致**就在这里停下**。
+Confirm `effect_modifiers` (X) and `adjustment_set` (W) **separately**. See
+`variable-roles.md` — this is the easiest place to go wrong without any error.
 
-最常见的冲突：用户问「哪些患者获益」（要 CATE），识别策略是 IV 且只假设了
-monotonicity（只能识别 complier 的条件 LATE）。详见 `hte-dmliv.md`。
+**Measurement time first**: a variable measured after treatment can never enter the
+adjustment set.
 
-不支持的设计（DiD、断点回归、合成控制、中介、纵向）：说明不支持，
-说清为什么这个问题需要那种设计，**不要塞进后门调整**。
+> "Was `max_creatinine` measured at ICU admission, or does it include values from
+> after dialysis started?"
 
 ---
 
-## 6. 质量检查
+## 4. Identification strategy and assumptions
+
+The key question:
+
+> "Is there anything that influenced both who received treatment and the outcome, but
+> that the data doesn't record?"
+
+- No, and the user is confident -> `hte_backdoor`
+- Yes, but a credible instrument exists -> `hte_iv`
+- Yes, and no instrument -> **say plainly that this question cannot be answered**,
+  though the quality report is still deliverable
+
+Record the assumptions in `assumptions`, by category. Spell out the `untestable` ones:
+
+> "'Given these covariates, who received dialysis is unrelated to their prognosis' —
+> no statistical test can verify that. Whether it holds is a clinical judgement. Are
+> you willing to stand behind it? If so, tell me why and I'll record it in the report."
+
+---
+
+## 5. Choose a family and reconcile the estimand
+
+Compare what the user wants against what the family can identify. **Stop here** on a
+mismatch.
+
+The classic conflict: the user asks "which patients benefit" (a CATE) while the
+identification strategy is IV under monotonicity alone (identifying the conditional
+LATE among compliers). See `hte-dmliv.md`.
+
+Unsupported designs (difference-in-differences, regression discontinuity, synthetic
+control, mediation, longitudinal): say so, explain why the question calls for that
+design, and **do not force it into backdoor adjustment**.
+
+---
+
+## 6. Quality checks
 
 ```bash
-python scripts/run.py quality --spec spec.yaml --data <数据文件>
+python scripts/run.py quality --spec spec.yaml --data <data file>
 ```
 
-有 blocking 问题就停下，把 `impact_on_analysis` 和 `recommended_repair`
-**念给用户听**（不要自己重新组织措辞）。详见 `quality-checks.md`。
+A blocking issue means stop, and read `impact_on_analysis` and `recommended_repair`
+**out to the user** without rewording them. See `quality-checks.md`.
 
-**即使分析跑不了，这份报告本身就是交付物。**
-
----
-
-## 7. 用户确认整份 spec
-
-把 spec 完整念一遍，逐字段请用户确认。这一步不能省，也不能由你代劳。
-
-如果用户要用因果措辞（而不是「提示可能相关」），这一步还要：
-
-1. 请他为每条 `untestable` 假设给出论证
-2. 加上 `causal_claim_approved` 字段
-
-不做这两件事，代码判定的上限就是 `suggestive`。
+**Even when the analysis cannot run, this report is a deliverable.**
 
 ---
 
-## 8. 估计与报告
+## 7. The user confirms the whole spec
+
+Read the spec back in full and have them confirm it field by field. This step cannot
+be skipped, and it cannot be done on their behalf.
+
+If the user wants causal wording rather than "possibly related", this step also
+requires:
+
+1. A justification from them for each `untestable` assumption
+2. The `causal_claim_approved` field
+
+Without both, the ceiling for an automatic decision is `suggestive`.
+
+---
+
+## 8. Estimate and report
 
 ```bash
-python scripts/run.py estimate --spec spec.yaml --data <数据文件> \
+python scripts/run.py estimate --spec spec.yaml --data <data file> \
     --report --narrative narrative.yaml --run-dir runs/
 ```
 
-写 `narrative.yaml` 的规则见 `reporting.md`。
+How to write `narrative.yaml` is in `reporting.md`.
 
-跑完之后：
+Afterwards:
 
-- 把措辞等级和**判定理由**告诉用户——不只是等级，还有为什么不能更高
-- 指出 run 目录的位置，里面有 manifest（含依赖版本与 checksum），可复现
+- Tell the user the claim level **and the reasoning** — not just the level, but why it
+  could not be higher
+- Point them at the run directory, which holds the manifest (dependency versions and
+  checksums) and makes the run reproducible

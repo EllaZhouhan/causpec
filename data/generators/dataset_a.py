@@ -1,37 +1,41 @@
-"""合成数据集 A：带真值的 HTE-IV 结构因果模型。
+"""Synthetic dataset A: an HTE-IV structural causal model with known ground truth.
 
-对应 design.md 第 15 节。形状照着真实的 ICU 透析研究来（处理率约 9.5%、
-死亡率约 4%、consultant 层级的 physician preference 工具变量），
-但每个个体的真实处理效应一并输出，供 evals 计算覆盖率。
+Mirrors design.md section 15. Its shape follows the real ICU dialysis study (about a
+9.5% treatment rate, about 4% mortality, a consultant-level physician-preference
+instrument), but every individual's true treatment effect is emitted alongside, so
+evals can measure coverage.
 
-**生成的数据不入库**，只入库这个生成器。
+**The generated data is never committed** — only this generator is.
 
-结构
-----
-    U ──────────────┐            U：未观测的病情严重度
-    │               ▼
-    X ──────────► T ──────────► Y
-    ▲               ▲
-    │               │
-  consultant ─────► Z            Z：主治医生的历史透析倾向（leave-one-out）
+Structure
+---------
+    U ---------------+            U: unmeasured severity
+    |                v
+    X -----------> T -----------> Y
+    ^                ^
+    |                |
+  consultant ------> Z            Z: the consultant's historical dialysis tendency
 
-关键性质：
+Key properties:
 
-1. **U 同时影响 T 和 Y**，所以朴素差值和后门调整都有偏——只有 IV 能识别。
-   这是数据集 A 最重要的用途：验证「调整不够」时工具能不能看出来。
-2. **Z 只通过 T 影响 Y**（exclusion restriction 成立），且 Z 对 T 的影响单调
-   （monotonicity 成立）。
-3. **效应异质**：τ(X) 随 AKI 分期与钾离子升高而增大（病情越重获益越多）。
-4. Z 可以是连续的（preference 本身）或二值的（preference 高于中位数），
-   由 ``instrument_kind`` 控制——hte_iv family 两种都要支持。
+1. **U affects both T and Y**, so the naive difference *and* backdoor adjustment are
+   both biased; only IV identifies. This is dataset A's main purpose: to check that
+   the tool can tell when adjustment is not enough.
+2. **Z affects Y only through T** (the exclusion restriction holds) and its effect on
+   T is monotone (monotonicity holds).
+3. **The effect is heterogeneous**: tau(X) grows with AKI stage and potassium — the
+   sicker the patient, the greater the benefit.
+4. Z can be continuous (the preference itself) or binary (preference above the
+   median), controlled by ``instrument_kind`` — the hte_iv family supports both.
 
-真值列
-------
-``tau_true``        每个个体的真实处理效应（风险差 p1 - p0，由潜在结局概率直接算出）
-``beta_true``       logit 尺度上的效应
-``u_true``          未观测混杂的真值（只用于诊断，不给估计器）
-``compliance_type`` 仅 instrument_kind="binary" 时：always/never/complier
-``p0_true``/``p1_true``  两个潜在结局的真实概率
+Truth columns
+-------------
+``tau_true``        each individual's true treatment effect (the risk difference
+                    p1 - p0, computed from the potential-outcome probabilities)
+``beta_true``       the effect on the logit scale
+``u_true``          the unmeasured confounder (diagnostics only; never given to an estimator)
+``compliance_type`` only when instrument_kind="binary": always/never/complier
+``p0_true``/``p1_true``  the two potential-outcome probabilities
 """
 
 from __future__ import annotations
@@ -43,7 +47,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# 连续协变量：名字照着真实数据来，便于把真实数据接进同一条管道。
+# Continuous covariates, named after the real data so real data drops into the same pipeline.
 CONTINUOUS_COVARIATES: dict[str, tuple[float, float, float, float]] = {
     # name: (mean, sd, low, high)
     "admission_age": (61.0, 15.0, 18.0, 95.0),
@@ -63,12 +67,12 @@ CONTINUOUS_COVARIATES: dict[str, tuple[float, float, float, float]] = {
     "min_netBodyBalancePerHour": (-20.0, 80.0, -500.0, 400.0),
 }
 
-NOISE_COVARIATES = 10  # 与 T、Y 都无关，用来检验工具会不会被噪声带偏
+NOISE_COVARIATES = 10  # unrelated to T and Y; checks whether the tool is led astray by noise
 
 
 @dataclass
 class DatasetAConfig:
-    """数据集 A 的生成参数。改这里，不要改代码。"""
+    """Generation parameters for dataset A. Change these, not the code."""
 
     n: int = 10_000
     n_consultants: int = 400
@@ -76,33 +80,37 @@ class DatasetAConfig:
 
     instrument_kind: str = "continuous"  # continuous | binary
 
-    # ---- 目标边际量（生成后会校准到接近这些值）----
+    # ---- target marginals (the generator calibrates close to these) ----
     target_treatment_rate: float = 0.095
     target_death_rate: float = 0.041
 
-    # ---- 效应结构 ----
-    # 效应定义在 **logit 尺度**上：logit(p1) = logit(p0) + beta(X)。
-    # 不直接定义风险差，因为基线死亡率只有约 4%，风险差最多也就 -0.04——
-    # 直接给风险差会被 clip 截断，真值就不再是真值了（这个 bug 由真值验证抓出）。
+    # ---- effect structure ----
+    # The effect is defined on the **logit scale**: logit(p1) = logit(p0) + beta(X).
+    # Not as a risk difference: baseline mortality is only about 4%, so a risk
+    # difference can reach at most -0.04, and specifying one directly gets clipped —
+    # at which point tau_true is no longer the truth. (This bug was caught by the
+    # ground-truth check.)
     #   beta(X) = base + aki * aki_stage + k * (potassium - 4.5)
-    # 负数表示降低死亡风险。base 取正数，表示 AKI 0 期且钾正常的患者接受透析反而有害。
+    # Negative lowers mortality risk. A positive base means dialysis is harmful for
+    # patients at AKI stage 0 with normal potassium.
     effect_base: float = 0.45
     effect_per_aki_stage: float = -0.40
     effect_per_potassium: float = -0.55
 
-    # ---- 未观测混杂强度 ----
+    # ---- strength of unmeasured confounding ----
     confounding_on_treatment: float = 1.10  # U → T
     confounding_on_outcome: float = 0.90  # U → Y
 
-    # ---- 工具变量强度：consultant 偏好的离散程度 ----
-    preference_sd: float = 0.9  # consultant 随机效应的 sd（logit 尺度）
-    instrument_strength: float = 1.30  # Z → T 的系数
+    # ---- instrument strength: how dispersed consultant preferences are ----
+    preference_sd: float = 0.9  # sd of the consultant random effect (logit scale)
+    instrument_strength: float = 1.30  # coefficient of Z on T
 
-    # 效应是否随 compliance 类型变化。False 时条件 LATE == CATE，
-    # 可直接用 tau_true 验证 IV 估计；True 时两者不同，工具必须说清楚
-    # 估计对象只是 complier（design.md 7.6）。
+    # Whether the effect varies by compliance type. With False the conditional LATE
+    # equals the CATE, so tau_true validates an IV estimate directly; with True they
+    # differ and the tool must make clear that the estimand covers compliers only
+    # (design.md 7.6).
     effect_varies_by_compliance: bool = False
-    compliance_effect_shift: float = -0.35  # logit 尺度
+    compliance_effect_shift: float = -0.35  # logit scale
 
     noise_covariates: int = NOISE_COVARIATES
     covariates: dict[str, tuple[float, float, float, float]] = field(
@@ -110,11 +118,12 @@ class DatasetAConfig:
     )
 
 
-# 两套预设。realistic 照着真实 ICU 研究的量级来，用于 demo 与质量检查；
-# 但在这个量级下 IV 的统计功效极低（complier 约 8%、死亡率约 4%，Wald 的 SE
-# 比真值本身还大），数值回归测试会被噪声淹没。high_power 把 complier 份额与
-# 事件率提上去，专供数值 evals——它不真实，但它让「估计器对不对」这个问题
-# 有确定的答案。
+# Two presets. `realistic` matches the scale of the real ICU study and is what demos
+# and quality checks use; but at that scale an IV analysis has almost no statistical
+# power (compliers around 8%, mortality around 4%, and the Wald standard error larger
+# than the truth itself), so numerical regression tests drown in noise. `high_power`
+# raises the complier share and the event rate for numerical evals — it is not
+# realistic, but it gives "is the estimator correct?" a determinate answer.
 PRESETS: dict[str, dict[str, object]] = {
     "realistic": {},
     "high_power": {
@@ -130,14 +139,14 @@ PRESETS: dict[str, dict[str, object]] = {
 
 
 def config_for(preset: str, **overrides: object) -> DatasetAConfig:
-    """按预设名构造配置，overrides 优先。"""
+    """Build a config from a preset name; overrides win."""
     if preset not in PRESETS:
-        raise ValueError(f"未知预设 {preset}，可选：{'、'.join(PRESETS)}")
+        raise ValueError(f"unknown preset {preset}; choose from: {', '.join(PRESETS)}")
     return DatasetAConfig(**{**PRESETS[preset], **overrides})  # type: ignore[arg-type]
 
 
 def _truncated_normal(rng, mean, sd, low, high, n):
-    """截断正态：临床变量都有生理上下界。"""
+    """Truncated normal: clinical variables have physiological bounds."""
     out = rng.normal(mean, sd, n)
     return np.clip(out, low, high)
 
@@ -147,7 +156,7 @@ def _sigmoid(x):
 
 
 def _solve_intercept(linear, target_rate, lo=-30.0, hi=30.0, tol=1e-10):
-    """二分求截距，使 mean(sigmoid(intercept + linear)) == target_rate。"""
+    """Bisect for the intercept that makes mean(sigmoid(intercept + linear)) == target_rate."""
     for _ in range(200):
         mid = (lo + hi) / 2
         rate = float(_sigmoid(mid + linear).mean())
@@ -161,14 +170,14 @@ def _solve_intercept(linear, target_rate, lo=-30.0, hi=30.0, tol=1e-10):
 
 
 def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
-    """生成数据集 A。同一个 seed 必然给出同一份数据。"""
+    """Generate dataset A. The same seed always yields the same data."""
     cfg = config or DatasetAConfig()
     if cfg.instrument_kind not in ("continuous", "binary"):
-        raise ValueError(f"instrument_kind 只能是 continuous 或 binary，收到 {cfg.instrument_kind}")
+        raise ValueError(f"instrument_kind must be continuous or binary; got {cfg.instrument_kind}")
     rng = np.random.default_rng(cfg.seed)
     n = cfg.n
 
-    # ---- 1. 观测协变量 ----
+    # ---- 1. observed covariates ----
     data: dict[str, np.ndarray] = {}
     for name, (mean, sd, low, high) in cfg.covariates.items():
         data[name] = _truncated_normal(rng, mean, sd, low, high, n)
@@ -178,7 +187,7 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     data["gender_Male"] = rng.binomial(1, 0.58, n)
     data["admitType_EM"] = rng.binomial(1, 0.62, n)
 
-    # AKI 分期由肌酐与尿量决定——它同时是混杂和效应修饰因子
+    # AKI stage follows creatinine and urine output — both a confounder and an effect modifier
     aki_linear = (
         0.010 * (data["max_creatinine"] - 180.0)
         - 0.0022 * (data["max_uo_12h_ml"] - 450.0)
@@ -202,18 +211,20 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
 
     df = pd.DataFrame(data)
 
-    # ---- 2. 未观测混杂：病情严重度里没被记录下来的那部分 ----
+    # ---- 2. unmeasured confounding: the part of severity nobody wrote down ----
     u = rng.normal(0.0, 1.0, n)
 
-    # ---- 3. consultant 与 physician preference 工具变量 ----
-    # 病人随机分配给 consultant（这是 exclusion restriction 成立的关键：
-    # 分配与病人特征无关，所以 consultant 的偏好不会通过别的路径影响结局）。
+    # ---- 3. consultants and the physician-preference instrument ----
+    # Patients are assigned to consultants at random, which is what makes the exclusion
+    # restriction hold: assignment is unrelated to patient characteristics, so a
+    # consultant's preference cannot reach the outcome by any other route.
     consultant = rng.integers(0, cfg.n_consultants, n)
     consultant_effect = rng.normal(0.0, cfg.preference_sd, cfg.n_consultants)
     df["consultant_id"] = consultant
 
-    # 观测到的 preference = 该 consultant 其他病人的透析率（leave-one-out），
-    # 真实数据就是这么构造的，所以这里也这么造：带测量噪声的随机效应。
+    # The observed preference is the consultant's dialysis rate among their other
+    # patients (leave-one-out), which is how the real data was built — so it is built
+    # that way here too: a random effect plus measurement noise.
     n_per_consultant = np.bincount(consultant, minlength=cfg.n_consultants)
     measurement_noise = rng.normal(
         0.0, 1.0 / np.sqrt(np.maximum(n_per_consultant[consultant], 1)), n
@@ -226,11 +237,12 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
         z_for_treatment = z.to_numpy().astype(float)
     else:
         z = df["consultant_preference"]
-        # 标准化后进入处理方程，让 instrument_strength 的量纲稳定
+        # Standardised before entering the treatment equation, so instrument_strength
+        # keeps a stable scale
         z_for_treatment = ((z - z.mean()) / z.std()).to_numpy()
     df["instrument"] = z
 
-    # ---- 4. 处理分配：U 有影响（混杂），Z 单调地有影响（工具有效）----
+    # ---- 4. treatment assignment: U matters (confounding), Z matters monotonically ----
     treatment_linear = (
         0.55 * df["max_aki_stage_smoothed"]
         + 0.085 * (df["sofa_total_24h"] - 6.0)
@@ -245,8 +257,8 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     intercept_t = _solve_intercept(base_linear, cfg.target_treatment_rate)
     p_treat = _sigmoid(intercept_t + base_linear)
 
-    # 用同一个均匀随机数决定「若 Z 取各个值时会不会接受处理」，
-    # 这样 monotonicity 按构造成立，也能直接读出 compliance 类型。
+    # One uniform draw decides "would this unit take treatment at each value of Z",
+    # so monotonicity holds by construction and the compliance type is readable directly.
     uniform = rng.uniform(0, 1, n)
     df["isDialysisICU"] = (uniform < p_treat).astype(int)
 
@@ -263,10 +275,10 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
         df["compliance_type"] = compliance
         is_complier = compliance == "complier"
     else:
-        df["compliance_type"] = "unknown"  # 连续 IV 下没有三分类
+        df["compliance_type"] = "unknown"  # no three-way split with a continuous instrument
         is_complier = np.zeros(n, dtype=bool)
 
-    # ---- 5. 处理效应：定义在 logit 尺度上，异质，只依赖观测到的 X ----
+    # ---- 5. treatment effect: on the logit scale, heterogeneous, depending on observed X ----
     beta = (
         cfg.effect_base
         + cfg.effect_per_aki_stage * df["max_aki_stage_smoothed"].to_numpy()
@@ -276,7 +288,7 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
         beta = beta + cfg.compliance_effect_shift * is_complier
     df["beta_true"] = beta
 
-    # ---- 6. 潜在结局与观测结局 ----
+    # ---- 6. potential and observed outcomes ----
     outcome_linear = (
         0.30 * df["max_aki_stage_smoothed"]
         + 0.075 * (df["sofa_total_24h"] - 6.0)
@@ -288,10 +300,11 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     intercept_y = _solve_intercept(outcome_linear, cfg.target_death_rate)
     logit_p0 = intercept_y + outcome_linear
     p0 = _sigmoid(logit_p0)
-    p1 = _sigmoid(logit_p0 + beta)  # logit 尺度加法，天然落在 (0,1)，不需要截断
+    p1 = _sigmoid(logit_p0 + beta)  # additive on the logit scale, so (0,1) by construction
     df["p0_true"] = p0
     df["p1_true"] = p1
-    # τ 是风险差，由潜在结局概率直接算出——按构造就是真值，不会被截断。
+    # tau is the risk difference, computed straight from the potential-outcome
+    # probabilities — true by construction, and never clipped.
     df["tau_true"] = p1 - p0
 
     uniform_y = rng.uniform(0, 1, n)
@@ -299,13 +312,13 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     y1 = (uniform_y < p1).astype(int)
     df["death"] = np.where(df["isDialysisICU"] == 1, y1, y0)
 
-    df["u_true"] = u  # 未观测混杂的真值：只给诊断用，不给估计器
+    df["u_true"] = u  # the confounder's true value: for diagnostics only, never an estimator
     df.insert(0, "unit_id", np.arange(1, n + 1))
     return df
 
 
 def truth(df: pd.DataFrame) -> dict[str, float]:
-    """这份数据的真值汇总，供 evals 对照。"""
+    """Ground-truth summary for this dataset, for evals to compare against."""
     tau = df["tau_true"].to_numpy()
     treated = df["isDialysisICU"].to_numpy().astype(bool)
     death = df["death"].to_numpy()
@@ -324,8 +337,8 @@ def truth(df: pd.DataFrame) -> dict[str, float]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="生成合成数据集 A（带真值）。")
-    parser.add_argument("--out", type=Path, required=True, help="输出 CSV 路径（不入库）")
+    parser = argparse.ArgumentParser(description="Generate synthetic dataset A with ground truth.")
+    parser.add_argument("--out", type=Path, required=True, help="output CSV path (never committed)")
     parser.add_argument("--n", type=int, default=DatasetAConfig.n)
     parser.add_argument("--seed", type=int, default=DatasetAConfig.seed)
     parser.add_argument("--instrument-kind", choices=["continuous", "binary"], default="continuous")
@@ -333,12 +346,17 @@ def main(argv: list[str] | None = None) -> int:
         "--preset",
         choices=sorted(PRESETS),
         default="realistic",
-        help="realistic=照真实研究量级（demo 用）；high_power=功效足够（数值 evals 用）",
+        help=(
+            "realistic = the real study's scale (for demos); "
+            "high_power = enough power (for numerical evals)"
+        ),
     )
     parser.add_argument(
         "--vary-effect-by-compliance",
         action="store_true",
-        help="让效应随 compliance 类型变化，此时条件 LATE ≠ CATE",
+        help=(
+            "let the effect vary by compliance type, so the conditional LATE differs from the CATE"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -347,13 +365,13 @@ def main(argv: list[str] | None = None) -> int:
         "instrument_kind": args.instrument_kind,
         "effect_varies_by_compliance": args.vary_effect_by_compliance,
     }
-    if args.n != DatasetAConfig.n:  # 只有显式指定时才覆盖预设的 n
+    if args.n != DatasetAConfig.n:  # only override the preset's n when asked explicitly
         overrides["n"] = args.n
     df = generate(config_for(args.preset, **overrides))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.out, index=False)
 
-    print(f"写入 {args.out}：{len(df):,} 行 × {df.shape[1]} 列")
+    print(f"wrote {args.out}: {len(df):,} rows x {df.shape[1]} columns")
     for key, value in truth(df).items():
         print(f"  {key:20} {value: .4f}")
     return 0

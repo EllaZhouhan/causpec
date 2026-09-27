@@ -1,3 +1,3 @@
-# 分析报告
+# Analysis report
 
-处理组 {{lit:28}} 天死亡率高于对照组，差值 {{lit:0.0289}}。
+Mortality at {{lit:28}} days was higher in the treated group, by {{lit:0.0289}}.

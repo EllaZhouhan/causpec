@@ -1,30 +1,36 @@
-# hte_iv：IV 设定下的异质处理效应
-# 对应 design.md 7.6（estimand 与 family 对账）
+# hte_iv: heterogeneous treatment effects under an instrumental-variable design.
+# Mirrors design.md 7.6 (estimand / family reconciliation).
 id: hte_iv
 status: implemented          # planned | implemented
 analysis_type: hte
-requires_extra: hte          # 依赖没装时 registry 用这个给出安装命令
+requires_extra: hte          # the registry uses this to name the install command
 
 answers: >
-  在存在未测混杂、但有可信 instrument 的情况下，处理效应如何随协变量变化。
+  How the treatment effect varies with covariates when unmeasured confounding is
+  present but a credible instrument is available.
 
 identification_strategy: instrumental_variable
 
-# 两个后端，由 spec.estimation.params.estimator 选。
-# 估计对象相同，区间的构造方式不同——必须写进报告（design.md 10.2）。
+# Two backends, selected via spec.estimation.params.estimator. They target the same
+# estimand but construct intervals differently, which the report has to state
+# (design.md 10.2).
 estimators:
-  ivforest:                                 # 默认
+  ivforest:                                 # default
     class: econml.grf.CausalIVForest        # EconML, MIT
-    cate_interval_method: grf_honest        # Athey–Tibshirani–Wager，一次拟合内完成
-    ate_interval_method: forest_bootstrap   # 见下
-    supports_adjustment_set: false          # 没有独立的 W 通道，只调整 X
+    cate_interval_method: grf_honest        # Athey-Tibshirani-Wager, within one fit
+    ate_interval_method: forest_bootstrap   # see note
+    supports_adjustment_set: false          # no separate W channel; adjusts on X only
     supports_multiple_instruments: false
     note: >
-      econml.grf 只提供逐点方差（predict_and_var 的协方差矩阵是单点上各输出维之间的，
-      不是不同 x 之间的），没有跨样本平均的接口。同一片森林的各点估计高度相关，
-      逐点方差平均再除以 n 等于假设独立。因此 ATE 区间由单位层面 bootstrap 得到：
-      每轮重抽样、重拟合森林、在原始 X 上预测取均值，取 percentile。
-      森林便宜，这条路可行——实测每次重抽样约 5 秒，dmliv 约 26 秒。
+      econml.grf exposes pointwise variance only (the covariance matrix from
+      predict_and_var is across output dimensions at a single x, not across different
+      x). It offers nothing for the variance of an average across the sample, and the
+      per-point estimates from one forest are highly correlated, so averaging
+      pointwise variances and dividing by n would assume independence. The ATE
+      interval therefore comes from a unit-level bootstrap: resample, refit the
+      forest, predict on the original X, average, take percentiles. The forest is
+      cheap enough for this — measured at about 5 seconds per replicate against about
+      26 seconds for dmliv.
   dmliv:
     class: econml.iv.dml.NonParamDMLIV      # EconML, MIT
     model_final: sklearn RandomForestRegressor
@@ -33,84 +39,98 @@ estimators:
     supports_adjustment_set: true
     supports_multiple_instruments: true
     note: >
-      与研究代码最终版一致。EconML 对这个类只提供 bootstrap
-      （_get_inference_options() 里就一项）——final model 是任意回归器，推不出方差。
+      Matches the final version of the research code. EconML offers only bootstrap for
+      this class (_get_inference_options() lists nothing else) because the final model
+      is an arbitrary regressor, from which no variance can be derived.
 
-# 两个后端共用，都可从 spec.estimation.params 覆盖。
+# Shared by both backends; both are overridable from spec.estimation.params.
 bootstrap:
   n_bootstrap_samples_default: 200
-  adequate_threshold: 100     # 低于此值在 res:estimation.bootstrap_adequate 打标记
+  adequate_threshold: 100     # below this, res:estimation.bootstrap_adequate is flagged
   parallel_param: bootstrap_n_jobs
 
-calibration: null    # TODO: IV 版本的 DR 得分，自写（design.md 第 9 节）
+calibration: null    # TODO: an IV-appropriate DR score, written by hand (design.md section 9)
 
-# instrument 二值与连续都支持。识别对象随之不同——见下面两条 estimand。
-# discrete_instrument 由 adapter 按数据自动判定，并记入 res:instrument.kind。
+# Both binary and continuous instruments are supported; the identified estimand
+# differs, hence the two entries below. The adapter infers discrete_instrument from
+# the data and records it in res:instrument.kind.
 instrument_kinds: [binary, continuous]
 
 estimands:
   - id: conditional_late
-    label: 条件 LATE（仅对 complier 成立）
+    label: Conditional LATE (compliers only)
     instrument_kind: binary
     requires_assumptions: [relevance, exclusion_restriction, monotonicity]
     interpretation: >
-      仅对 complier——即"因为 instrument 取值不同而改变了是否接受处理"的那部分人——
-      成立。complier 无法被识别到个体，因此这个估计对象不能解读为"某一位患者的效应"，
-      也不能解读为全人群的 CATE。报告必须写明这一点。
+      Holds for compliers only — the people whose treatment status changed because the
+      instrument took a different value. Compliers cannot be identified individually,
+      so this estimand is neither "the effect for this patient" nor the population
+      CATE. The report must say so.
 
   - id: weighted_conditional_late
-    label: 边际 LATE 的加权平均（连续 instrument）
+    label: Weighted average of marginal LATEs (continuous instrument)
     instrument_kind: continuous
     requires_assumptions: [relevance, exclusion_restriction, uniformity]
     interpretation: >
-      连续 instrument 下不存在单一的 complier 群体。在 uniformity（单调性对连续
-      instrument 的推广）下，识别的是各相邻取值之间"边际 LATE"的加权平均，
-      权重由该处一阶段的斜率与 instrument 的分布共同决定
-      （Angrist & Imbens 1995, JASA）。权重不由用户选择，也不等同于人群占比，
-      因此这个估计对象的适用人群比二值情形更难描述——报告必须给出权重的分布。
+      With a continuous instrument there is no single complier group. Under uniformity
+      (the extension of monotonicity to continuous instruments), what is identified is
+      a weighted average of "marginal LATEs" between adjacent instrument values, with
+      weights set jointly by the local first-stage slope and the instrument's
+      distribution (Angrist & Imbens 1995, JASA). The weights are not chosen by the
+      user and do not correspond to population shares, so the population this estimand
+      applies to is harder to describe than in the binary case; the report must give
+      the weight distribution.
 
-  # TODO(design.md 7.6): 若另外假设「给定协变量后效应不随 compliance 类型变化」，
-  # 上述两者才可解释为全人群的 CATE。是否采用这条假设、如何论证，由作者填写。
+  # TODO(design.md 7.6): only under the further assumption that the effect does not
+  # vary by compliance type given covariates can either of the above be read as a
+  # population CATE. Whether to adopt that assumption, and how to argue for it, is for
+  # the author to fill in.
   # - id: cate
-  #   label: 条件平均处理效应（全人群）
+  #   label: Conditional average treatment effect (whole population)
   #   requires_assumptions: [..., no_effect_heterogeneity_by_compliance]
 
 requires:
   spec_fields:
-    - treatment            # → T，二值
-    - outcome              # → Y，二值
-    - instrument           # → Z，一列或多列
-    - effect_modifiers     # → X，CATE 随之变化的协变量
-    - adjustment_set       # → W，只进 nuisance 模型、不进 CATE 的协变量
+    - treatment            # T, binary
+    - outcome              # Y, binary
+    - instrument           # Z, one or more columns
+    - effect_modifiers     # X, the covariates the CATE varies over
+    - adjustment_set       # W, nuisance-only covariates that do not enter the CATE
     - time_zero
   key_non_edges:
-    - instrument 除经 treatment 外不影响 outcome    # exclusion restriction
-    - instrument 与未测混杂无关
+    - the instrument affects the outcome only through the treatment   # exclusion restriction
+    - the instrument is independent of unmeasured confounders
 
-  # effect_modifiers 与 adjustment_set 必须分别确认，不能合成一个列表。
-  # 研究代码里定义了 controls（75 列）和 features（60 列），实际只把 features
-  # 传给 X、W=None，两者之差被静默丢弃——spec 层面把它们分开就是为了堵这个。
+  # effect_modifiers and adjustment_set are confirmed separately and never merged.
+  # The research code defined `controls` (75 columns) and `features` (60 columns) but
+  # passed only `features` as X with W=None, silently dropping the difference —
+  # separating them at the spec level is what prevents a repeat.
   note_x_vs_w: >
-    X 决定效应异质性的方向，W 只用于去除混杂。放错位置不会报错，只会悄悄改变
-    估计对象：进了 X 的变量会被当作效应修饰因子，进了 W 的不会。
+    X determines how the effect varies; W only removes confounding. Putting a variable
+    in the wrong place raises no error — it quietly changes the estimand, because a
+    variable in X is treated as an effect modifier and one in W is not.
 
 assumptions:
   - id: relevance
     category: empirically_assessed
-    statement: instrument 与 treatment 相关且强度足够
+    statement: the instrument is associated with treatment, strongly enough
   - id: exclusion_restriction
     category: untestable
-    statement: instrument 只通过 treatment 影响 outcome
+    statement: the instrument affects the outcome only through the treatment
   - id: monotonicity
     category: untestable
-    statement: 不存在 defier（二值 instrument）
+    statement: there are no defiers (binary instrument)
   - id: uniformity
     category: untestable
-    statement: 一阶段对 instrument 的响应方向对所有个体一致（连续 instrument）
+    statement: >
+      the direction of the first-stage response to the instrument is the same for every
+      unit (continuous instrument)
 
-# 质量检查与阈值。阈值在这里而不是写死在代码里：它们决定结论能用多强的措辞
-# （design.md 10.2），因此必须事先定死、写进报告、进 manifest。
-# 这些数字都是惯例而非定律，可以被合理质疑——重要的是它们可见、可配、可复现。
+# Quality checks and thresholds. Thresholds live here rather than in code: they decide
+# how strongly a conclusion may be worded (design.md 10.2), so they must be fixed in
+# advance, printed in the report, and recorded in the manifest. Every number below is a
+# convention, not a law, and may reasonably be disputed — what matters is that it is
+# visible, configurable and reproducible.
 checks:
   iv_zero_variation:
     layer: identification
@@ -121,26 +141,37 @@ checks:
 
   iv_weak_first_stage:
     layer: identification
-    severity: blocking          # design.md 10.2 的两项阻断检验之一
+    severity: blocking          # one of the two blocking checks of design.md 10.2
     waivable: true
-    # 线性一阶段的稳健 F。Staiger–Stock 的经验准则 F > 10，广泛使用但只是经验准则。
-    # treatment 是二值，因此另外给出 Probit 一阶段的 LR 检验与 McFadden 增量 R²，
-    # 三者一并进报告——design.md 8.2：诊断形式由 family 决定，不统一使用 first-stage F。
+    # Robust F from a linear first stage. The Staiger-Stock rule of thumb is F > 10:
+    # widely used, but a rule of thumb. The treatment is binary, so a probit first-stage
+    # LR test and McFadden increment are reported alongside — design.md 8.2: the form of
+    # the diagnostic is the family's business, not a universal first-stage F.
     min_robust_f: 10.0
     max_lr_p_value: 0.05
 
   iv_low_complier_share:
     layer: feasibility
-    severity: warning           # 不阻断：complier 少不代表估计错，只代表适用人群窄
-    waivable: true
-    # 仅二值 instrument。E[T|Z=1] − E[T|Z=0] 在单调性下就是 complier 占比。
+    severity: warning           # not blocking: few compliers does not make the estimate
+    waivable: true              # wrong, only narrow
+    # Binary instruments only. Under monotonicity E[T|Z=1] - E[T|Z=0] is the complier share.
     min_complier_share: 0.05
 
   iv_covariate_imbalance:
     layer: identification
-    severity: warning           # 不阻断：exclusion restriction 本就无法检验，
-    waivable: true              # 失衡是必要条件不成立的信号，不是充分证据
-    # 逐个协变量对 instrument 回归取 p 值，再做 Benjamini–Hochberg FDR 校正。
-    # 不校正的话，60 个协变量里平均会有 3 个在 0.05 下"显著"纯属偶然。
+    severity: warning           # not blocking: the exclusion restriction is untestable,
+    waivable: true              # so imbalance is a bad sign, not sufficient evidence
+    # Regress each covariate on the instrument, take the p-value, then apply a
+    # Benjamini-Hochberg FDR correction. Without the correction, roughly 3 of 60
+    # covariates will be "significant" at 0.05 by chance alone.
     fdr_level: 0.10
     max_imbalanced_fraction: 0.10
+
+diagnostics:
+  instrument_relevance:
+    - first_stage_probit_lr_test
+    - first_stage_pseudo_r2
+    - first_stage_f_robust
+    - partial_r2_iv
+  exogeneity:
+    - covariate_balance_by_instrument     # p-value per covariate regressed on the instrument

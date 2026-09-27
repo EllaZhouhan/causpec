@@ -1,7 +1,7 @@
-"""runtime：原子写入、manifest、审计日志。
+"""Runtime: atomic writes, the manifest, the audit log.
 
-对应 design.md 第 14 节与 G5。这个文件锁两条最难靠人工保证的性质：
-写入是原子的；凭据进不了日志。
+Mirrors design.md section 14 and G5. This file pins the two properties hardest to
+guarantee by discipline: writes are atomic, and credentials never reach the log.
 """
 
 from __future__ import annotations
@@ -23,12 +23,12 @@ from causpec.core.runtime.writer import (
     write_json_atomic,
 )
 
-# ---- 原子写入 ----
+# ---- atomic writes ----
 
 
 def test_write_creates_parent_directories(tmp_path: Path) -> None:
-    path = write_atomic(tmp_path / "a" / "b" / "c.txt", "内容")
-    assert path.read_text(encoding="utf-8") == "内容"
+    path = write_atomic(tmp_path / "a" / "b" / "c.txt", "content")
+    assert path.read_text(encoding="utf-8") == "content"
 
 
 def test_write_leaves_no_temporary_files(tmp_path: Path) -> None:
@@ -37,23 +37,24 @@ def test_write_leaves_no_temporary_files(tmp_path: Path) -> None:
 
 
 def test_failed_write_does_not_clobber_the_old_file(tmp_path: Path, monkeypatch) -> None:
-    """替换失败时旧文件必须原样保留——半个结果比没有结果更糟。"""
+    """A failed replace must leave the old file intact: half a result is worse than none."""
     path = tmp_path / "results.json"
-    write_atomic(path, "原来的内容")
+    write_atomic(path, "the original content")
 
     def boom(*args: object, **kwargs: object) -> None:
-        raise OSError("磁盘满了")
+        raise OSError("disk full")
 
     monkeypatch.setattr(os, "replace", boom)
-    with pytest.raises(OSError, match="磁盘满了"):
-        write_atomic(path, "新内容")
+    with pytest.raises(OSError, match="disk full"):
+        write_atomic(path, "new content")
 
-    assert path.read_text(encoding="utf-8") == "原来的内容"
-    assert [p.name for p in tmp_path.iterdir()] == ["results.json"]  # 临时文件被清掉了
+    assert path.read_text(encoding="utf-8") == "the original content"
+    assert [p.name for p in tmp_path.iterdir()] == ["results.json"]  # temp file cleaned up
 
 
 def test_temporary_file_lives_beside_the_target(tmp_path: Path, monkeypatch) -> None:
-    """临时文件必须和目标同目录：跨文件系统的 os.replace 不是原子的。"""
+    """The temporary file must share the target's directory: os.replace across
+    filesystems is not atomic."""
     seen: list[Path] = []
     real_replace = os.replace
 
@@ -68,10 +69,10 @@ def test_temporary_file_lives_beside_the_target(tmp_path: Path, monkeypatch) -> 
 
 
 def test_json_is_byte_stable(tmp_path: Path) -> None:
-    """同样的内容要产出同样的字节，否则 checksum 没有意义。"""
+    """Identical content must produce identical bytes, or the checksum means nothing."""
     first = write_json_atomic(tmp_path / "a.json", {"b": 2, "a": 1})
     digest = sha256_of(first)
-    write_json_atomic(tmp_path / "a.json", {"a": 1, "b": 2})  # 键序不同
+    write_json_atomic(tmp_path / "a.json", {"a": 1, "b": 2})  # different key order
     assert sha256_of(tmp_path / "a.json") == digest
 
 
@@ -82,7 +83,7 @@ def test_append_preserves_existing_lines(tmp_path: Path) -> None:
     assert len(path.read_text(encoding="utf-8").strip().splitlines()) == 3
 
 
-# ---- 凭据防护 ----
+# ---- credential protection ----
 
 
 @pytest.mark.parametrize(
@@ -101,9 +102,9 @@ def test_append_preserves_existing_lines(tmp_path: Path) -> None:
     ],
 )
 def test_sensitive_keys_are_rejected(tmp_path: Path, key: str) -> None:
-    """design.md 第 14 节：日志不记录凭据。由代码强制，不靠自觉。"""
-    with pytest.raises(SensitiveValueError, match="疑似凭据"):
-        audit.record(tmp_path / "audit.jsonl", "estimate", metadata={key: "值"})
+    """design.md section 14: no credentials in the log. Enforced by code, not discipline."""
+    with pytest.raises(SensitiveValueError, match="looks like a credential"):
+        audit.record(tmp_path / "audit.jsonl", "estimate", metadata={key: "value"})
 
 
 def test_sensitive_keys_are_rejected_when_nested(tmp_path: Path) -> None:
@@ -121,11 +122,12 @@ def test_ordinary_metadata_passes(tmp_path: Path) -> None:
 
 
 def test_params_are_hashed_not_stored(tmp_path: Path) -> None:
-    """参数里可能有路径（泄露目录结构，ADR-0002）与列名，只记哈希。"""
+    """Parameters carry paths (leaking directory structure, ADR-0002) and column names;
+    only the hash is stored."""
     path = tmp_path / "audit.jsonl"
-    audit.record(path, "estimate", {"data": "/Users/someone/私人病历.csv", "seed": 42})
+    audit.record(path, "estimate", {"data": "/Users/someone/private-records.csv", "seed": 42})
     raw = path.read_text(encoding="utf-8")
-    assert "私人病历" not in raw
+    assert "private-records" not in raw
     assert "params_hash" in raw
 
 
@@ -162,7 +164,7 @@ def test_manifest_records_everything_that_affects_the_result(tmp_path: Path) -> 
     assert manifest.seed == 7
     assert manifest.claim_rules_hash == "rules123"
     assert manifest.causpec_version
-    # 会影响数值的依赖必须记下来（G5）
+    # Dependencies that can change the numbers must be recorded (G5)
     assert {"econml", "numpy", "pandas"} <= set(manifest.package_versions)
 
 
@@ -184,17 +186,17 @@ def test_checksums_cover_every_artifact(tmp_path: Path) -> None:
 
 
 def test_verify_detects_tampering(tmp_path: Path) -> None:
-    """事后有人改了 run 目录里的文件，checksum 对不上就能发现。"""
+    """A file edited in the run directory afterwards fails its checksum."""
     with RunContext.create(tmp_path) as run:
-        run.write_text("report.md", "原始报告")
+        run.write_text("report.md", "the original report")
         run.finalize(spec_hash="abc", seed=7)
-    (run.directory / "report.md").write_text("被改过的报告", encoding="utf-8")
+    (run.directory / "report.md").write_text("the report after editing", encoding="utf-8")
     assert run.verify() == ["report.md"]
 
 
 def test_verify_detects_deletion(tmp_path: Path) -> None:
     with RunContext.create(tmp_path) as run:
-        run.write_text("report.md", "报告")
+        run.write_text("report.md", "report")
         run.finalize(spec_hash="abc", seed=7)
     (run.directory / "report.md").unlink()
     assert run.verify() == ["report.md"]
@@ -207,14 +209,15 @@ def test_verify_without_manifest_raises(tmp_path: Path) -> None:
 
 
 def test_execution_mode_is_recorded(tmp_path: Path) -> None:
-    """skill 形态是 best-effort，读者要知道这份结果的保证有多强（design.md 第 3 节）。"""
+    """The skill form is best-effort; the reader needs to know how strong the guarantee
+    is (design.md section 3)."""
     with RunContext.create(tmp_path, ExecutionMode.SKILL) as run:
         manifest = run.finalize(spec_hash="abc", seed=7)
     assert manifest.execution_mode is ExecutionMode.SKILL
 
 
 def test_reproducibility_key_ignores_incidental_fields(tmp_path: Path) -> None:
-    """run_id、时间戳不影响结果是否应当相同。"""
+    """run_id and timestamps do not decide whether two results should agree."""
     manifests = []
     for run_id in ("run-a", "run-b"):
         with RunContext.create(tmp_path, run_id=run_id) as run:

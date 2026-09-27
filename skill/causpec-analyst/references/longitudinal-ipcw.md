@@ -1,41 +1,48 @@
-# 纵向分析（尚未实现）
+# Longitudinal analysis (not implemented)
 
-**CauSpec 目前不支持纵向/时变处理分析。**
+**CauSpec does not support longitudinal or time-varying treatment analysis.**
 
-遇到这类问题，明确说明不支持，不要改用横截面的方法凑出一个结果。
+When a question needs it, say so plainly. Do not substitute a cross-sectional method
+to produce a number.
 
-## 什么样的问题属于这一类
+## What falls into this category
 
-- 处理随时间反复开关（「每天根据肌酐决定要不要继续透析」）
-- 混杂因素本身受前期处理影响（时变混杂）
-- 关心的是一个**策略**而非一次性的处理（「早开始 vs 晚开始」）
-- 存在与结局相关的删失（informative censoring）
+- Treatment switching on and off over time ("deciding daily whether to continue dialysis")
+- Confounders that are themselves affected by earlier treatment (time-varying confounding)
+- A question about a **strategy** rather than a one-off treatment ("start early versus
+  start late")
+- Censoring related to the outcome (informative censoring)
 
-这些用后门调整或标准 IV 都会有偏，而且偏倚方向无法预判。
+Backdoor adjustment and standard IV are both biased for these, in directions that
+cannot be predicted.
 
-## 为什么不能用现有的 family 凑
+## Why the existing families cannot be made to fit
 
-把纵向问题压成横截面（比如「入 ICU 后 24 小时内是否透析」）会引入两类问题：
+Flattening a longitudinal question into a cross-sectional one — say, "dialysed within
+24 hours of ICU admission" — introduces two problems:
 
-1. **immortal time bias**——「24 小时内透析」这个分组要求患者活过 24 小时，
-   而对照组没有这个要求
-2. **时变混杂**——肌酐既是前一天透析决策的结果，又是今天决策的原因；
-   调整它会堵住因果路径，不调整又有混杂
+1. **Immortal time bias.** Belonging to the "dialysed within 24 hours" group requires
+   surviving 24 hours; the comparison group carries no such requirement.
+2. **Time-varying confounding.** Creatinine is both a consequence of yesterday's
+   dialysis decision and a cause of today's. Adjusting for it blocks the causal path;
+   not adjusting leaves confounding.
 
-告诉用户这些，比给一个有偏的数字强。
+Telling the user this is more useful than giving them a biased number.
 
-## 现在能提供什么
+## What can still be offered
 
-即使不能估计，你仍然可以：
+Even without estimation, you can:
 
-- 跑质量检查中与时间相关的部分（**目前也尚未实现**，见 plan.md Phase 1 任务 5）
-- 帮用户把问题写成 target trial 的七个组成部分，明确它到底在问什么
-- 说明需要什么样的方法（IPCW / g-formula / 边际结构模型）
+- Run the time-related quality checks (**also not implemented yet**; see plan.md
+  Phase 1 task 5)
+- Help the user state the question as the seven components of a target trial, making
+  explicit what is actually being asked
+- Explain what method it would take (IPCW / g-formula / marginal structural models)
 
-## 待补
+## Outstanding
 
-`longitudinal_ipcw` 这个 family 的设计还缺一份文档：各事件
-（death、discharge、transfer）在估计中分别按 outcome、competing、censoring
-还是 terminal 处理，以及由此得到的估计量该怎么解释。
+The `longitudinal_ipcw` family still needs one document: how each event (death,
+discharge, transfer) is treated in estimation — as outcome, competing, censoring or
+terminal — and how the resulting estimand should be read.
 
-这份文档由作者补齐后才会实现对应代码（design.md 7.3 的 TODO）。
+Code follows that document, not the other way round (design.md 7.3, TODO).

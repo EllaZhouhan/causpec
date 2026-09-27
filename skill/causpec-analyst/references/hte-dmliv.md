@@ -1,99 +1,113 @@
-# IV 设定下的异质处理效应
+# Heterogeneous treatment effects under an IV design
 
-## 什么时候用 `hte_iv`
+## When to use `hte_iv`
 
-用户认为**存在未测混杂**——即可观测协变量不足以控制混杂——但手头有一个
-可信的 instrument。
+The user believes there is **unmeasured confounding** — that the observable covariates
+are not enough to control it — but has a credible instrument.
 
-这是个需要用户判断的问题，不是你能从数据里看出来的。问法：
+That is a judgement for them to make, not something you can read off the data. How to
+ask:
 
-> 「有没有什么因素同时影响了谁接受处理、以及结局，但数据里没记录？
-> 比如医生对病情的主观判断、家属意愿、没写进病历的体征？」
+> "Is there anything that influenced both who received treatment and the outcome, but
+> that the data doesn't record? A clinician's impression of severity, family
+> preference, signs that never made it into the chart?"
 
-有 → 考虑 IV。没有（且用户有把握）→ 用 `hte_backdoor`。
+Yes, and there is an instrument -> consider IV. No, and the user is confident ->
+`hte_backdoor`.
 
-## 估计对象：这是最容易讲错的地方
+## The estimand: the easiest thing here to get wrong
 
-**IV 识别的不是全人群的效应。**
+**IV does not identify the effect for the whole population.**
 
-### 二值 instrument
+### Binary instrument
 
-在 relevance、exclusion restriction、monotonicity 三条假设下，识别的是
-**complier 的条件 LATE**——即「因为 instrument 取值不同而改变了是否接受处理」
-的那部分人的效应。
+Under relevance, the exclusion restriction and monotonicity, what is identified is the
+**conditional LATE among compliers** — the people whose treatment status changed
+because the instrument took a different value.
 
-complier **无法被识别到个体**。所以：
+Compliers **cannot be identified individually**. So:
 
-- ✗ 「这位患者的预期获益是 X」
-- ✗ 「全人群平均效应为 X」
-- ✓ 「在因医生倾向不同而改变了治疗决策的那部分患者中，效应为 X」
+- Wrong: "this patient's expected benefit is X"
+- Wrong: "the population average effect is X"
+- Right: "among patients whose treatment decision changed with their clinician's
+  tendency, the effect is X"
 
-`iv_low_complier_share` 这条检查会告诉你 complier 占多大比例。占比很小时，
-**必须在报告里写明结论只对人群中很窄的一部分成立**。
+The `iv_low_complier_share` check reports what fraction they are. When it is small,
+**the report must state that the conclusion holds for only a narrow slice of the
+population**.
 
-### 连续 instrument
+### Continuous instrument
 
-不存在单一的 complier 群体。在 uniformity（monotonicity 对连续情形的推广）下，
-识别的是各相邻取值之间「边际 LATE」的加权平均，权重由该处一阶段的斜率与
-instrument 的分布共同决定（Angrist & Imbens 1995, JASA）。
+There is no single complier group. Under uniformity (monotonicity generalised to
+continuous instruments), what is identified is a weighted average of "marginal LATEs"
+between adjacent instrument values, with weights set jointly by the local first-stage
+slope and the instrument's distribution (Angrist & Imbens 1995, JASA).
 
-**权重不由用户选择，也不等同于人群占比。** 所以这个估计对象的适用人群
-比二值情形更难描述——报告里要如实说明这一点，不要简化成「平均效应」。
+**The weights are not chosen by the user and do not correspond to population shares.**
+The population this estimand applies to is therefore harder to describe than in the
+binary case; say so plainly rather than simplifying it to "the average effect".
 
-`res:instrument.kind` 会告诉你这次是 `binary` 还是 `continuous`。
+`res:instrument.kind` tells you whether this run was `binary` or `continuous`.
 
-### 什么时候能叫 CATE
+### When it may be called a CATE
 
-只有在额外假设「给定协变量后效应不随 compliance 类型变化」时，上述估计对象
-才可解释为全人群的 CATE。**这条假设本身也是 untestable 的**，要用户明确认领。
+Only under the further assumption that the effect does not vary by compliance type
+given covariates can either estimand be read as a population CATE. **That assumption is
+itself untestable**, and the user has to own it explicitly.
 
-## estimand 对账
+## Estimand reconciliation
 
-用户问「哪些患者获益」时想要的是 CATE。如果识别策略是 IV 且只假设了
-monotonicity，**这两者不一致**——在第 5 步就要停下来，让用户二选一：
+A user asking "which patients benefit" wants a CATE. If the identification strategy is
+IV under monotonicity alone, **those do not match** — stop at step 5 and give the user
+the choice:
 
-1. 改写 estimand，接受结论只对 complier 成立
-2. 补上「效应不随 compliance 类型变化」这条假设，并论证它
+1. Restate the estimand and accept that the conclusion covers compliers only
+2. Add the "effect does not vary by compliance type" assumption, and argue for it
 
-不要默默按 CATE 汇报。
+Do not quietly report it as a CATE.
 
-## 两个后端
+## The two backends
 
-| | `ivforest`（默认） | `dmliv` |
+| | `ivforest` (default) | `dmliv` |
 |---|---|---|
-| CATE 区间 | GRF honest 方差，一次拟合内完成 | bootstrap |
-| ATE 区间 | 对森林做单位层面 bootstrap | bootstrap |
-| 速度（n=5000） | 每次重抽样约 5 秒 | 约 26 秒 |
-| 多个 instrument / `adjustment_set` | 不支持 | 支持 |
+| CATE interval | GRF honest variance, within one fit | bootstrap |
+| ATE interval | unit-level bootstrap of the forest | bootstrap |
+| Speed (n=5000) | about 5s per replicate | about 26s |
+| Multiple instruments / `adjustment_set` | not supported | supported |
 
-`dmliv` 只能 bootstrap 不是选择，是 EconML 对那个类的唯一选项——它的
-final model 是任意回归器，推不出方差。
+That `dmliv` can only bootstrap is not a choice: it is the only option EconML offers
+for that class, because its final model is an arbitrary regressor from which no
+variance can be derived.
 
-**重抽样次数默认 200。** 调低会变快但区间失真：实测同一份数据，20 次重抽样
-与解析区间给出的「个体显著获益人数」差了两个数量级。次数不足 100 时结果里会
-打标记（`res:estimation.bootstrap_adequate`），报告要把这件事说出来。
+**The replicate count defaults to 200.** Lowering it is faster but distorts the
+interval: on the same data, 20 replicates and the analytic interval differed by two
+orders of magnitude in the count of individuals with a significant benefit. Below 100
+the Result is flagged (`res:estimation.bootstrap_adequate`) and the report has to say so.
 
-多核机器上加 `bootstrap_n_jobs: 8`，实测 4.6 倍加速且结果完全一致。
+On a multi-core machine add `bootstrap_n_jobs: 8` — measured at 4.6x faster with
+identical results.
 
-## 三条假设怎么记进 spec
+## Recording the three assumptions
 
 ```yaml
 assumptions:
   - id: relevance
-    category: empirically_assessed      # 质量检查会给证据
-    statement: instrument 与 treatment 相关且强度足够
+    category: empirically_assessed      # quality checks give evidence
+    statement: the instrument is associated with treatment, strongly enough
   - id: exclusion_restriction
-    category: untestable                # 跑什么检验都证明不了
-    statement: instrument 只通过 treatment 影响 outcome
-  - id: monotonicity                     # 连续 instrument 时换成 uniformity
+    category: untestable                # no diagnostic can establish this
+    statement: the instrument affects the outcome only through the treatment
+  - id: monotonicity                     # uniformity, for a continuous instrument
     category: untestable
-    statement: 不存在 defier
+    statement: there are no defiers
 ```
 
-exclusion restriction 需要**领域论证**，必须问用户：
+The exclusion restriction needs a **domain argument**, so you have to ask:
 
-> 「除了影响是否透析之外，主治医生的既往透析倾向还有没有别的途径
-> 影响患者的死亡风险？比如倾向高的医生在其他方面也更积极？」
+> "Besides influencing whether a patient gets dialysis, could a consultant's past
+> dialysis tendency reach mortality by any other route? Are consultants who dialyse
+> more also more aggressive in other ways?"
 
-`iv_covariate_imbalance` 这条检查只能验证一个**必要条件**——instrument 若真的
-近似随机分配，协变量应当是平衡的。**平衡不构成 exclusion restriction 成立的证据。**
+The `iv_covariate_imbalance` check only tests a **necessary** condition — if the
+instrument really were close to random, covariates should be balanced across it.
+**Balance is not evidence that the exclusion restriction holds.**

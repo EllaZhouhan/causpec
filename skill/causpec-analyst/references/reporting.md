@@ -1,106 +1,113 @@
-# 报告
+# Reporting
 
-## 结构是固定的
+## The structure is fixed
 
 ```
-1. 问题与分析规格        ← 代码生成
-2. 估计对象与适用人群     ← 你写
-3. 变量角色              ← 代码生成（当前为「尚未实现」）
-4. 假设                  ← 代码生成
-5. 数据质量              ← 代码生成表格 + 你写解读
-6. 主结果                ← 你写
-7. 敏感性与反驳           ← 你写（当前为「尚未实现」）
-8. 措辞等级及理由         ← 代码生成
-9. 局限                  ← 你写
-10. 事后分析（如有）      ← 你写
+1.  Question and analysis spec          <- code
+2.  Estimand and its population         <- you
+3.  Variable roles                      <- code (currently "not implemented")
+4.  Assumptions                         <- code
+5.  Data quality                        <- code table + your interpretation
+6.  Primary results                     <- you
+7.  Sensitivity and refutation          <- you (currently "not implemented")
+8.  Claim level and reasoning           <- code
+9.  Limitations                         <- you
+10. Post-hoc analyses, if any           <- you
 ```
 
-**顺序不可改。** 假设（4）在主结果（6）之前是这条结构的要点——读者要先看到
-这个分析依赖什么，再看到数字。你按什么顺序交稿都不影响最终顺序。
+**The order cannot be changed.** Assumptions (4) preceding primary results (6) is the
+point of this structure: a reader has to see what the analysis rests on before seeing
+a number. Whatever order you submit in, the final order is unchanged.
 
-## 你能写哪六节
+## The six sections you may write
 
-`estimand`、`data_quality`、`primary_results`、`sensitivity`、`limitations`、`post_hoc`。
+`estimand`, `data_quality`, `primary_results`, `sensitivity`, `limitations`, `post_hoc`.
 
-**写不了**：`question_and_spec`、`claim_level`、`variable_roles`、`assumptions`。
-试图为它们提供文字会被拒绝。
+**You may not write**: `question_and_spec`, `claim_level`, `variable_roles`,
+`assumptions`. Supplying prose for any of them is refused.
 
-前两节为什么不让你碰：
+Why the first two are closed to you:
 
-- **spec 来源表**是给用户核查「你有没有替我确认」的。你经手就失去意义。
-- **措辞等级**由代码判定，你不得自行升级。
+- **The spec-provenance table** exists so the user can audit whether you confirmed
+  things on their behalf. It loses its point if you touch it.
+- **The claim level** is decided by code; you may not upgrade it.
 
-## 怎么交稿
+## How to submit
 
-写一个 `narrative.yaml`：
+Write a `narrative.yaml`:
 
 ```yaml
 estimand: >
-  本次估计的是全人群的平均处理效应。它回答的是「如果所有符合入组条件的患者
-  都接受透析，相比都不接受，死亡率会差多少」，不针对任何具体个体。
+  This estimates the population average treatment effect. It answers "if every
+  eligible patient received dialysis rather than none of them, how much would
+  mortality differ", not anything about a specific individual.
 
 primary_results: >
-  在 {{res:sample.n}} 名患者中，{{res:sample.n_treated}} 人接受了透析。
-  平均效应为 {{res:primary.ate|+.3f}}，{{lit:95}}% 置信区间
-  [{{res:primary.ate_ci_lower|+.3f}}, {{res:primary.ate_ci_upper|+.3f}}]。
+  Among {{res:sample.n}} patients, {{res:sample.n_treated}} received dialysis.
+  The average effect is {{res:primary.ate|+.3f}}, {{lit:95}}% confidence interval
+  [{{res:primary.ate_ci_lower|+.3f}}, {{res:primary.ate_ci_upper|+.3f}}].
 
 limitations: >
-  本分析依赖无未测混杂这一无法检验的假设。
+  This analysis rests on unconfoundedness, which cannot be verified.
 ```
 
 ```bash
-python scripts/run.py estimate --spec spec.yaml --data <数据> \
+python scripts/run.py estimate --spec spec.yaml --data <data> \
     --report --narrative narrative.yaml --run-dir runs/
 ```
 
-## 占位符语法
+## Placeholder syntax
 
 ```
-{{res:primary.ate}}              估计结果
-{{qc:backdoor_overlap.passed}}   质量检查的证据
-{{claim:level}}                  措辞等级
-{{lit:95}}                       术语里的固定数字（见下）
+{{res:primary.ate}}              estimation results
+{{qc:backdoor_overlap.passed}}   quality-check evidence
+{{claim:level}}                  the claim level
+{{lit:95}}                       a fixed number inside a term (see below)
 ```
 
-**加格式说明控制精度**：
+**Append a format spec to control precision**:
 
 ```
-{{res:primary.ate|+.3f}}                       → -0.018
-{{qc:backdoor_overlap.extreme_fraction|.1%}}   → 0.2%
+{{res:primary.ate|+.3f}}                       -> -0.018
+{{qc:backdoor_overlap.extreme_fraction|.1%}}   -> 0.2%
 ```
 
-不加格式说明会输出完整精度（`-0.017936448014042473`），报告没法读。
-**但不要因此自己四舍五入**——用格式说明，那才是被允许的方式。
+Without one you get full precision (`-0.017936448014042473`), which is unreadable.
+**Do not round it yourself** — use a format spec; that is the permitted way.
 
-## 三条会让渲染失败的事
+## Three things that fail the render
 
-**① 正文里出现未经占位的数字。**
+**1. A bare number anywhere in the prose.**
 
 ```
-✗ 平均效应约为 -0.018。
-✓ 平均效应为 {{res:primary.ate|+.3f}}。
+Wrong: The average effect is about -0.018.
+Right: The average effect is {{res:primary.ate|+.3f}}.
 ```
 
-**② 引用不存在的地址。** 错误信息会列出全部可用地址——照着改。
+**Numbers inside a term count too.** The `28` in "28-day mortality", the `95` in "95%
+confidence interval", the `3` in "AKI stage 3" — all of them must be written
+`{{lit:28}}`. The renderer does not read meaning, and cannot tell "28 days" from "the
+effect is 0.028", so it draws one line and asks you to declare which numbers you did
+not compute.
 
-**注意术语里的数字也算。**「28 天死亡率」的 `28`、「95% 置信区间」的 `95`、
-「AKI-3 期」的 `3`——一律要写成 `{{lit:28}}`。渲染器不理解语义，没法区分
-「28 天」和「效应是 0.028」，所以一刀切，由你显式声明哪些数字不是算出来的。
+**2. An unknown address.** The error lists every available address in that namespace —
+follow it.
 
-**③ 用 `lit:` 夹带计算结果。**
+**3. Using `lit:` to smuggle in a result.**
 
-`{{lit:28}}` 是给术语里的固定数字用的（「{{lit:28}} 天死亡率」「{{lit:95}}% 置信区间」）。
-如果某个 `lit` 的数值与任何计算结果相同，渲染会拒绝——那是在绕过占位符机制。
+`{{lit:28}}` is for fixed numbers inside a term. If a `lit` value matches any computed
+result, the render is refused — that would be routing around the placeholder mechanism.
 
-## 措辞必须与等级一致
+## Wording must match the level
 
-报告末尾会写出代码判定的等级。你在 `primary_results` 里的措辞要与它匹配：
+The report ends with the claim level the code decided. Your prose in `primary_results`
+has to match it:
 
-| 等级 | 能怎么说 |
+| Level | What you may say |
 |---|---|
-| `causal` | 「降低了 / 提高了」——断言因果方向与量级 |
-| `suggestive` | 「提示可能与……有关」——不断言因果 |
-| `associational` | 只描述关联，并写明本分析不足以支持因果解读 |
-| `descriptive` | 只陈述各组的数值，不作组间比较推断 |
+| `causal` | "reduced" / "increased" — asserting causal direction and magnitude |
+| `suggestive` | "suggests a possible association with ..." — asserting no causation |
+| `associational` | Describe the association, and state that this analysis does not support a causal reading |
+| `descriptive` | Report each group's numbers; draw no between-group inference |
 
-详见 `claim-levels.md`。
+See `claim-levels.md`.

@@ -1,8 +1,11 @@
-"""CauSpec 命令行入口。
+"""CauSpec command-line entry point.
 
-``quality`` 只跑质量检查——G3 要求即使分析不能运行，质量报告本身也是交付物。
-``estimate`` 先跑检查、过门控，再估计，可选渲染报告。
-``report`` 作为独立子命令待补（现在由 ``estimate --report`` 承担）。
+``quality`` runs the checks alone — G3 requires the quality report to be a
+deliverable even when the analysis cannot run.
+``estimate`` runs the checks, passes the gate, estimates, and optionally renders a
+report.
+A standalone ``report`` subcommand is still to come; ``estimate --report`` covers it
+for now.
 """
 
 from __future__ import annotations
@@ -41,27 +44,29 @@ def _load_data(path: Path) -> pd.DataFrame:
 
 
 def _load_narrative(path: Path | None) -> dict[str, str]:
-    """读模型撰写的解读文字。
+    """Read the interpretation written by the model.
 
-    按段落组织的 YAML：``{section: 正文}``。不接受一整篇自由文本——
-    报告的结构由 design.md 10.3 规定，不由撰稿人决定（尤其是「假设写在
-    结果之前」这一条）。
+    A YAML mapping of ``{section: prose}``. A single free-form document is not
+    accepted: the report's structure comes from design.md 10.3, not from whoever is
+    writing — least of all the rule that assumptions precede results.
     """
     if path is None:
         return {}
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(payload, dict):
-        raise SystemExit(f"{path} 应当是 {{段落: 正文}} 形式的 YAML。")
+        raise SystemExit(f"{path} should be a YAML mapping of {{section: prose}}.")
     return {str(k): str(v) for k, v in payload.items()}
 
 
 def _parse_waivers(entries: list[str] | None) -> dict[str, str]:
-    """``--waive check_id=理由`` 解析成 {check_id: 理由}。豁免必须附理由。"""
+    """Parse ``--waive check_id=reason`` into {check_id: reason}. A reason is required."""
     waivers: dict[str, str] = {}
     for entry in entries or []:
         check_id, _, reason = entry.partition("=")
         if not reason.strip():
-            raise SystemExit(f"豁免必须附理由：--waive {check_id}=<为什么可以忽略这条>")
+            raise SystemExit(
+                f"a waiver needs a reason: --waive {check_id}=<why this can be set aside>"
+            )
         waivers[check_id.strip()] = reason.strip()
     return waivers
 
@@ -85,11 +90,11 @@ def _persist_run(
     waivers: dict[str, str],
     render_ok: bool,
 ) -> Path:
-    """把这次运行落盘成一个 run 目录（design.md 第 14 节）。
+    """Persist this run as a run directory (design.md section 14).
 
-    产物一律原子写入，最后由 finalize 记下每个文件的 checksum。
-    审计日志只记参数哈希，不记参数内容——路径会泄露目录结构（ADR-0002），
-    列名会泄露 schema。
+    Every artefact is written atomically, and finalize records each file's checksum.
+    The audit log stores only a parameter hash, never the parameters themselves: paths
+    leak directory structure (ADR-0002) and column names leak the schema.
     """
     with RunContext.create(args.run_dir, ExecutionMode.CLI) as run:
         run.write_text("spec.yaml", args.spec.read_text(encoding="utf-8"))
@@ -119,15 +124,15 @@ def _persist_run(
             seed=args.seed,
             claim_rules_hash=decision.rules_hash,
         )
-    print(f"run 目录：{run.directory}", file=sys.stderr)
+    print(f"run directory: {run.directory}", file=sys.stderr)
     return run.directory
 
 
 def cmd_quality(args: argparse.Namespace) -> int:
-    """只跑质量检查。
+    """Run the quality checks only.
 
-    G3：即使分析不能运行，质量报告本身也是交付物——所以这条子命令独立存在，
-    不要求 spec 已确认。
+    G3: the quality report is a deliverable even when the analysis cannot run, which
+    is why this subcommand stands alone and does not require a confirmed spec.
     """
     spec = _load_spec(args.spec)
     report = _resolve_family(spec).check(_load_data(args.data), spec)
@@ -144,8 +149,9 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     data = _load_data(args.data)
     family = _resolve_family(spec)
 
-    # 门控在估计之前。不通过就到此为止——这是代码里的 if，不是 prompt 里的规则。
-    # 第 1 条查 spec 确认，第 2 条查有没有未豁免的 blocking 质量问题。
+    # The gate runs before estimation and stops the command if it fails — an `if` in
+    # code, not a rule in a prompt. Condition 1 checks spec confirmation, condition 2
+    # checks for unwaived blocking quality issues.
     waivers = _parse_waivers(args.waive)
     report = family.check(data, spec)
     try:
@@ -158,7 +164,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     result = family.estimate(data, spec, seed=args.seed)
     elapsed_ms = (time.perf_counter() - started) * 1000
 
-    # 措辞等级由代码判定，模型不能自行升级（design.md 原则 5）。
+    # The claim level is decided by code; the model may not upgrade it (principle 5).
     decision = determine(spec, report, gate_passed=True, waived=waivers)
     addresses: dict[str, float | int | str] = {
         **result.values,
@@ -195,7 +201,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         )
 
     if render_error is not None:
-        print(f"报告渲染失败：\n{render_error}", file=sys.stderr)
+        print(f"report rendering failed:\n{render_error}", file=sys.stderr)
         return 3
     if rendered is not None:
         print(rendered)
@@ -203,7 +209,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
     for address, value in addresses.items():
         print(f"{address} = {value}")
-    print(f"\n措辞等级：{decision.level.value}")
+    print(f"\nClaim level: {decision.level.value}")
     for reason in decision.reasons:
         print(f"  · {reason}")
     return 0
@@ -214,36 +220,40 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"causpec {__version__}")
     subparsers = parser.add_subparsers(dest="command")
 
-    quality = subparsers.add_parser("quality", help="只跑质量检查，不需要 spec 已确认")
-    quality.add_argument("--spec", type=Path, required=True, help="spec.yaml 路径")
-    quality.add_argument("--data", type=Path, required=True, help="数据 CSV / Parquet 路径")
+    quality = subparsers.add_parser(
+        "quality", help="run the quality checks only; no confirmed spec required"
+    )
+    quality.add_argument("--spec", type=Path, required=True, help="path to spec.yaml")
+    quality.add_argument("--data", type=Path, required=True, help="path to the CSV or Parquet")
     quality.set_defaults(func=cmd_quality)
 
-    estimate = subparsers.add_parser("estimate", help="门控通过后执行估计，可选渲染报告")
-    estimate.add_argument("--spec", type=Path, required=True, help="spec.yaml 路径")
-    estimate.add_argument("--data", type=Path, required=True, help="数据 CSV / Parquet 路径")
+    estimate = subparsers.add_parser(
+        "estimate", help="estimate once the gate passes, optionally rendering a report"
+    )
+    estimate.add_argument("--spec", type=Path, required=True, help="path to spec.yaml")
+    estimate.add_argument("--data", type=Path, required=True, help="path to the CSV or Parquet")
     estimate.add_argument(
         "--report",
         action="store_true",
-        help="按 design.md 10.3 的固定结构输出报告；省略则直接打印带地址的结果",
+        help="emit the report in design.md 10.3 structure; omit to print addressed results",
     )
     estimate.add_argument(
         "--narrative",
         type=Path,
         metavar="YAML",
-        help="模型撰写的解读文字，{段落: 正文}；正文只能用占位符引用数字",
+        help="model-written interpretation as {section: prose}; numbers only via placeholders",
     )
     estimate.add_argument("--seed", type=int, default=42)
     estimate.add_argument(
         "--run-dir",
         type=Path,
-        help="把这次运行落盘到这个目录下（manifest、产物 checksum、审计日志）",
+        help="persist this run under this directory (manifest, checksums, audit log)",
     )
     estimate.add_argument(
         "--waive",
         action="append",
-        metavar="CHECK_ID=理由",
-        help="豁免一条可豁免的 blocking 检查，必须附理由；可重复",
+        metavar="CHECK_ID=REASON",
+        help="waive one waivable blocking check; a reason is required. May be repeated",
     )
     estimate.set_defaults(func=cmd_estimate)
 

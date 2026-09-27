@@ -1,3 +1,3 @@
-# 分析报告
+# Analysis report
 
-朴素组均值差约为 0.12，说明 CRRT 反而提高了死亡率。
+The naive difference in group means is about 0.12, so CRRT appears to raise mortality.

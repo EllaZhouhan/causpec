@@ -1,6 +1,7 @@
-"""hte_backdoor：CausalForestDML 适配器与 overlap / SMD 检查。
+"""hte_backdoor: the CausalForestDML adapter and the overlap / SMD checks.
 
-对应 design.md 8.1（可识别性与可行性层）、10.2（两项阻断检验之一）。
+Mirrors design.md 8.1 (identification and feasibility layers) and 10.2 (one of the
+two blocking checks).
 """
 
 from __future__ import annotations
@@ -33,12 +34,12 @@ COVARIATES = [
 
 
 def confirmed(value: object) -> SpecField:
-    return SpecField(value=value, source=Source.USER, said="确认", status=Status.CONFIRMED)
+    return SpecField(value=value, source=Source.USER, said="confirmed", status=Status.CONFIRMED)
 
 
 def make_spec(params: dict[str, object] | None = None) -> Spec:
     return Spec(
-        question="透析对死亡率的平均效应？",
+        question="What is the average effect of dialysis on mortality?",
         family="hte_backdoor",
         estimation={"params": params or {"n_estimators": 100}},
         fields={
@@ -57,7 +58,8 @@ def data():
 
 @pytest.fixture(scope="module")
 def broken_overlap(data):
-    """把共同支撑打掉：SOFA 高于中位数的人几乎必然接受处理，低于的几乎必然不。"""
+    """Destroy common support: above-median SOFA is almost certainly treated, below-median
+    almost certainly not."""
     rng = np.random.default_rng(0)
     broken = data.copy()
     sofa = data["sofa_total_24h"].to_numpy()
@@ -76,7 +78,7 @@ def result(data):
     return registry.get("hte_backdoor").estimate(data, make_spec(), seed=42)
 
 
-# ---- 统计量本身 ----
+# ---- the statistics themselves ----
 
 
 def test_smd_is_zero_when_groups_match() -> None:
@@ -86,7 +88,7 @@ def test_smd_is_zero_when_groups_match() -> None:
 
 
 def test_smd_scales_by_pooled_sd() -> None:
-    """两组均值差一个合并标准差时，SMD 应为 1。"""
+    """When the two group means differ by one pooled standard deviation, SMD is 1."""
     rng = np.random.default_rng(0)
     control = rng.normal(0, 1, 20000)
     treated = rng.normal(1, 1, 20000)
@@ -110,7 +112,8 @@ def test_ess_collapses_for_extreme_weights() -> None:
 
 
 def test_propensity_is_cross_fitted(data) -> None:
-    """交叉拟合是必须的：同一份数据上拟合又预测会把得分推向 0/1。"""
+    """Cross-fitting is mandatory: fitting and predicting on the same data pushes the
+    scores towards 0 and 1."""
     covariates = data[COVARIATES].astype(float).to_numpy()
     treatment = data["isDialysisICU"].to_numpy().astype(int)
     scores = estimate_propensity(covariates, treatment, "gradient_boosting", 5, seed=0)
@@ -125,7 +128,7 @@ def test_unknown_propensity_model_is_rejected(data) -> None:
         estimate_propensity(covariates, treatment, "magic", 5, seed=0)
 
 
-# ---- overlap（阻断检验）----
+# ---- overlap (the blocking check) ----
 
 
 def test_good_overlap_passes(report) -> None:
@@ -134,17 +137,18 @@ def test_good_overlap_passes(report) -> None:
 
 
 def test_broken_overlap_blocks(broken_overlap) -> None:
-    """负向对照：只在好数据上跑通不能说明这条检查有用。"""
+    """Negative control: passing on good data alone says nothing about usefulness."""
     report = registry.get("hte_backdoor").check(broken_overlap, make_spec())
     issue = report.get("backdoor_overlap")
     assert issue.severity is Severity.BLOCKING
     assert issue.evidence["passed"] is False
     assert float(issue.evidence["extreme_fraction"]) > 0.5
-    assert "外推" in issue.impact_on_analysis
+    assert "extrapolated" in issue.impact_on_analysis
 
 
 def test_broken_overlap_also_wrecks_balance_and_ess(broken_overlap) -> None:
-    """三条检查互相印证：没有共同支撑时，IPW 权重也会爆炸、平衡也修不好。"""
+    """The three checks corroborate each other: without common support the IPW weights
+    blow up and balance cannot be repaired either."""
     report = registry.get("hte_backdoor").check(broken_overlap, make_spec())
     assert report.get("backdoor_covariate_imbalance").evidence["passed"] is False
     assert float(report.get("backdoor_extreme_weights").evidence["ess_ratio"]) < 0.20
@@ -163,7 +167,7 @@ def test_empty_arm_stops_further_checks(data) -> None:
 
 
 def test_smd_is_a_warning_not_a_blocker() -> None:
-    """design.md 10.2 明确把调整后 SMD 列入「照印不设闸」。"""
+    """design.md 10.2 explicitly lists adjusted SMD as report-but-do-not-gate."""
     checks = registry.load_declaration("hte_backdoor")["checks"]
     assert checks["backdoor_covariate_imbalance"]["severity"] == "warning"
     assert checks["backdoor_overlap"]["severity"] == "blocking"
@@ -176,13 +180,14 @@ def test_gate_blocks_on_broken_overlap(broken_overlap) -> None:
     assert excinfo.value.details["blocking_checks"] == ["backdoor_overlap"]
 
 
-# ---- 估计器 ----
+# ---- the estimator ----
 
 
 def test_intervals_come_from_blb_not_bootstrap(result) -> None:
-    """CausalForestDML 的 final model 就是森林，所以 ATE 区间也是解析的。
+    """CausalForestDML's final model is the forest, so the ATE interval is analytic too.
 
-    对照 hte_iv：NonParamDMLIV 的 final model 是任意回归器，只能 bootstrap。
+    Contrast hte_iv: NonParamDMLIV's final model is an arbitrary regressor, so it can
+    only bootstrap.
     """
     assert result.values["res:cate.ci_method"] == "blb"
     assert result.values["res:primary.ate_ci_method"] == "blb"
@@ -205,7 +210,7 @@ def test_reproducible_under_same_seed(data) -> None:
 
 
 def test_n_estimators_must_divide_subforest_size(data) -> None:
-    with pytest.raises(ValueError, match="整除"):
+    with pytest.raises(ValueError, match="divisible"):
         registry.get("hte_backdoor").estimate(data, make_spec({"n_estimators": 50}), seed=42)
 
 
@@ -218,15 +223,17 @@ def test_missing_effect_modifiers_is_rejected(data) -> None:
         registry.get("hte_backdoor").estimate(data, spec, seed=42)
 
 
-# ---- 真值对照 ----
+# ---- against ground truth ----
 
 
 def test_backdoor_cannot_remove_unobserved_confounding() -> None:
-    """后门调整消不掉未测混杂——这正是 hte_iv 存在的理由。
+    """Backdoor adjustment cannot remove unmeasured confounding, which is exactly why
+    hte_iv exists.
 
-    把未测混杂调强，朴素差值与 backdoor 估计的偏倚应当都很大且量级相当。
-    这条锁的是数据集 A 的设计意图：它必须是一份「只有 IV 能识别」的数据，
-    否则后面所有关于 IV 必要性的演示都站不住。
+    With unmeasured confounding turned up, the naive difference and the backdoor
+    estimate should both be badly biased, by comparable amounts. This pins dataset A's
+    design intent: it has to be data that **only** IV can identify, or every later
+    demonstration of why IV is needed falls apart.
     """
     df = generate(
         config_for(
@@ -244,4 +251,4 @@ def test_backdoor_cannot_remove_unobserved_confounding() -> None:
     backdoor_bias = float(result.values["res:primary.ate"]) - facts["ate_true"]
 
     assert naive_bias > 0.10
-    assert backdoor_bias > 0.10  # 调整之后仍然严重有偏
+    assert backdoor_bias > 0.10  # still badly biased after adjustment

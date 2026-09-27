@@ -1,10 +1,12 @@
-"""数据源适配器：csv、parquet、postgres。全部只读。
+"""Read-only data-source adapters: csv, parquet, postgres.
 
-对应 design.md 6.1。adapter 只负责把数据源读成 DuckDB 工作副本，
-不做连接、不做派生——复杂派生由数据方的 SQL view 负责。
+Mirrors design.md 6.1. An adapter only materialises a source into a derived snapshot;
+it performs no joins and no derivations — complex derivation belongs in a SQL view
+maintained by the data owner.
 
-postgres adapter 的只读保证来自数据库账号权限，不来自代码
-（design.md 原则 3）；``causpec-mcp doctor`` 负责核实账号确实无写权限。
+The postgres adapter's read-only guarantee comes from database account permissions,
+not from code (design.md principle 3); ``causpec-mcp doctor`` verifies that the
+account genuinely cannot write.
 
-Phase 1 任务 1、Phase 3 任务 3。
+Not implemented yet — see plan.md Phase 1 task 1 and Phase 3 task 3.
 """

@@ -1,7 +1,7 @@
-"""合成数据集 A：真值自洽性与工具变量的有效性。
+"""Synthetic dataset A: ground-truth self-consistency and instrument validity.
 
-对应 design.md 第 15、16 节。这些测试锁的是**生成器本身对不对**——
-如果 tau_true 不是真的真值，后面所有数值 evals 都建在沙子上。
+Mirrors design.md sections 15 and 16. These tests pin whether **the generator itself**
+is correct: if tau_true is not really the truth, every numerical eval built on it is sand.
 """
 
 from __future__ import annotations
@@ -29,10 +29,11 @@ def test_different_seed_different_data() -> None:
 
 
 def test_tau_true_equals_potential_outcome_difference(binary_data) -> None:
-    """τ 必须由潜在结局概率直接算出。
+    """tau must be computed straight from the potential-outcome probabilities.
 
-    早先的版本把 τ 定义成风险差再 clip 到 [0,1]，在 4% 的基线死亡率下被大量截断，
-    tau_true 记的就不再是真实效应——这个 bug 由真值验证抓出来，所以锁在这里。
+    An earlier version defined tau as a risk difference then clipped to [0,1], which at
+    4% baseline mortality clipped heavily, so tau_true no longer held the real effect.
+    The ground-truth check caught that bug, which is why it is pinned here.
     """
     expected = binary_data["p1_true"] - binary_data["p0_true"]
     assert np.allclose(binary_data["tau_true"], expected)
@@ -44,14 +45,15 @@ def test_potential_outcome_probabilities_are_valid(binary_data) -> None:
 
 
 def test_effect_is_heterogeneous_in_the_intended_direction(binary_data) -> None:
-    """AKI 越重获益越多；AKI 0 期反而受害。"""
+    """The sicker the AKI stage, the greater the benefit; stage 0 is harmed instead."""
     by_stage = binary_data.groupby("max_aki_stage_smoothed")["tau_true"].mean()
     assert by_stage.loc[0] > 0 > by_stage.loc[3]
     assert by_stage.is_monotonic_decreasing
 
 
 def test_confounding_makes_naive_estimate_wrong(binary_data) -> None:
-    """未观测混杂必须真的把朴素差值带偏——否则这份数据证明不了任何事。"""
+    """Unmeasured confounding must genuinely bias the naive difference, or this dataset
+    proves nothing."""
     facts = truth(binary_data)
     assert facts["ate_true"] < 0 < facts["naive_difference"]
 
@@ -63,12 +65,12 @@ def test_instrument_is_relevant(binary_data) -> None:
 
 
 def test_monotonicity_holds_by_construction(binary_data) -> None:
-    """二值 instrument 下不存在 defier。"""
+    """With a binary instrument there are no defiers."""
     assert set(binary_data["compliance_type"]) <= {"always_taker", "never_taker", "complier"}
 
 
 def test_first_stage_equals_complier_share(binary_data) -> None:
-    """单调性下 E[T|Z=1] - E[T|Z=0] 就是 complier 占比。"""
+    """Under monotonicity, E[T|Z=1] - E[T|Z=0] is the complier share."""
     z, t = binary_data["instrument"], binary_data["isDialysisICU"]
     first_stage = t[z == 1].mean() - t[z == 0].mean()
     complier_share = (binary_data["compliance_type"] == "complier").mean()
@@ -76,10 +78,11 @@ def test_first_stage_equals_complier_share(binary_data) -> None:
 
 
 def test_exclusion_restriction_holds(binary_data) -> None:
-    """Z 只通过 T 影响 Y：固定 compliance 类型后，Z 与潜在结局无关。
+    """Z reaches Y only through T: holding compliance type fixed, Z is unrelated to the
+    potential outcomes.
 
-    always-taker 与 never-taker 的处理状态不随 Z 变化，所以他们的结局
-    在 Z=0 与 Z=1 两组间不应有系统差异。
+    Always-takers and never-takers do not change treatment with Z, so their outcomes
+    should show no systematic difference between the Z=0 and Z=1 groups.
     """
     non_compliers = binary_data[binary_data["compliance_type"] != "complier"]
     z = non_compliers["instrument"]
@@ -88,10 +91,11 @@ def test_exclusion_restriction_holds(binary_data) -> None:
 
 
 def test_wald_estimator_recovers_late_without_outcome_noise(binary_data) -> None:
-    """用真实概率代替 0/1 结局，Wald 估计量应逼近真 LATE。
+    """Using true probabilities instead of 0/1 outcomes, the Wald estimator should
+    approach the true LATE.
 
-    这是 IV 识别的恒等式检验：去掉结局抽样噪声后，剩下的偏差只该是
-    Z 分组的有限样本波动。
+    This is the IV identification identity: with outcome sampling noise removed, the
+    remaining discrepancy should be finite-sample variation in the Z split alone.
     """
     ct = binary_data["compliance_type"].to_numpy()
     z = binary_data["instrument"].to_numpy()
@@ -115,7 +119,7 @@ def test_continuous_instrument_first_stage_is_monotone() -> None:
     bins = pd.qcut(df["instrument"], 5, labels=False, duplicates="drop")
     rates = np.asarray(df.groupby(bins)["isDialysisICU"].mean())
     assert np.all(np.diff(rates) > 0)
-    # 连续 IV 下没有 always/never/complier 三分类
+    # No always/never/complier split with a continuous instrument
     assert set(df["compliance_type"].unique()) == {"unknown"}
 
 
@@ -128,7 +132,8 @@ def test_presets_hit_their_targets() -> None:
 
 
 def test_realistic_preset_matches_the_real_study_scale() -> None:
-    """realistic 预设要对得上真实 ICU 研究的量级（处理率约 9.5%、死亡率约 4%）。"""
+    """The realistic preset must match the real ICU study's scale (about 9.5% treated,
+    about 4% mortality)."""
     df = generate(config_for("realistic", n=8000, seed=5))
     assert 0.06 < df["isDialysisICU"].mean() < 0.13
     assert 0.02 < df["death"].mean() < 0.07

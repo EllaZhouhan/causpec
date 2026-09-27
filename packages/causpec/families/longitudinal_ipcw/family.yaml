@@ -1,51 +1,58 @@
-# longitudinal_ipcw：纵向处理效应（IPCW）
+# longitudinal_ipcw: longitudinal treatment effects via IPCW.
 id: longitudinal_ipcw
 status: planned
 analysis_type: longitudinal
+requires_extra: hte
 
 answers: >
-  在存在 informative censoring 与时变混杂的纵向数据上，
-  处理策略对各 lag 的效应。
+  The effect of a treatment strategy at each lag, on longitudinal data with
+  informative censoring and time-varying confounding.
 
-identification_strategy: backdoor_adjustment   # 时变版本：sequential exchangeability
+identification_strategy: backdoor_adjustment   # time-varying: sequential exchangeability
 
 estimands:
   - id: lag_effect
-    label: 各 lag 的处理效应
-    # TODO(design.md 7.3): 按 ipcw 方法写明各事件（outcome / competing /
-    # censoring / terminal）的处理方式，以及估计量的确切解释。
-    # 这一条必须先写 skill/causpec-analyst/references/longitudinal-ipcw.md，再写代码。
+    label: Treatment effect at each lag
+    # TODO(design.md 7.3): state how each event (outcome / competing / censoring /
+    # terminal) is handled, and how the estimand should be read.
+    # references/longitudinal-ipcw.md comes first; code follows it.
     requires_assumptions: [sequential_exchangeability, positivity, correct_censoring_model]
 
 requires:
-  # 字段结构对齐 target trial 的七个组成部分（StatsPAI TargetTrialProtocol，MIT，仅对齐结构）
+  # The field layout follows the seven components of a target trial (StatsPAI's
+  # TargetTrialProtocol, MIT — structure only, no dependency).
   spec_fields:
     - eligibility
     - treatment_strategies
     - assignment
-    - follow_up          # time zero 与结束
+    - follow_up          # time zero and end of follow-up
     - outcome
     - causal_contrast
     - analysis_plan
-    - event_roles        # death / discharge / transfer → outcome | competing | censoring | terminal
+    - event_roles        # death / discharge / transfer -> outcome | competing | censoring | terminal
 
 assumptions:
   - id: sequential_exchangeability
     category: untestable
-    statement: 每个时点给定历史后，处理分配与后续潜在结果独立
+    statement: >
+      at each time point, given history, treatment assignment is independent of the
+      subsequent potential outcomes
   - id: positivity
     category: empirically_assessed
-    statement: 每个时点、每个历史下，各处理策略都有正概率
+    statement: >
+      at each time point and each history, every treatment strategy has positive
+      probability
   - id: correct_censoring_model
     category: empirically_assessed
-    statement: censoring 模型设定正确，权重不出现极端值
+    statement: the censoring model is correctly specified and the weights are not extreme
 
 estimator:
-  primary: IPCW          # 作者研究代码，Phase 4 迁入
-  # StatsPAI 的 ipcw 仅标为 analytical-only，只用于合成数据交叉核对，不作参考实现
+  primary: IPCW          # author's research code; migrated in Phase 4
+  # StatsPAI's ipcw is marked analytical-only in its own repository, so it is usable
+  # only for cross-checking on synthetic data, not as a reference implementation.
 
 outputs:
-  - 各 lag 的效应
-  - at-risk 人数
-  - 权重分布与 ESS
-  - clipping 敏感性
+  - effect at each lag
+  - number at risk
+  - weight distribution and ESS
+  - sensitivity to clipping

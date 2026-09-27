@@ -1,67 +1,74 @@
-# 质量检查
+# Quality checks
 
 ```bash
-python scripts/run.py quality --spec spec.yaml --data <数据文件>
+python scripts/run.py quality --spec spec.yaml --data <data file>
 ```
 
-**即使估计跑不了，这份报告本身就是交付物。** 不要因为分析做不成就跳过这一步。
+**Even when estimation cannot run, this report is a deliverable.** Do not skip it
+because the analysis is impossible.
 
-有 blocking 问题时退出码非零。每条检查都有地址 `qc:<check_id>.<证据>`，
-可以在报告正文里引用。
+The exit code is non-zero when a blocking issue is present. Every check has an address
+`qc:<check_id>.<evidence>` that the report prose can cite.
 
 ## `hte_backdoor`
 
-| check_id | 级别 | 不通过意味着 |
+| check_id | Level | What failing means |
 |---|---|---|
-| `backdoor_overlap` | **阻断** | 有一批人在协变量上几乎没有对照，对他们的效应是**外推**出来的 |
-| `backdoor_covariate_imbalance` | 警告 | IPW 加权后仍不平衡，说明调整可能不充分 |
-| `backdoor_treatment_prevalence` | 警告 | 某一组样本过少，估计方差很大 |
-| `backdoor_extreme_weights` | 警告 | 少数个体的权重主导了估计 |
+| `backdoor_overlap` | **blocking** | Some people have almost no comparable controls, so their effect is **extrapolated** |
+| `backdoor_covariate_imbalance` | warning | Still imbalanced after IPW, so the adjustment may be incomplete |
+| `backdoor_treatment_prevalence` | warning | One arm is too small; the estimate carries a large variance |
+| `backdoor_extreme_weights` | warning | A handful of individuals dominate the estimate |
 
 ## `hte_iv`
 
-| check_id | 级别 | 不通过意味着 |
+| check_id | Level | What failing means |
 |---|---|---|
-| `iv_zero_variation` | **阻断（不可豁免）** | instrument 在本人群中没有变异，一阶段无从识别 |
-| `iv_weak_first_stage` | **阻断** | 弱工具下偏倚可以任意大，置信区间的覆盖率失效 |
-| `iv_low_complier_share` | 警告 | 结论只对人群中很窄的一部分成立 |
-| `iv_covariate_imbalance` | 警告 | instrument 未必接近随机分配 |
+| `iv_zero_variation` | **blocking, not waivable** | The instrument does not vary here; nothing for the first stage to identify |
+| `iv_weak_first_stage` | **blocking** | Under a weak instrument the bias can be arbitrarily large and the interval loses coverage |
+| `iv_low_complier_share` | warning | The conclusion holds for only a narrow slice of the population |
+| `iv_covariate_imbalance` | warning | The instrument may not be close to randomly assigned |
 
-## 为什么只有两项阻断
+## Why only two blocking checks
 
-取舍原则是：**置信区间已经表达的，不再设闸。**
+The trade-off is: **if the confidence interval already says it, do not gate on it.**
 
-样本量小、精度差，CI 自己会宽，读者看得见。CI 表达不了的只有系统性偏倚——
-而偏倚的来源就两个：缺乏共同支撑（后门设定）和弱工具（IV 设定）。
+Small samples and poor precision widen the interval, and the reader can see that. What
+an interval cannot express is systematic bias — and bias has two sources here: missing
+common support (backdoor) and a weak instrument (IV).
 
-其余诊断照算、照印、不设闸。只拦两件事的工具会被认真对待，
-拦十五件事的第一反应是被绕过。
+Everything else is computed, reported, and not gated on. A tool that blocks on two
+things gets taken seriously; a tool that blocks on fifteen gets routed around.
 
-## 怎么向用户解释
+## How to explain a failure to the user
 
-每条 issue 都带 `impact_on_analysis` 和 `recommended_repair`——**念给用户听，
-不要自己重新组织措辞**。它们是按照因果推断的口径写的。
+Every issue carries `impact_on_analysis` and `recommended_repair` — **read them out
+rather than rewording them yourself**. They are phrased in causal-inference terms
+deliberately.
 
-比如 overlap 不通过时：
+For a failed overlap check:
 
-> 「有 88% 的患者找不到病情相近的对照。对这些人的效应估计是**外推**出来的，
-> 而不是从数据里观察到的。此时置信区间会显得很窄，但窄得没有意义。
-> 建议把分析限制到有共同支撑的那部分人群——**这会改变估计对象**，
-> 报告里要写明改成了对谁的效应。」
+> "88% of these patients have no comparable controls. For them the effect estimate is
+> **extrapolated**, not observed in the data. The confidence interval will look narrow,
+> but narrow in a way that means nothing. I'd suggest restricting the analysis to the
+> patients who do have comparable controls — **that changes what is being estimated**,
+> and the report will need to say whose effect it now reports."
 
-## 豁免
+## Waivers
 
-用户坚持要在有 blocking 问题的情况下继续时：
+When the user insists on proceeding despite a blocking issue:
 
 ```bash
-python scripts/run.py estimate ... --waive "backdoor_overlap=已限制到有共同支撑的子人群，见方案 3.2 节"
+python scripts/run.py estimate ... \
+    --waive "backdoor_overlap=restricted to the sub-population with common support, see protocol 3.2"
 ```
 
-三条规则：
+Three rules:
 
-1. **必须附理由**，空理由会被拒绝
-2. `waivable: false` 的检查（如 `iv_zero_variation`）**即使给了理由也不放行**
-3. **豁免不改变诊断结论**——被豁免的阻断检验仍然把措辞等级压到 `associational`，
-   而且豁免过的分析永远达不到 `causal`
+1. **A reason is required**; an empty reason is refused
+2. A check marked `waivable: false` (such as `iv_zero_variation`) is **never let
+   through, reason or not**
+3. **A waiver does not change the diagnosis** — a waived blocking check still caps the
+   claim level at `associational`, and a waived analysis can never reach `causal`
 
-豁免的理由会落盘到 run 目录，是事后审查这次分析时最该看的东西。
+The reason is persisted into the run directory, where it is the first thing an audit
+of this analysis would read.

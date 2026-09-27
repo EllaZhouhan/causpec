@@ -1,9 +1,10 @@
-"""措辞等级判定。
+"""The claim-level decision.
 
-对应 design.md 10.2 与原则 5（措辞强度由代码决定，模型不能自行升级）。
+Mirrors design.md 10.2 and principle 5 (code decides the strength of the claim; the
+model may not upgrade it).
 
-这个文件锁的是两条最容易被"优化"掉的性质：
-代码给不出 causal；豁免不改变诊断结论。
+This file pins the two properties most likely to be "simplified" away later: code
+cannot grant causal, and a waiver does not change the diagnosis.
 """
 
 from __future__ import annotations
@@ -35,23 +36,26 @@ from causpec.core.reporting.claim_level import (
 UNTESTABLE = Assumption(
     id="unconfoundedness",
     category=AssumptionCategory.UNTESTABLE,
-    statement="给定调整集后处理分配与潜在结局独立",
+    statement="given the adjustment set, assignment is independent of potential outcomes",
 )
 JUSTIFIED = UNTESTABLE.model_copy(
     update={
-        "justification": "本院透析决策由固定方案驱动，方案变量已全部纳入调整集",
+        "justification": (
+            "dialysis decisions here follow a fixed protocol whose variables are all in "
+            "the adjustment set"
+        ),
         "justified_by": Source.USER,
     }
 )
 EMPIRICAL = Assumption(
     id="positivity",
     category=AssumptionCategory.EMPIRICALLY_ASSESSED,
-    statement="每个协变量取值下两种处理都有正概率",
+    statement="both treatments have positive probability at every covariate value",
 )
 
 
 def confirmed(value: object) -> SpecField:
-    return SpecField(value=value, source=Source.USER, said="确认", status=Status.CONFIRMED)
+    return SpecField(value=value, source=Source.USER, said="confirmed", status=Status.CONFIRMED)
 
 
 def make_spec(assumptions: list[Assumption], approved: bool = False) -> Spec:
@@ -62,13 +66,13 @@ def make_spec(assumptions: list[Assumption], approved: bool = False) -> Spec:
 
 
 def issue(check_id: str, passed: bool, declared: Severity = Severity.BLOCKING) -> QualityIssue:
-    """按 QualityIssue 的不变量构造：通过时 severity 降为 INFO。"""
+    """Built to QualityIssue's invariant: a passing check is downgraded to INFO."""
     return QualityIssue(
         check_id=check_id,
         layer=Layer.IDENTIFICATION,
         severity=Severity.INFO if passed else declared,
         waivable=True,
-        summary=f"{check_id} {'通过' if passed else '未通过'}",
+        summary=f"{check_id} {'pass' if passed else 'fail'}",
         evidence={"passed": passed},
     )
 
@@ -77,13 +81,13 @@ PASSING = QualityReport(issues=[issue("backdoor_overlap", True)])
 FAILING = QualityReport(issues=[issue("backdoor_overlap", False)])
 
 
-# ---- 四级 ----
+# ---- the four levels ----
 
 
 def test_gate_failure_gives_descriptive() -> None:
     decision = determine(make_spec([JUSTIFIED]), PASSING, gate_passed=False)
     assert decision.level is ClaimLevel.DESCRIPTIVE
-    assert "门控未通过" in decision.reasons[0]
+    assert "The gate did not pass" in decision.reasons[0]
 
 
 def test_failed_blocking_check_gives_associational() -> None:
@@ -102,20 +106,21 @@ def test_causal_requires_justification_and_approval() -> None:
     assert decision.level is ClaimLevel.CAUSAL
 
 
-# ---- 代码只能降级，不能授予 causal ----
+# ---- code can only downgrade; it cannot grant causal ----
 
 
 def test_code_cannot_grant_causal_without_user_justification() -> None:
-    """诊断全过、用户也点头了，但假设没人论证——仍然只能到 suggestive。"""
+    """Diagnostics all pass and the user approved, but nobody justified the
+    assumption — still only suggestive."""
     decision = determine(make_spec([UNTESTABLE], approved=True), PASSING, gate_passed=True)
     assert decision.level is ClaimLevel.SUGGESTIVE
     assert decision.unjustified_assumptions == ["unconfoundedness"]
 
 
 def test_model_justification_does_not_count() -> None:
-    """模型论证自己的假设成立是循环的。"""
+    """A model vouching for its own assumptions is circular."""
     by_model = UNTESTABLE.model_copy(
-        update={"justification": "我认为成立", "justified_by": Source.MODEL}
+        update={"justification": "I believe it holds", "justified_by": Source.MODEL}
     )
     decision = determine(make_spec([by_model], approved=True), PASSING, gate_passed=True)
     assert decision.level is ClaimLevel.SUGGESTIVE
@@ -135,7 +140,8 @@ def test_causal_requires_explicit_user_approval() -> None:
 
 
 def test_only_untestable_assumptions_gate_causal() -> None:
-    """经验可查的假设由质量检查负责，不需要用户额外论证。"""
+    """Empirically assessable assumptions are the quality checks' job; the user need
+    not argue for them separately."""
     decision = determine(
         make_spec([JUSTIFIED, EMPIRICAL], approved=True), PASSING, gate_passed=True
     )
@@ -147,36 +153,37 @@ def test_no_assumptions_declared_still_needs_approval() -> None:
     assert decision.level is ClaimLevel.SUGGESTIVE
 
 
-# ---- 豁免 ----
+# ---- waivers ----
 
 
 def test_waiver_does_not_change_the_diagnosis() -> None:
-    """豁免让分析得以进行，但不会让问题消失。"""
+    """A waiver lets the analysis run; it does not make the problem disappear."""
     decision = determine(
         make_spec([JUSTIFIED], approved=True),
         FAILING,
         gate_passed=True,
-        waived={"backdoor_overlap": "已限制到有共同支撑的子人群"},
+        waived={"backdoor_overlap": "restricted to the sub-population with common support"},
     )
     assert decision.level is ClaimLevel.ASSOCIATIONAL
     assert decision.waived_blocking_checks == ["backdoor_overlap"]
-    assert any("已豁免，但诊断结论不变" in reason for reason in decision.reasons)
+    assert any("waived, but the diagnosis is unchanged" in reason for reason in decision.reasons)
 
 
 def test_waived_analysis_cannot_reach_causal() -> None:
-    """即使被豁免的那条检查与本次结论无关，豁免过的分析也不得用 causal 级措辞。"""
+    """Even when the waived check is unrelated to this conclusion, a waived analysis may
+    not use causal wording."""
     report = QualityReport(issues=[issue("backdoor_overlap", True), issue("other_check", True)])
     decision = determine(
         make_spec([JUSTIFIED], approved=True),
         report,
         gate_passed=True,
-        waived={"other_check": "与本次结论无关"},
+        waived={"other_check": "unrelated to this conclusion"},
     )
     assert decision.level is ClaimLevel.SUGGESTIVE
-    assert any("豁免" in reason for reason in decision.reasons)
+    assert any("waive" in reason for reason in decision.reasons)
 
 
-# ---- 规则与地址 ----
+# ---- rules and addresses ----
 
 
 def test_rules_declare_the_code_maximum() -> None:
@@ -197,7 +204,7 @@ def test_addresses_are_namespaced() -> None:
 
 
 def test_every_downgrade_states_a_reason() -> None:
-    """design.md 10.2：任何降级都要写明是哪项检验、实测值多少、线在哪。"""
+    """design.md 10.2: every downgrade names the check, its value and the threshold."""
     for report, gate in [(FAILING, True), (PASSING, True), (PASSING, False)]:
         decision = determine(make_spec([UNTESTABLE]), report, gate_passed=gate)
         if decision.level is not ClaimLevel.CAUSAL:
@@ -211,7 +218,7 @@ def test_at_most_compares_levels() -> None:
 
 
 def test_custom_rules_file_is_honoured(tmp_path) -> None:
-    """规则可配——阈值与规则都不该写死在代码里。"""
+    """Rules are configurable; neither thresholds nor rules belong hard-coded."""
     import yaml
 
     rules = load_rules()
@@ -226,5 +233,5 @@ def test_custom_rules_file_is_honoured(tmp_path) -> None:
 
 @pytest.mark.parametrize("level", list(ClaimLevel))
 def test_every_level_has_wording_guidance(level: ClaimLevel) -> None:
-    """skill 要照着这段写正文，四级都得有。"""
+    """The skill writes its prose against this, so all four levels need an entry."""
     assert load_rules()["wording"][level.value]

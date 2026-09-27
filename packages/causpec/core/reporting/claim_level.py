@@ -1,19 +1,25 @@
-"""措辞等级判定。
+"""Deciding how strongly a conclusion may be worded.
 
-对应 design.md 10.2、原则 5（结论措辞的强度由代码决定，模型不能自行升级）。
+Mirrors design.md 10.2 and principle 5 (code decides the strength of the claim; the
+model may not upgrade it).
 
-两条核心设计：
+Two ideas carry this module:
 
-1. **代码只能降级，不能授予 causal。** untestable 类假设跑多少检验都验证不了，
-   所以代码自动判定的上限是 suggestive。升到 causal 需要人对每条 untestable
-   假设给出论证并留名，再显式确认愿意以因果措辞陈述。责任归属因此是清楚的——
-   代码保证"诊断没发现问题"，人担保"假设成立"，报告里写明是谁认的。
+1. **Code can only downgrade; it cannot grant causal.** Untestable assumptions cannot
+   be verified by any amount of data, so an automatic decision tops out at
+   suggestive. Reaching causal requires a person to justify each untestable
+   assumption, sign their name to it, and explicitly agree to causal wording. The
+   division of responsibility is then clean — code vouches that "the diagnostics
+   found nothing wrong", a person vouches that "the assumptions hold", and the
+   report says who did which.
 
-2. **豁免不改变等级。** 豁免让分析得以进行，但不会让问题消失。被豁免的阻断
-   检验仍然把上限压到 associational，且该分析永远达不到 causal。
+2. **A waiver does not change the diagnosis.** A waived blocking check still caps the
+   level at associational, and that analysis can never reach causal. Waiving lets the
+   analysis run; it does not make the problem disappear.
 
-规则与阈值都在 claim_levels.yaml 里，不写死在代码中：它们决定结论能用多强的
-措辞，必须事先定死、写进报告、进 manifest。
+Both the rules and the thresholds live in claim_levels.yaml rather than in code:
+they decide how strongly a conclusion may be stated, so they must be fixed in
+advance, printed in the report, and recorded in the manifest.
 """
 
 from __future__ import annotations
@@ -30,16 +36,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.spec import Spec
 
-# 同 registry：走 importlib.resources，skill 形态下包是从 wheel（zip）里 import 的。
+# As in registry: importlib.resources, because in skill form the package is imported
+# out of a wheel (a zip).
 RULES_PACKAGE = "causpec.core.reporting"
 RULES_NAME = "claim_levels.yaml"
 
-# 用户显式同意以因果措辞陈述的字段名（design.md 10.2）。
+# The spec field by which the user explicitly agrees to causal wording (design.md 10.2).
 CAUSAL_APPROVAL_FIELD = "causal_claim_approved"
 
 
 class ClaimLevel(StrEnum):
-    """四级措辞，由弱到强。"""
+    """The four wording levels, weakest to strongest."""
 
     DESCRIPTIVE = "descriptive"
     ASSOCIATIONAL = "associational"
@@ -61,15 +68,16 @@ def load_rules(path: Path | None = None) -> dict[str, Any]:
 
 
 def rules_hash(path: Path | None = None) -> str:
-    """规则文件的哈希，进 manifest——半年后能复现当时的判定依据。"""
+    """Hash of the rules file, for the manifest — so the decision can be reproduced."""
     return hashlib.sha256(_rules_bytes(path)).hexdigest()[:16]
 
 
 class ClaimLevelDecision(BaseModel):
-    """判定结果。
+    """The outcome of a claim-level decision.
 
-    ``reasons`` 是"为什么不能更高"的逐条说明，报告的"措辞等级及理由"一节
-    直接用它——design.md 10.2 要求任何降级都写明是哪项检验、实测值多少、线在哪。
+    ``reasons`` explains, point by point, why the level could not be higher. The
+    report's "claim level and reasoning" section uses it directly — design.md 10.2
+    requires every downgrade to name the check, its measured value, and the threshold.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -83,7 +91,7 @@ class ClaimLevelDecision(BaseModel):
     rules_hash: str = ""
 
     def addresses(self) -> dict[str, float | int | str]:
-        """供报告渲染器代入的地址。"""
+        """Addresses the report renderer can substitute."""
         return {
             "claim:level": self.level.value,
             "claim:n_failed_blocking_checks": len(self.failed_blocking_checks),
@@ -104,21 +112,22 @@ def determine(
     waived: dict[str, str] | None = None,
     rules_path: Path | None = None,
 ) -> ClaimLevelDecision:
-    """判定这次分析的结论可以使用的措辞等级。
+    """Decide how strongly this analysis's conclusion may be worded.
 
     Args:
-        spec: 已确认的 spec，要读它的 assumptions 与 causal_claim_approved。
-        report: 质量检查结果。
-        gate_passed: 门控是否通过（由调用方传入，因为门控还要查 spec 确认状态）。
-        waived: check_id → 豁免理由。被豁免的阻断检验仍然压低等级。
-        rules_path: 规则文件路径，默认用包内的 claim_levels.yaml。
+        spec: the confirmed spec; its assumptions and causal_claim_approved are read.
+        report: the quality-check results.
+        gate_passed: whether the gate let the run through (passed in by the caller,
+            since the gate also inspects spec confirmation).
+        waived: check_id -> waiver reason. A waived blocking check still lowers the level.
+        rules_path: override the packaged claim_levels.yaml.
     """
     rules = load_rules(rules_path)
     waived = waived or {}
     reasons: list[str] = []
 
-    # QualityIssue 的不变量：检查通过时 severity 降为 INFO，所以 report.blocking
-    # 就是"声明为阻断且确实失败"的那些。见 QualityIssue 的文档。
+    # QualityIssue invariant: a passing check is downgraded to INFO, so report.blocking
+    # is exactly "declared blocking and actually failed". See the QualityIssue docstring.
     failed = [issue.check_id for issue in report.blocking]
     waived_failures = [check for check in failed if check in waived]
 
@@ -130,7 +139,10 @@ def determine(
     }
 
     if not gate_passed:
-        reasons.append("门控未通过：spec 未全部确认，或存在未豁免的 blocking 质量问题。")
+        reasons.append(
+            "The gate did not pass: the spec is not fully confirmed, or a blocking "
+            "quality issue stands unwaived."
+        )
         return ClaimLevelDecision(
             level=ClaimLevel(rules["rules"]["gate_failed"]), reasons=reasons, **common
         )
@@ -138,13 +150,13 @@ def determine(
     if failed:
         for check_id in failed:
             issue = report.get(check_id)
-            note = "（已豁免，但诊断结论不变）" if check_id in waived else ""
-            reasons.append(f"阻断检验未通过：{check_id} —— {issue.summary}{note}")
+            note = " (waived, but the diagnosis is unchanged)" if check_id in waived else ""
+            reasons.append(f"Blocking check failed: {check_id} — {issue.summary}{note}")
         return ClaimLevelDecision(
             level=ClaimLevel(rules["rules"]["blocking_check_failed"]), reasons=reasons, **common
         )
 
-    # 到这里两项阻断检验都过了，代码能给的最高级就是 suggestive。
+    # Both blocking checks passed, so suggestive is the most code can grant.
     level = ClaimLevel(rules["rules"]["all_blocking_checks_passed"])
     requirements = rules["causal_requires"]
 
@@ -155,24 +167,30 @@ def determine(
     blockers: list[str] = []
     if requirements["all_untestable_assumptions_justified"] and unjustified:
         blockers.append(
-            f"以下 untestable 假设尚未由用户给出论证：{'、'.join(unjustified)}。"
-            f"代码无法检验它们，因此也无法据此授予 causal 级措辞。"
+            f"These untestable assumptions carry no user justification: "
+            f"{', '.join(unjustified)}. No diagnostic can verify them, so the code "
+            f"cannot grant causal wording on their account."
         )
     if requirements["explicit_user_approval"] and not approved:
         blockers.append(
-            f"用户尚未显式确认愿意以因果措辞陈述（spec 字段 {CAUSAL_APPROVAL_FIELD} 未确认）。"
+            f"The user has not explicitly agreed to causal wording "
+            f"(spec field {CAUSAL_APPROVAL_FIELD} is unconfirmed)."
         )
     if requirements["no_waived_blocking_checks"] and waived:
         blockers.append(
-            f"本次分析豁免了检查：{'、'.join(sorted(waived))}，不得使用 causal 级措辞。"
+            f"This analysis waived: {', '.join(sorted(waived))}. Causal wording is not "
+            f"available to a waived analysis."
         )
 
     if blockers:
         reasons.extend(blockers)
-        reasons.append(f"代码自动判定的上限是 {rules['code_maximum']}。")
+        reasons.append(f"The ceiling for an automatic decision is {rules['code_maximum']}.")
         return ClaimLevelDecision(
             level=level, reasons=reasons, unjustified_assumptions=unjustified, **common
         )
 
-    reasons.append("两项阻断检验均通过；全部 untestable 假设已由用户论证并确认。")
+    reasons.append(
+        "Both blocking checks passed; every untestable assumption has been justified "
+        "and approved by the user."
+    )
     return ClaimLevelDecision(level=ClaimLevel.CAUSAL, reasons=reasons, **common)

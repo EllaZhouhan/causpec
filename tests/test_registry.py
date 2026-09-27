@@ -1,6 +1,7 @@
-"""注册表：动态导入、声明读取、缺依赖时的结构化错误。
+"""Registry: dynamic import, declaration loading, structured missing-dependency errors.
 
-对应 design.md 第 4 节（core 不认识具体 family）与 11.2（结构化错误 + 修复建议）。
+Mirrors design.md section 4 (core knows no specific family) and 11.2 (a structured
+error carrying its own fix).
 """
 
 from __future__ import annotations
@@ -13,17 +14,17 @@ from causpec.core import registry
 
 
 def test_declared_families_reads_disk() -> None:
-    """core 通过磁盘上的 family.yaml 知道有哪些 family，不靠写死的 import。"""
+    """Core learns which families exist from family.yaml on disk, not a hard-coded import."""
     assert registry.declared_families() == ["hte_backdoor", "hte_iv", "longitudinal_ipcw"]
 
 
 def test_unknown_family_names_the_known_ones() -> None:
-    with pytest.raises(FileNotFoundError, match="hte_backdoor、hte_iv"):
+    with pytest.raises(FileNotFoundError, match="hte_backdoor, hte_iv"):
         registry.get("did")
 
 
 def test_hte_iv_declares_both_instrument_kinds() -> None:
-    """design.md 7.6：二值与连续 instrument 识别的对象不同，要分别声明。"""
+    """design.md 7.6: binary and continuous instruments identify different estimands."""
     declaration = registry.load_declaration("hte_iv")
     by_kind = {e["instrument_kind"]: e["id"] for e in declaration["estimands"]}
     assert by_kind == {
@@ -33,7 +34,8 @@ def test_hte_iv_declares_both_instrument_kinds() -> None:
 
 
 def test_continuous_estimand_requires_uniformity_not_monotonicity() -> None:
-    """连续 instrument 下 monotonicity 要推广成 uniformity（Angrist & Imbens 1995）。"""
+    """With a continuous instrument, monotonicity generalises to uniformity
+    (Angrist & Imbens 1995)."""
     declaration = registry.load_declaration("hte_iv")
     continuous = next(e for e in declaration["estimands"] if e["instrument_kind"] == "continuous")
     assert "uniformity" in continuous["requires_assumptions"]
@@ -41,10 +43,12 @@ def test_continuous_estimand_requires_uniformity_not_monotonicity() -> None:
 
 
 def test_missing_dependency_gives_install_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    """装不上 econml 时报的是结构化错误 + 安装命令，不是裸 ImportError。
+    """A missing econml yields a structured error with the install command, not a bare
+    ImportError.
 
-    把 sys.modules["econml"] 设成 None，Python 会让 ``import econml`` 抛 ImportError,
-    等价于没装这个包。同时清掉 family 模块的缓存，强制走一次真的 import。
+    Setting sys.modules["econml"] to None makes ``import econml`` raise ImportError,
+    which is equivalent to the package being absent. The family module's cache is
+    cleared too, to force a real import.
     """
     monkeypatch.delitem(registry._REGISTRY, "hte_iv", raising=False)
     for module in ("causpec.families.hte_iv", "causpec.families.hte_iv.estimator"):

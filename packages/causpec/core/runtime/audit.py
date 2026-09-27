@@ -1,10 +1,12 @@
-"""审计日志：每次工具或 CLI 调用一行。
+"""Audit log: one line per tool or CLI call.
 
-对应 design.md 第 14 节：时间、工具、参数 hash、输入指纹、输出 hash、是否出错。
+Mirrors design.md section 14: timestamp, tool, parameter hash, input fingerprints,
+output hash, whether it errored.
 
-**日志中不记录原始行，也不记录凭据。** 这条由代码强制，不靠自觉：
-参数只记哈希不记内容；额外元数据过一道敏感键名检查，命中就抛错。
-宁可让开发者在写代码时撞上这个错误，也不要在事后从日志里发现泄露。
+**No raw rows and no credentials in the log.** Enforced by code rather than by
+discipline: parameters are hashed, never stored, and extra metadata passes a
+sensitive-key check that raises on a hit. Better that a developer hits the error
+while writing the code than that someone finds a leak in the log afterwards.
 """
 
 from __future__ import annotations
@@ -18,8 +20,8 @@ from typing import Any
 
 from causpec.core.runtime.writer import append_atomic
 
-# 命中这些片段的键名不得进入审计日志。宁可误报——改个键名的成本，
-# 远低于把一个 DSN 写进磁盘上的日志。
+# Keys matching these fragments may not enter the audit log. False positives are
+# acceptable: renaming a key costs far less than writing a DSN to disk.
 SENSITIVE_KEY_PATTERN = re.compile(
     r"password|passwd|secret|token|credential|api_?key|dsn|conn(ection)?_?str|private_?key",
     re.IGNORECASE,
@@ -27,27 +29,29 @@ SENSITIVE_KEY_PATTERN = re.compile(
 
 
 class SensitiveValueError(ValueError):
-    """试图把疑似凭据写进审计日志。"""
+    """An attempt to write something credential-shaped into the audit log."""
 
 
 def assert_no_sensitive_keys(payload: dict[str, Any], where: str = "audit metadata") -> None:
-    """递归检查键名。命中即抛错。"""
+    """Check key names recursively. A hit raises."""
     for key, value in payload.items():
         if SENSITIVE_KEY_PATTERN.search(str(key)):
             raise SensitiveValueError(
-                f"{where} 中的键 {key!r} 疑似凭据，不得写入日志。"
-                f"如果它确实无害，请换一个不含 password/token/dsn 等字样的键名。"
+                f"the key {key!r} in {where} looks like a credential and may not be "
+                f"logged. If it is genuinely harmless, rename it so it does not contain "
+                f"password/token/dsn and similar."
             )
         if isinstance(value, dict):
             assert_no_sensitive_keys(value, where)
 
 
 def params_hash(params: dict[str, Any]) -> str:
-    """参数的哈希。
+    """Hash of the parameters.
 
-    只记哈希不记内容——参数里可能有文件路径（泄露目录结构，见 ADR-0002）、
-    列名，甚至连接串。哈希足以回答「这两次调用的参数一样吗」，
-    而这正是审计日志需要回答的。
+    Only the hash is recorded, never the content: parameters carry file paths (which
+    leak directory structure, see ADR-0002), column names, and potentially connection
+    strings. A hash is enough to answer "were these two calls made with the same
+    parameters?", which is what an audit log needs to answer.
     """
     canonical = json.dumps(params, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
@@ -65,11 +69,11 @@ def record(
     duration_ms: float | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """追加一行审计记录，返回写进去的那一行。
+    """Append one audit record and return the line that was written.
 
     Args:
-        metadata: 调用方明确认为可以落盘的少量元数据（例如行数、family id）。
-            会过一遍敏感键名检查。
+        metadata: a small amount of data the caller explicitly deems safe to persist
+            (row counts, family id). It passes the sensitive-key check.
     """
     metadata = metadata or {}
     assert_no_sensitive_keys(metadata)
@@ -96,7 +100,7 @@ def record(
 
 
 def read(path: Path) -> list[dict[str, Any]]:
-    """读回审计日志。"""
+    """Read the audit log back."""
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]

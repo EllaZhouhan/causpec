@@ -1,14 +1,19 @@
-"""hte_backdoor 的专属质量检查：overlap、协变量平衡、可行性。
+"""hte_backdoor's own quality checks: overlap, covariate balance, feasibility.
 
-对应 design.md 8.1（可识别性层与可行性层）与 10.2（两项阻断检验之一）。
+Mirrors design.md 8.1 (the identification and feasibility layers) and 10.2 (one of
+the two blocking checks).
 
-**这一层自己拟合倾向得分，不依赖估计器。** G3 要求即使分析不能运行，
-质量报告本身也是交付物——overlap 差到不能估计时，恰恰是最需要这份报告的时候。
+**This layer fits its own propensity model and does not depend on the estimator.**
+G3 requires the quality report to be a deliverable even when the analysis cannot run,
+and overlap bad enough to stop estimation is exactly when that report matters most.
 
-阻断的只有 overlap 一项。按 design.md 10.2 的取舍原则「置信区间已经表达的，
-不再设闸」：样本量、精度 CI 自己会说；CI 说不了的是系统性偏倚，而后门调整
-设定下偏倚的主要来源就是缺乏共同支撑——有一批人根本没有对照，估计是外推出来的，
-这时 CI 会很窄，但窄得没有意义。SMD、流行率、ESS 照算照印，不设闸。
+Only overlap blocks. Following the trade-off of design.md 10.2 — "if the confidence
+interval already says it, do not gate on it" — sample size and precision speak for
+themselves through the interval. What an interval cannot express is systematic bias,
+and under backdoor adjustment the main source of that is missing common support:
+a group of people with no comparable controls, whose effect is extrapolated. The
+interval will look narrow there, but narrow in a way that means nothing. SMD,
+prevalence and ESS are computed, reported, and not gated on.
 """
 
 from __future__ import annotations
@@ -49,20 +54,22 @@ def _build_propensity_model(name: str, seed: int):
         return make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000))
     if name == "gradient_boosting":
         return GradientBoostingClassifier(random_state=seed)
-    raise ValueError(f"propensity_model 只能是 {'、'.join(PROPENSITY_MODELS)}，收到 {name}")
+    raise ValueError(f"propensity_model must be one of {', '.join(PROPENSITY_MODELS)}; got {name}")
 
 
 def estimate_propensity(
     covariates: np.ndarray, treatment: np.ndarray, model_name: str, folds: int, seed: int
 ) -> np.ndarray:
-    """交叉拟合的倾向得分 ê(X)。
+    """Cross-fitted propensity scores.
 
-    必须交叉拟合：同一份数据上拟合又预测，模型会记住个体，得分被推向 0/1，
-    于是**看上去**没有共同支撑——这会把一个好数据判成坏数据。
+    Cross-fitting is mandatory: fitting and predicting on the same data lets the model
+    memorise individuals, pushing scores towards 0 and 1, so common support only
+    *appears* to be missing — which would condemn perfectly good data.
 
-    默认用梯度提升而非 logistic：overlap 检查问的是「有没有一片区域里处理几乎
-    是确定的」，设定过窄的模型可能看不出真实的分离。在这里漏报比误报代价更大，
-    因为漏报会放行一个本该阻断的分析。
+    The default is gradient boosting rather than logistic regression: overlap asks
+    whether there is a region where treatment is near-deterministic, and a too-narrow
+    model can miss real separation. A false negative costs more than a false positive
+    here, because it lets through an analysis that should have been blocked.
     """
     model = _build_propensity_model(model_name, seed)
     splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
@@ -73,10 +80,12 @@ def estimate_propensity(
 def standardized_mean_difference(
     values: np.ndarray, treatment: np.ndarray, weights: np.ndarray | None = None
 ) -> float:
-    """SMD：处理组与对照组的均值差，除以两组标准差的合并值。
+    """SMD: the treated-minus-control mean difference over the pooled standard deviation.
 
-    加权版用于检查 IPW 之后是否平衡。分母始终用**未加权**的标准差，
-    这样加权前后的 SMD 可比——否则权重会同时改变分子和分母，看不出改善。
+    The weighted variant checks balance after IPW. The denominator always uses the
+    **unweighted** standard deviation, so the SMD before and after weighting are
+    comparable — otherwise the weights move numerator and denominator together and any
+    improvement is invisible.
     """
     treated, control = treatment == 1, treatment == 0
     pooled_sd = np.sqrt((np.var(values[treated]) + np.var(values[control])) / 2.0)
@@ -92,7 +101,7 @@ def standardized_mean_difference(
 
 
 def effective_sample_size(weights: np.ndarray) -> float:
-    """Kish 的有效样本量：(Σw)² / Σw²。权重越不均，ESS 越小于实际样本量。"""
+    """Kish's effective sample size: (sum w)^2 / sum(w^2). Uneven weights shrink it."""
     total = float(np.sum(weights))
     if total <= 0:
         return 0.0
@@ -102,7 +111,7 @@ def effective_sample_size(weights: np.ndarray) -> float:
 def check_backdoor(
     data: pd.DataFrame, spec: Spec, config: dict[str, Any] | None = None
 ) -> QualityReport:
-    """跑 hte_backdoor 的全部检查，返回带地址的 issue 列表。"""
+    """Run every hte_backdoor check and return addressed issues."""
     from causpec.families.hte_backdoor.estimator import _column_names
 
     config = config or {}
@@ -111,13 +120,15 @@ def check_backdoor(
         spec, "adjustment_set"
     )
     if not covariate_names:
-        raise ValueError("hte_backdoor 的质量检查需要 spec.effect_modifiers 或 adjustment_set")
+        raise ValueError(
+            "hte_backdoor's quality checks require spec.effect_modifiers or adjustment_set"
+        )
 
     treatment = data[treatment_col].to_numpy().astype(int)
     covariates = data[covariate_names].astype(float).to_numpy()
     issues: list[QualityIssue] = []
 
-    # ---- 1. 处理流行率（可行性）----
+    # ---- 1. treatment prevalence (feasibility) ----
     layer, severity, waivable = _issue_settings(config, "backdoor_treatment_prevalence")
     min_rate = _threshold(config, "backdoor_treatment_prevalence", "min_rate", 0.01)
     min_per_arm = int(_threshold(config, "backdoor_treatment_prevalence", "min_per_arm", 50))
@@ -130,7 +141,7 @@ def check_backdoor(
             layer=layer,
             severity=severity if not passed else Severity.INFO,
             waivable=waivable,
-            summary=f"处理率 {rate:.1%}（处理组 {n_treated}，对照组 {n_control}）",
+            summary=f"treated {rate:.1%} ({n_treated} treated, {n_control} control)",
             evidence={
                 "treatment_rate": round(rate, 6),
                 "n_treated": n_treated,
@@ -139,14 +150,17 @@ def check_backdoor(
                 "passed": passed,
             },
             affected_columns=[treatment_col],
-            impact_on_analysis="某一组样本过少时估计的方差很大，子组分析尤其不可靠。",
-            recommended_repair="放宽人群过滤条件，或减少子组切分。",
+            impact_on_analysis=(
+                "With too few people in one arm the estimate carries a large variance, "
+                "and subgroup analyses especially become unreliable."
+            ),
+            recommended_repair="Relax the population filter, or cut fewer subgroups.",
         )
     )
     if n_treated == 0 or n_control == 0:
-        return QualityReport(issues=issues)  # 有一组是空的，后面算不了
+        return QualityReport(issues=issues)  # one arm is empty; nothing else computes
 
-    # ---- 2. Overlap / positivity（阻断）----
+    # ---- 2. overlap / positivity (blocking) ----
     layer, severity, waivable = _issue_settings(config, "backdoor_overlap")
     low = _threshold(config, "backdoor_overlap", "propensity_low", 0.05)
     high = _threshold(config, "backdoor_overlap", "propensity_high", 0.95)
@@ -167,8 +181,8 @@ def check_backdoor(
             severity=severity if not passed else Severity.INFO,
             waivable=waivable,
             summary=(
-                f"{extreme_fraction:.1%} 的样本倾向得分落在 [{low:g}, {high:g}] 之外"
-                f"（线 {max_extreme:.0%}）"
+                f"{extreme_fraction:.1%} of the sample has a propensity score outside "
+                f"[{low:g}, {high:g}] (threshold {max_extreme:.0%})"
             ),
             evidence={
                 "extreme_fraction": round(extreme_fraction, 6),
@@ -184,21 +198,25 @@ def check_backdoor(
             },
             affected_columns=covariate_names,
             impact_on_analysis=(
-                "有一批人在协变量上几乎没有对照，对他们的效应是外推出来的。"
-                "此时置信区间会很窄，但窄得没有意义——结论措辞不得超过 associational 级。"
+                "Some people have almost no comparable controls on these covariates, so "
+                "their effect is extrapolated rather than observed. The confidence "
+                "interval will look narrow, but narrow in a way that means nothing; the "
+                "conclusion may not be worded above associational."
                 if not passed
-                else "共同支撑充分。"
+                else "Common support is adequate."
             ),
             recommended_repair=(
-                "把人群限制到有共同支撑的区域（并在报告中写明 estimand 随之改变），"
-                "或减少调整集中导致分离的变量。豁免须写明理由。"
+                "Restrict the population to the region with common support (and state in "
+                "the report that the estimand changes accordingly), or drop the "
+                "adjustment-set variables driving the separation. A waiver must state "
+                "its reason."
                 if not passed
                 else ""
             ),
         )
     )
 
-    # ---- 3. 协变量平衡：IPW 前后的 SMD ----
+    # ---- 3. covariate balance: SMD before and after IPW ----
     weights = np.where(
         treatment == 1, 1.0 / np.clip(propensity, 1e-6, 1), 1.0 / np.clip(1 - propensity, 1e-6, 1)
     )
@@ -221,7 +239,8 @@ def check_backdoor(
             severity=severity if not passed else Severity.INFO,
             waivable=waivable,
             summary=(
-                f"IPW 后 {len(imbalanced)}/{len(covariate_names)} 个协变量 |SMD| > {max_smd:g}"
+                f"after IPW, {len(imbalanced)}/{len(covariate_names)} covariates still "
+                f"have |SMD| > {max_smd:g}"
             ),
             evidence={
                 "n_covariates": len(covariate_names),
@@ -233,13 +252,18 @@ def check_backdoor(
             },
             affected_columns=imbalanced,
             impact_on_analysis=(
-                "加权后仍不平衡，说明倾向得分模型没能把这些变量的组间差异消掉，调整可能不充分。"
+                "Imbalance persisting after weighting means the propensity model did not "
+                "remove these between-group differences, so the adjustment may be "
+                "incomplete."
             ),
-            recommended_repair="换更灵活的倾向得分模型，或检查这些变量是否本就难以共同支撑。",
+            recommended_repair=(
+                "Use a more flexible propensity model, or check whether these variables "
+                "simply lack common support."
+            ),
         )
     )
 
-    # ---- 4. 极端权重与有效样本量（可行性）----
+    # ---- 4. extreme weights and effective sample size (feasibility) ----
     layer, severity, waivable = _issue_settings(config, "backdoor_extreme_weights")
     min_ess_ratio = _threshold(config, "backdoor_extreme_weights", "min_ess_ratio", 0.20)
     ess = effective_sample_size(weights)
@@ -252,7 +276,8 @@ def check_backdoor(
             severity=severity if not passed else Severity.INFO,
             waivable=waivable,
             summary=(
-                f"IPW 有效样本量 {ess:.0f} / {len(weights)}（{ratio:.1%}，线 {min_ess_ratio:.0%}）"
+                f"IPW effective sample size {ess:.0f} of {len(weights)} "
+                f"({ratio:.1%}, threshold {min_ess_ratio:.0%})"
             ),
             evidence={
                 "effective_sample_size": round(ess, 2),
@@ -263,8 +288,14 @@ def check_backdoor(
                 "passed": passed,
             },
             affected_columns=[treatment_col],
-            impact_on_analysis="少数个体的权重主导了估计，结果对这几个人非常敏感。",
-            recommended_repair="截断极端权重（并报告截断前后的敏感性），或限制人群。",
+            impact_on_analysis=(
+                "A handful of individuals dominate the estimate, which is therefore very "
+                "sensitive to those few."
+            ),
+            recommended_repair=(
+                "Clip the extreme weights (and report the sensitivity to clipping), or "
+                "restrict the population."
+            ),
         )
     )
 

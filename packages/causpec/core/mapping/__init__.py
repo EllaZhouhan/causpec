@@ -1,11 +1,13 @@
-"""轻量 mapping：把数据源的列映射到 canonical schema。
+"""Lightweight mapping from source columns to the canonical schema.
 
-对应 design.md 6.4。只支持 rename、cast、recode_null、map_categories、
-unit_convert、按窗口聚合六种操作，**不接受任意表达式**——
-mapping 由 agent 起草、用户确认，能力越小越可审阅。
+Mirrors design.md 6.4. Six operations only — rename, cast, recode_null,
+map_categories, unit_convert, aggregate over a window — and **no arbitrary
+expressions**: the mapping is drafted by the agent and confirmed by the user, so a
+smaller surface is a reviewable one.
 
-同时维护变量目录（design.md 6.2）：来源列、单位、相对 time zero 的
-测量窗口、聚合方式。没有时间信息的变量，post-treatment 检查只能给 suspected。
+This package also holds the variable catalogue (design.md 6.2): source column, unit,
+measurement window relative to time zero, aggregation. Without a measurement window
+the post-treatment check can only report `suspected`.
 
-Phase 1 任务 2。
+Not implemented yet — see plan.md Phase 1 task 2.
 """

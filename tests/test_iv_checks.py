@@ -1,7 +1,7 @@
-"""hte_iv 的 instrument 检查：相关性、外生性、BH 校正、门控联动。
+"""hte_iv instrument checks: relevance, exogeneity, BH correction, gate interaction.
 
-对应 design.md 8.2（instrument relevance）、8.3（Issue schema）、
-10.2（两项阻断检验之一）、11.2（门控第 2 条）。
+Mirrors design.md 8.2 (instrument relevance), 8.3 (the issue schema),
+10.2 (one of the two blocking checks) and 11.2 (gate condition 2).
 """
 
 from __future__ import annotations
@@ -34,11 +34,11 @@ COVARIATES = [
 
 
 def confirmed(value: object) -> SpecField:
-    return SpecField(value=value, source=Source.USER, said="确认", status=Status.CONFIRMED)
+    return SpecField(value=value, source=Source.USER, said="confirmed", status=Status.CONFIRMED)
 
 
 SPEC = Spec(
-    question="透析对哪些患者有益？",
+    question="Which patients benefit from dialysis?",
     family="hte_iv",
     fields={
         "treatment": confirmed("isDialysisICU"),
@@ -75,7 +75,7 @@ def strong_report(strong):
 
 
 def test_bh_controls_fdr_under_the_null() -> None:
-    """全是真零假设时几乎不该有拒绝。"""
+    """Under all-true nulls there should be almost no rejections."""
     rng = np.random.default_rng(7)
     assert benjamini_hochberg(rng.uniform(size=1000), 0.10).sum() <= 10
 
@@ -85,7 +85,7 @@ def test_bh_finds_true_signals() -> None:
     p = np.concatenate([rng.uniform(0, 1e-8, 50), rng.uniform(size=950)])
     rejected = benjamini_hochberg(p, 0.10)
     assert rejected[:50].all()
-    assert rejected.sum() < 70  # 假发现受控
+    assert rejected.sum() < 70  # false discoveries stay controlled
 
 
 def test_bh_handles_empty_input() -> None:
@@ -97,7 +97,7 @@ def test_bh_is_less_conservative_than_bonferroni() -> None:
     assert benjamini_hochberg(p, 0.10).sum() >= (p < 0.10 / len(p)).sum()
 
 
-# ---- 相关性（阻断检验）----
+# ---- relevance (the blocking check) ----
 
 
 def test_strong_instrument_passes_all_checks(strong_report) -> None:
@@ -111,14 +111,15 @@ def test_weak_instrument_blocks(weak) -> None:
     assert issue.severity is Severity.BLOCKING
     assert issue.evidence["passed"] is False
     assert float(issue.evidence["robust_f"]) < float(issue.evidence["robust_f_threshold"])
-    assert issue.recommended_repair  # 结构化错误必须带修复建议
+    assert issue.recommended_repair  # a structured error must carry its fix
 
 
 def test_first_stage_reports_both_linear_and_probit_diagnostics(strong_report) -> None:
-    """design.md 8.2：诊断形式由 family 决定，不统一使用 first-stage F。
+    """design.md 8.2: the form of the diagnostic is the family's business, not a
+    universal first-stage F.
 
-    treatment 是二值，所以线性稳健 F 与 Probit 的 LR 检验、McFadden 增量 R²
-    一并报出，由读者判断。
+    The treatment is binary, so the linear robust F, the probit LR test and the
+    McFadden increment are all reported, for the reader to weigh.
     """
     evidence = strong_report.get("iv_weak_first_stage").evidence
     for key in ("robust_f", "partial_r2", "lr_statistic", "lr_p_value", "mcfadden_r2_increment"):
@@ -132,11 +133,11 @@ def test_zero_variation_instrument_is_blocked_and_not_waivable(strong) -> None:
     issue = report.get("iv_zero_variation")
     assert issue.severity is Severity.BLOCKING
     assert issue.waivable is False
-    # 没有变异就不必往下算，后面的检查不应出现
+    # With no variation nothing further is computable, so no later check should appear
     assert [i.check_id for i in report.issues] == ["iv_zero_variation"]
 
 
-# ---- 外生性 ----
+# ---- exogeneity ----
 
 
 def test_balanced_instrument_passes(strong_report) -> None:
@@ -146,9 +147,10 @@ def test_balanced_instrument_passes(strong_report) -> None:
 
 
 def test_endogenous_instrument_is_detected(strong) -> None:
-    """人为让 instrument 与病情严重度相关，检查必须抓到。
+    """Deliberately correlate the instrument with severity; the check must catch it.
 
-    这是这条检查的负向对照——只在外生数据上跑通不能说明它有用。
+    This is the check's negative control: passing on exogenous data alone says nothing
+    about whether it is useful.
     """
     rng = np.random.default_rng(0)
     broken = strong.copy()
@@ -158,36 +160,37 @@ def test_endogenous_instrument_is_detected(strong) -> None:
 
     issue = check_instrument(broken, SPEC, CONFIG).get("iv_covariate_imbalance")
     assert issue.evidence["passed"] is False
-    assert issue.severity is Severity.WARNING  # 不阻断：exclusion 本就无法检验
+    assert issue.severity is Severity.WARNING  # not blocking: exclusion is untestable
     assert "sofa_total_24h" in issue.affected_columns
 
 
 def test_imbalance_is_a_warning_not_a_blocker(strong) -> None:
-    """exclusion restriction 无法检验，失衡是坏信号但不是证明，因此不阻断。"""
+    """The exclusion restriction is untestable, so imbalance is a bad sign rather than
+    proof, and does not block."""
     assert CONFIG["iv_covariate_imbalance"]["severity"] == "warning"
 
 
-# ---- complier 占比 ----
+# ---- complier share ----
 
 
 def test_low_complier_share_warns(weak) -> None:
     issue = check_instrument(weak, SPEC, CONFIG).get("iv_low_complier_share")
     assert issue.evidence["passed"] is False
     assert issue.severity is Severity.WARNING
-    # 估计对象只对 complier 成立这件事必须说出来（design.md 7.6）
+    # That the estimand covers compliers only must be stated (design.md 7.6)
     assert "complier" in issue.impact_on_analysis
-    assert "适用人群" in issue.recommended_repair
+    assert "population" in issue.recommended_repair
 
 
 def test_complier_share_skipped_for_continuous_instrument() -> None:
-    """连续 instrument 下没有 complier 三分类，这条检查不适用。"""
+    """With a continuous instrument there is no complier split, so this check does not apply."""
     df = generate(config_for("high_power", instrument_kind="continuous", seed=100, n=3000))
     report = check_instrument(df, SPEC, CONFIG)
     with pytest.raises(KeyError):
         report.get("iv_low_complier_share")
 
 
-# ---- 地址与门控 ----
+# ---- addresses and the gate ----
 
 
 def test_every_evidence_item_has_an_address(strong_report) -> None:
@@ -197,7 +200,7 @@ def test_every_evidence_item_has_an_address(strong_report) -> None:
 
 
 def test_boolean_evidence_renders_as_words(strong_report) -> None:
-    """报告正文要能直接代入，所以布尔值转成 yes/no 而不是 True/False。"""
+    """Report prose substitutes these directly, so booleans render as yes/no."""
     assert strong_report.addresses()["qc:iv_weak_first_stage.passed"] == "yes"
 
 
@@ -211,11 +214,19 @@ def test_gate_blocks_on_blocking_issues(weak) -> None:
 
 def test_waiver_with_reason_unblocks(weak) -> None:
     report = check_instrument(weak, SPEC, CONFIG)
-    check_all(SPEC, report, waived={"iv_weak_first_stage": "预注册的敏感性分析，已在方案中说明"})
+    check_all(
+        SPEC,
+        report,
+        waived={
+            "iv_weak_first_stage": (
+                "a pre-registered sensitivity analysis, described in the protocol"
+            )
+        },
+    )
 
 
 def test_waiver_without_reason_does_not_unblock(weak) -> None:
-    """豁免必须附理由（design.md 第 12 节 record_waiver）。"""
+    """A waiver requires a reason (design.md section 12, record_waiver)."""
     report = check_instrument(weak, SPEC, CONFIG)
     with pytest.raises(GateError):
         check_all(SPEC, report, waived={"iv_weak_first_stage": "   "})
@@ -226,7 +237,7 @@ def test_non_waivable_check_cannot_be_waived(strong) -> None:
     degenerate["instrument"] = 1
     report = check_instrument(degenerate, SPEC, CONFIG)
     with pytest.raises(GateError) as excinfo:
-        check_no_blocking_issues(report, waived={"iv_zero_variation": "无所谓"})
+        check_no_blocking_issues(report, waived={"iv_zero_variation": "does not matter"})
     assert excinfo.value.details["not_waivable"] == ["iv_zero_variation"]
 
 
@@ -235,12 +246,13 @@ def test_empty_report_passes_the_gate() -> None:
 
 
 def test_family_exposes_check_through_the_protocol(strong) -> None:
-    """core 通过协议调 family 的检查，不认识 check_instrument 本身。"""
+    """Core reaches the family's checks through the protocol, knowing nothing of
+    check_instrument itself."""
     report = registry.get("hte_iv").check(strong, SPEC)
     assert report.get("iv_weak_first_stage").evidence["passed"] is True
 
 
 def test_each_family_brings_its_own_checks(strong) -> None:
-    """两个 family 的检查集互不相同——core 不知道任何一方查了什么。"""
+    """The two families check different things; core knows what neither of them checks."""
     iv_checks = {i.check_id for i in registry.get("hte_iv").check(strong, SPEC).issues}
     assert iv_checks and all(check.startswith("iv_") for check in iv_checks)

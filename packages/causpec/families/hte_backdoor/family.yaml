@@ -1,22 +1,24 @@
-# hte_backdoor：后门调整下的异质处理效应（baseline）
+# hte_backdoor: heterogeneous treatment effects under backdoor adjustment (baseline).
 id: hte_backdoor
 analysis_type: hte
 requires_extra: hte
+status: implemented
 
 answers: >
-  在可观测混杂可被调整集充分控制的前提下，处理效应如何随协变量变化。
+  How the treatment effect varies with covariates, assuming the adjustment set
+  controls observable confounding adequately.
 
 identification_strategy: backdoor_adjustment
 
 estimands:
   - id: ate
-    label: 平均处理效应
+    label: Average treatment effect
     requires_assumptions: [unconfoundedness, positivity, consistency]
   - id: att
-    label: 处理组的平均处理效应
+    label: Average treatment effect on the treated
     requires_assumptions: [unconfoundedness, positivity, consistency]
   - id: cate
-    label: 条件平均处理效应
+    label: Conditional average treatment effect
     requires_assumptions: [unconfoundedness, positivity, consistency]
 
 requires:
@@ -25,27 +27,33 @@ requires:
 assumptions:
   - id: unconfoundedness
     category: untestable
-    statement: 给定调整集后，处理分配与潜在结果独立
+    statement: >
+      given the adjustment set, treatment assignment is independent of the potential
+      outcomes
   - id: positivity
     category: empirically_assessed
-    statement: 每个协变量取值下接受与不接受处理的概率都严格在 0 与 1 之间
+    statement: >
+      at every covariate value the probability of receiving and of not receiving
+      treatment is strictly between 0 and 1
   - id: consistency
     category: requires_justification
-    statement: 处理定义明确，不存在实质不同的多个版本
+    statement: >
+      the treatment is well defined, with no materially different versions of it
 
 estimator:
   primary: econml.dml.CausalForestDML       # EconML, MIT
-  cate_interval_method: blb                 # bootstrap of little bags，一次拟合内完成
-  ate_interval_method: blb                  # 与 hte_iv 不同：这里 ATE 区间也是解析的
+  cate_interval_method: blb                 # bootstrap of little bags, within one fit
+  ate_interval_method: blb                  # unlike hte_iv, the ATE interval is analytic too
   calibration: econml.validate.DRTester     # EconML, MIT
   note: >
-    final model 就是森林本身，所以 econml 能给出方差估计，不需要重抽样重拟合。
-    hte_iv 的 NonParamDMLIV 只能 bootstrap，因为它的 final model 是任意回归器。
+    The final model is the forest itself, so econml can derive a variance and no
+    resampling is needed. hte_iv's NonParamDMLIV can only bootstrap, because its final
+    model is an arbitrary regressor.
 
-status: implemented
-
-# 质量检查与阈值。阈值写在这里而不是代码里：它们决定结论能用多强的措辞
-# （design.md 10.2），必须事先定死、写进报告、进 manifest。都是惯例而非定律。
+# Quality checks and thresholds. Thresholds live here rather than in code: they decide
+# how strongly a conclusion may be worded (design.md 10.2), so they must be fixed in
+# advance, printed in the report, and recorded in the manifest. All are conventions,
+# not laws.
 checks:
   backdoor_treatment_prevalence:
     layer: feasibility
@@ -56,27 +64,30 @@ checks:
 
   backdoor_overlap:
     layer: identification
-    severity: blocking          # design.md 10.2 的两项阻断检验之一
+    severity: blocking          # one of the two blocking checks of design.md 10.2
     waivable: true
-    # 倾向得分落在 [low, high] 之外的样本占比不超过 max_extreme_fraction。
+    # At most max_extreme_fraction of the sample may fall outside [low, high].
     propensity_low: 0.05
     propensity_high: 0.95
     max_extreme_fraction: 0.05
-    # 交叉拟合是必须的：同一份数据上拟合又预测会把得分推向 0/1，
-    # 于是"看上去"没有共同支撑，把好数据判成坏数据。
+    # Cross-fitting is mandatory: fitting and predicting on the same data pushes the
+    # scores towards 0/1, so common support only *appears* to be missing, and good data
+    # gets judged bad.
     cv_folds: 5
-    # overlap 问的是"有没有一片区域里处理几乎是确定的"。设定过窄的模型
-    # 可能看不出真实分离——这里漏报比误报代价大，因为漏报会放行一个本该阻断的分析。
+    # Overlap asks whether there is a region where treatment is near-deterministic. A
+    # too-narrow model can miss real separation, and a false negative costs more than a
+    # false positive here, because it lets through an analysis that should have been
+    # blocked.
     propensity_model: gradient_boosting     # gradient_boosting | logistic
 
   backdoor_covariate_imbalance:
     layer: identification
-    severity: warning           # 不阻断：design.md 10.2 明确把 SMD 列入"照印不设闸"
-    waivable: true
-    max_abs_smd: 0.10           # 因果推断文献的通行线
+    severity: warning           # not blocking: design.md 10.2 explicitly puts adjusted
+    waivable: true              # SMD in the "report it, do not gate on it" list
+    max_abs_smd: 0.10           # the conventional threshold in the causal-inference literature
 
   backdoor_extreme_weights:
     layer: feasibility
     severity: warning
     waivable: true
-    min_ess_ratio: 0.20         # Kish 有效样本量 / 实际样本量
+    min_ess_ratio: 0.20         # Kish effective sample size over actual sample size

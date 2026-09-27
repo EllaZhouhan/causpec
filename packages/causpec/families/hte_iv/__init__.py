@@ -1,9 +1,11 @@
-"""hte_iv：IV 设定下的异质处理效应。
+"""hte_iv: heterogeneous treatment effects under an instrumental-variable design.
 
-估计器【复用】EconML 的 ``NonParamDMLIV``（MIT）。instrument 二值与连续都支持。
+Both binary and continuous instruments are supported. Two backends, selected through
+``spec.estimation.params.estimator``; see estimator.py.
 
-HTE 校准需要注意：EconML 的 ``DRTester`` 基于无混杂假设下的 doubly robust
-得分，**不能直接用于 IV 设定**，需改用 IV 版本的得分自写（design.md 第 9 节 TODO）。
+A note on calibration: EconML's ``DRTester`` is built on doubly-robust scores that
+assume unconfoundedness, so it **cannot be used directly in an IV setting**. An
+IV-appropriate score has to be written (design.md section 9, TODO).
 """
 
 from causpec.families.hte_iv.estimator import HteIv

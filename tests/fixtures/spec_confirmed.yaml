@@ -1,23 +1,24 @@
 spec_version: 1
-question: CRRT 对 AKI-3 期患者 28 天死亡率的影响？
+question: What is the effect of CRRT on 28-day mortality in AKI stage 3 patients?
 family: hte_backdoor
 fields:
   treatment:
     value: rrt
     source: user
-    said: 透析就是指开始CRRT
+    said: by dialysis I mean starting CRRT
     turn: 4
     status: confirmed
   outcome:
     value: death_28d
     source: user
-    said: 结局看28天死亡
+    said: the outcome is death within 28 days
     turn: 6
     status: confirmed
   estimand:
-    # 值由模型推断，但确认是用户给的——source 仍是 model，said 记用户认可时的原话
+    # The value was inferred by the model but confirmed by the user, so source stays
+    # `model` while `said` records the user's words at confirmation.
     value: ate
     source: model
-    said: 对，我想知道整体平均效应
+    said: the overall average effect is what I want
     turn: 8
     status: confirmed

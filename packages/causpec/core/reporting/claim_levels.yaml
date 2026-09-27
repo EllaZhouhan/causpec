@@ -1,38 +1,48 @@
-# 措辞等级的判定规则。对应 design.md 10.2。
+# Rules for deciding how strongly a conclusion may be worded. Mirrors design.md 10.2.
 #
-# 规则放在这里而不是写死在代码里，理由和质量检查的阈值一样：它们决定结论
-# 能用多强的措辞，必须事先定死、写进报告、进 manifest（manifest 记本文件的哈希，
-# 半年后能复现当时的判定）。
+# These live in a file rather than in code for the same reason the quality-check
+# thresholds do: they decide how strongly a conclusion may be stated, so they must be
+# fixed in advance, printed in the report, and recorded in the manifest (which stores
+# this file's hash, so the decision can be reproduced later).
 version: 1
 
-# 代码自动判定的上限。**代码只能降级，不能授予 causal。**
-# untestable 类假设（unconfoundedness、exclusion restriction、monotonicity）
-# 跑多少检验都验证不了，所以代码最多只能说"诊断没发现问题"。
+# The ceiling for an automatic decision. **Code can only downgrade; it cannot grant
+# `causal`.** Untestable assumptions (unconfoundedness, exclusion restriction,
+# monotonicity) can never be verified by any amount of data, so the most code can
+# ever say is "the diagnostics found nothing wrong".
 code_maximum: suggestive
 
 rules:
-  # 门控没过（spec 未确认，或有未豁免的 blocking 质量问题）
+  # The gate failed (spec unconfirmed, or an unwaived blocking quality issue).
   gate_failed: descriptive
-  # 任一阻断检验不通过——**即使被豁免**。豁免让分析得以进行，
-  # 但不会让问题消失，诊断发现的问题仍然要反映在措辞上。
+  # A blocking check failed — **even if it was waived**. A waiver lets the analysis
+  # proceed; it does not make the problem go away, and the diagnosis still has to
+  # show up in the wording.
   blocking_check_failed: associational
-  # 全部阻断检验通过
+  # Every blocking check passed.
   all_blocking_checks_passed: suggestive
 
-# 从 suggestive 升到 causal 需要全部满足。任一不满足就停在 suggestive。
+# All of these must hold to move from suggestive to causal. Any one missing and the
+# level stays at suggestive.
 causal_requires:
-  # 每条 untestable 假设都有非空论证
+  # Every untestable assumption carries a non-empty justification.
   all_untestable_assumptions_justified: true
-  # 且论证必须来自用户。模型论证自己的假设成立是循环的。
+  # And that justification came from the user. A model vouching for its own
+  # assumptions is circular.
   justification_source: user
-  # 用户显式确认愿意以因果措辞陈述（spec 里的 causal_claim_approved 字段）
+  # The user explicitly agreed to causal wording (the causal_claim_approved spec field).
   explicit_user_approval: true
-  # 有过豁免的分析不能达到 causal
+  # An analysis that waived anything cannot reach causal.
   no_waived_blocking_checks: true
 
-# 各级措辞的写法，供 skill 对照（design.md 10.2）。
+# How each level may be phrased, for the skill to follow (design.md 10.2).
 wording:
-  causal: 可以说"降低了/提高了"——断言因果方向与量级
-  suggestive: 只能说"提示可能与……有关"——不断言因果
-  associational: 只能描述关联，并写明本分析不足以支持因果解读
-  descriptive: 只陈述各组的数值，不作组间比较推断
+  causal: >-
+    may say "reduced" or "increased" — asserts causal direction and magnitude
+  suggestive: >-
+    may only say "suggests a possible association with ..." — asserts no causation
+  associational: >-
+    describe the association only, and state that this analysis does not support a
+    causal reading
+  descriptive: >-
+    report each group's numbers only; draw no between-group inference

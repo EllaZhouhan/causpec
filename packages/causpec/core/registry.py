@@ -1,16 +1,17 @@
-"""Family 注册表：core 与 family 之间的唯一接口。
+"""Family registry: the only interface between core and the families.
 
-对应 design.md 第 4 节的分层规则。方向是单向的：
+Mirrors design.md section 4. The dependency runs one way:
 
-    families/hte_iv  ──import──>  core.registry        ✅ 允许
-    core.*           ──import──>  families.*           ❌ import-linter 禁止
+    families/hte_iv  --imports-->  core.registry        allowed
+    core.*           --imports-->  families.*           forbidden (import-linter)
 
-core 定义「一个 family 必须长什么样」，各 family 实现它并向这里报到。
-core 永远不认识任何具体的 family——``get()`` 按 id 动态导入，靠的是约定
-``causpec.families.<id>``，不是写死的 import。
+Core defines what a family must look like; each family implements it and registers
+itself. Core never names a specific family — ``get()`` imports by id, relying on the
+``causpec.families.<id>`` convention rather than a hard-coded import.
 
-重依赖（econml 等）放在 extra 里，core 保持轻量。family 的依赖没装时，
-``get()`` 抛 ``FamilyUnavailable``，带上安装命令，而不是一个裸的 ImportError。
+Heavy dependencies (econml and friends) live behind an extra so core stays light.
+When a family's dependencies are absent, ``get()`` raises ``FamilyUnavailable`` with
+the install command instead of a bare ImportError.
 """
 
 from __future__ import annotations
@@ -34,25 +35,26 @@ FAMILIES_PACKAGE = "causpec.families"
 
 @runtime_checkable
 class Family(Protocol):
-    """一个 family 必须提供的接口。"""
+    """What a family must provide."""
 
     id: str
 
     def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
-        """跑估计，返回带地址的结果。"""
+        """Run the estimation and return addressed results."""
         ...
 
     def check(self, data: pd.DataFrame, spec: Spec) -> QualityReport:
-        """跑这个 family 的专属质量检查。
+        """Run this family's own quality checks.
 
-        与 estimate 分开：G3 要求即使分析不能运行，质量报告本身也是交付物。
+        Separate from estimate: G3 requires the quality report to be a deliverable
+        even when the analysis cannot run.
         """
         ...
 
 
 @dataclass
 class FamilyUnavailable(Exception):
-    """family 的依赖没装。结构化错误，带修复命令（design.md 11.2）。"""
+    """A family's dependencies are not installed. Structured, with the fix (11.2)."""
 
     code: str
     reason: str
@@ -60,26 +62,26 @@ class FamilyUnavailable(Exception):
     details: dict[str, object] = field(default_factory=dict)
 
     def __str__(self) -> str:
-        return f"[{self.code}] {self.reason}\n  修复：{self.remediation}"
+        return f"[{self.code}] {self.reason}\n  Fix: {self.remediation}"
 
 
 _REGISTRY: dict[str, Family] = {}
 
 
 def register(family: Family) -> Family:
-    """把一个 family 登记进来。由 family 包自己在 import 时调用。"""
+    """Register a family. Called by the family package itself at import time."""
     if family.id in _REGISTRY:
-        raise ValueError(f"family 已注册：{family.id}")
+        raise ValueError(f"family already registered: {family.id}")
     _REGISTRY[family.id] = family
     return family
 
 
 def declared_families() -> list[str]:
-    """声明了 family.yaml 的所有 family，与是否已导入无关。
+    """Every family that ships a family.yaml, whether or not it has been imported.
 
-    走 importlib.resources 而不是文件系统路径：skill 形态下 causpec 是从
-    wheel（一个 zip）里直接 import 的，那时 ``Path(__file__)`` 不指向真实文件。
-    这个 bug 是在干净环境里实跑 skill/scripts/run.py 时发现的。
+    Uses importlib.resources rather than filesystem paths: in skill form causpec is
+    imported straight out of a wheel (a zip), where ``Path(__file__)`` points at no
+    real file. Found by actually running skill/scripts/run.py in a clean environment.
     """
     root = resources.files(FAMILIES_PACKAGE)
     return sorted(
@@ -90,63 +92,67 @@ def declared_families() -> list[str]:
 
 
 def load_declaration(family_id: str) -> dict[str, Any]:
-    """读某个 family 的 family.yaml 声明。
+    """Read one family's family.yaml declaration.
 
-    声明里写着这个 family 回答什么问题、能识别哪些 estimand、需要什么、假设什么，
-    是 design.md 7.6 estimand 对账的依据。
+    The declaration states what question the family answers, which estimands it can
+    identify, what it needs and what it assumes — the basis for the estimand
+    reconciliation of design.md 7.6.
     """
-    # 从父包导航，**不 import 子包**：resources.files("causpec.families.hte_iv")
-    # 会执行那个包的 __init__，进而拉 econml。读一份声明不该需要它的依赖——
-    # requires_extra 这个字段存在的意义就是让人在装依赖之前先知道要装什么。
+    # Navigate from the parent package and **do not import the subpackage**:
+    # resources.files("causpec.families.hte_iv") executes that package's __init__ and
+    # pulls in econml. Reading a declaration should not require its dependencies —
+    # the whole point of `requires_extra` is telling people what to install first.
     resource = resources.files(FAMILIES_PACKAGE).joinpath(family_id).joinpath("family.yaml")
     try:
         text = resource.read_text(encoding="utf-8")
     except (FileNotFoundError, NotADirectoryError, OSError, KeyError) as error:
-        known = "、".join(declared_families()) or "（无）"
-        raise FileNotFoundError(f"未知的 family：{family_id}。已声明的：{known}") from error
+        known = ", ".join(declared_families()) or "(none)"
+        raise FileNotFoundError(f"Unknown family: {family_id}. Declared: {known}") from error
     return yaml.safe_load(text)
 
 
 def declared_estimands(family_id: str) -> list[str]:
-    """某个 family 声明可识别的 estimand id 列表。"""
+    """The estimand ids a family declares it can identify."""
     estimands: list[dict[str, Any]] = load_declaration(family_id).get("estimands") or []
     return [e["id"] for e in estimands]
 
 
 def get(family_id: str) -> Family:
-    """按 id 取 family，必要时动态导入。
+    """Look up a family by id, importing it on demand.
 
     Raises:
-        FileNotFoundError: 没有这个 family 的声明。
-        FamilyUnavailable: 声明存在，但它的依赖没装。
+        FileNotFoundError: no such family is declared.
+        FamilyUnavailable: it is declared, but its dependencies are missing.
     """
     if family_id in _REGISTRY:
         return _REGISTRY[family_id]
 
-    declaration = load_declaration(family_id)  # 顺带校验 id 存在
+    declaration = load_declaration(family_id)  # also validates that the id exists
     try:
         importlib.import_module(f"causpec.families.{family_id}")
     except ImportError as error:
         extra = declaration.get("requires_extra")
         remediation = (
-            f"安装 causpec[{extra}]：uv sync --extra {extra}（或 pip install 'causpec[{extra}]'）"
+            f"Install causpec[{extra}]: uv sync --extra {extra} (or pip install 'causpec[{extra}]')"
             if extra
-            else f"这个 family 的依赖缺失：{error}"
+            else f"A dependency of this family is missing: {error}"
         )
         raise FamilyUnavailable(
             code="FAMILY_DEPENDENCY_MISSING",
-            reason=f"family {family_id} 的依赖未安装（{error.name or error}）",
+            reason=f"family {family_id} has an uninstalled dependency ({error.name or error})",
             remediation=remediation,
             details={"family": family_id, "extra": extra, "missing_module": error.name},
         ) from error
 
     if family_id not in _REGISTRY:
         raise RuntimeError(
-            f"causpec.families.{family_id} 导入成功但没有调用 register()——检查该包的 __init__.py"
+            f"causpec.families.{family_id} imported but never called register() — "
+            f"check that package's __init__.py"
         )
     return _REGISTRY[family_id]
 
 
 def list_families() -> list[str]:
-    """已导入并注册的 family id。想知道磁盘上有哪些用 declared_families()。"""
+    """Families that have been imported and registered. For what is on disk, see
+    declared_families()."""
     return sorted(_REGISTRY)

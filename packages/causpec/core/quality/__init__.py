@@ -1,15 +1,17 @@
-"""数据质量与可识别性检查。
+"""Cross-family data-quality and identifiability checks.
 
-对应 design.md 第 8 节的四层：
+Mirrors the four layers of design.md section 8:
 
-| 层       | 检查 |
-|----------|------|
-| 基础     | 类型、范围、唯一性、缺失、NULL 编码变体 |
-| 时间一致性 | treatment 早于 time zero、outcome 早于 treatment、follow-up 不足 |
-| 可识别性 | 流行率、overlap、SMD、suspected post-treatment、instrument relevance |
-| 可行性   | 各组样本量、事件数、子组最小 n、极端权重与 ESS |
+| Layer          | Checks                                                           |
+|----------------|------------------------------------------------------------------|
+| basic          | types, ranges, uniqueness, missingness, NULL-encoding variants     |
+| temporal       | treatment before time zero, outcome before treatment, short follow-up |
+| identification | prevalence, overlap, SMD, suspected post-treatment, instrument relevance |
+| feasibility    | per-arm sample sizes, event counts, minimum subgroup n, extreme weights and ESS |
 
-每个检查有地址 ``qc:<check_id>``，供报告引用。修复只作用于派生快照。
+Each check has an address ``qc:<check_id>`` for the report to cite. Repairs act on
+the derived snapshot only.
 
-Phase 1 任务 4、5。
+Family-specific checks live with their family; this package is for the ones that
+apply regardless of design. Not implemented yet — see plan.md Phase 1 tasks 4 and 5.
 """

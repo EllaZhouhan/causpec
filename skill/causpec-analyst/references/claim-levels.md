@@ -1,73 +1,80 @@
-# 措辞等级
+# Claim levels
 
-四级：`causal` > `suggestive` > `associational` > `descriptive`。
+Four levels: `causal` > `suggestive` > `associational` > `descriptive`.
 
-**等级由代码判定，你不得自行升级。** 你的工作是让正文措辞与判定结果一致。
+**The level is decided by code and you may not upgrade it.** Your job is to keep the
+prose consistent with the decision.
 
-## 判定规则
+## The rules
 
 ```
-descriptive    ← 门控没过（spec 未确认，或有未豁免的 blocking 质量问题）
-associational  ← 两项阻断检验任一不通过（即使被豁免）
-suggestive     ← 两项都通过 —— 这是代码能给的最高级
-causal         ← suggestive + 全部 untestable 假设由用户论证 + 用户显式确认
+descriptive    <- the gate did not pass (spec unconfirmed, or an unwaived blocking issue)
+associational  <- either blocking check failed (even if it was waived)
+suggestive     <- both passed — the highest a code decision can reach
+causal         <- suggestive + every untestable assumption justified by the user
+                  + the user's explicit approval
 ```
 
-## 代码为什么给不出 `causal`
+## Why code cannot grant `causal`
 
-`untestable` 类假设（unconfoundedness、exclusion restriction、monotonicity）
-**原则上无法由数据检验**。跑再多诊断也证明不了它们。
+The `untestable` assumptions — unconfoundedness, the exclusion restriction,
+monotonicity — **cannot be verified by data in principle**. No number of diagnostics
+will establish them.
 
-所以责任是分开的：
+So responsibility divides:
 
-- **代码**保证「诊断没发现问题」
-- **人**担保「假设成立」
+- **Code** vouches that "the diagnostics found nothing wrong"
+- **A person** vouches that "the assumptions hold"
 
-报告里会写明是谁认的。这不是形式主义——用因果措辞陈述一个观测性研究的结论，
-是有后果的，做这个决定的应该是能承担后果的人。
+The report says who did which. This is not ceremony: stating an observational result
+in causal terms has consequences, and the person making that call should be the one
+who can carry them.
 
-## 怎么和用户谈这件事
+## How to discuss this with the user
 
-用户看到 `suggestive` 可能会问「为什么不能说是因果的」。照实说：
+Seeing `suggestive`, a user may ask why it cannot be called causal. Answer plainly:
 
-> 「诊断都通过了，数据这一侧没发现问题。但『给定这些协变量后透析与预后无关』
-> 这条假设，没有任何检验能验证——它成立与否是临床判断。
-> 如果您愿意为它背书并说明理由，我可以把措辞升到因果级，
-> 报告里会写明这个判断是您做出的。」
+> "The diagnostics all passed — nothing is wrong on the data side. But 'given these
+> covariates, dialysis is unrelated to prognosis' is something no test can verify;
+> whether it holds is a clinical judgement. If you're willing to stand behind it and
+> say why, I can raise the wording to causal, and the report will record that the
+> judgement was yours."
 
-**不要替用户做这个决定，也不要暗示这只是个手续。**
+**Do not make that decision for them, and do not imply it is a formality.**
 
-## 模型自己的论证不算数
+## A model's own justification does not count
 
 ```yaml
 - id: unconfoundedness
-  justification: 我认为已经控制了主要混杂因素
-  justified_by: model        # ← 不算数，仍然停在 suggestive
+  justification: I believe the major confounders are controlled
+  justified_by: model        # does not count; stays at suggestive
 ```
 
-模型论证自己的假设成立是循环的。`justified_by` 必须是 `user`。
+A model vouching for its own assumptions is circular. `justified_by` must be `user`.
 
-## 豁免不改变诊断结论
+## A waiver does not change the diagnosis
 
-被豁免的阻断检验仍然把等级压到 `associational`，理由里会写
-「已豁免，但诊断结论不变」。而且豁免过的分析**永远达不到 `causal`**。
+A waived blocking check still caps the level at `associational`, with the reasoning
+noting "waived, but the diagnosis is unchanged". And a waived analysis **can never
+reach `causal`**.
 
-豁免让分析得以进行，不让问题消失。
+A waiver lets the analysis run; it does not make the problem disappear.
 
-## 各级的写法
+## How to word each level
 
-| 等级 | 能怎么说 | 不能怎么说 |
+| Level | You may say | You may not say |
 |---|---|---|
-| `causal` | 「透析使 28 天死亡率降低了 X」 | — |
-| `suggestive` | 「数据提示透析可能与死亡率降低有关，效应量为 X」 | 「降低了」 |
-| `associational` | 「接受透析的患者死亡率低 X，本分析不足以支持因果解读」 | 「与……有关」这种暗示方向的说法 |
-| `descriptive` | 「处理组死亡率 X，对照组 Y」 | 任何组间比较的推断 |
+| `causal` | "dialysis reduced 28-day mortality by X" | — |
+| `suggestive` | "the data suggests dialysis may be associated with lower mortality, effect size X" | "reduced" |
+| `associational` | "treated patients had mortality lower by X; this analysis does not support a causal reading" | anything implying direction, like "is associated with" |
+| `descriptive` | "mortality was X in the treated group and Y in the control group" | any between-group inference |
 
-`descriptive` 级只陈述数值，**连「低了多少」都不说**——因为门控没过意味着
-连这个比较本身都不可靠。
+At `descriptive`, report the numbers and **do not even say how much lower** — the gate
+failing means the comparison itself is unreliable.
 
-## 规则可查
+## The rules are inspectable
 
-判定规则写在 `claim_levels.yaml` 里，报告会记下它的版本与哈希。
-阈值和规则都是惯例而非定律，可以被质疑——重要的是它们事先定死、
-写进报告、半年后能复现。
+The decision rules live in `claim_levels.yaml`, and the report records its version and
+hash. Both the thresholds and the rules are conventions, not laws, and may be
+disputed — what matters is that they are fixed in advance, printed in the report, and
+reproducible later.

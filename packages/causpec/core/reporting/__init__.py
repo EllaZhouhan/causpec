@@ -1,13 +1,10 @@
-"""报告：地址解析、占位符渲染、措辞等级判定。
+"""Reporting: address resolution, placeholder rendering, claim-level decision.
 
-对应 design.md 10.1、10.2、10.3。这一层是 G4 的执行者：
+This layer enforces G4. Prose written by the model may cite numbers only through
+placeholders such as ``{{res:primary.estimate}}``; the renderer substitutes them.
+**An unknown address, or a bare number anywhere in the prose, fails the render** and
+the error goes back to the model to rewrite.
 
-模型写的正文只能用占位符引用数字，例如 ``{{res:primary.estimate}}``；
-渲染器按地址代入。**引用不存在的地址，或正文出现未经占位的数字，
-渲染就失败**，并把错误返回给模型重写。
-
-措辞等级（causal / suggestive / associational / descriptive）由代码根据
-诊断与反驳结果判定，模型不能自行升级。
-
-Phase 1 任务 11。
+The claim level (causal / suggestive / associational / descriptive) is decided by
+code from the diagnostics; the model may not upgrade it.
 """

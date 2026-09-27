@@ -1,13 +1,13 @@
-"""Manifest：一次运行的完整来源记录。
+"""Manifest: the complete provenance record for one run.
 
-对应 design.md 第 14 节与 G5（输入与 seed 固定时结果可复现）。
+Mirrors design.md section 14 and G5 (same inputs and seed, same results).
 
-manifest 要能回答的问题是：**半年后我能不能原样重跑这次分析？**
-所以它记的是全部会影响结果的东西——代码版本、依赖版本、spec 哈希、
-数据指纹、seed、判定规则哈希——以及每个产物的 checksum，用来验证
-产物没被改过。
+The manifest has to answer one question: **could I rerun this analysis six months
+from now and get the same numbers?** So it records everything that can change the
+result — code version, dependency versions, spec hash, data fingerprint, seed,
+decision-rule hash — plus a checksum per artefact, so tampering is detectable.
 
-**不记录原始行，也不记录凭据**（design.md 第 14 节）。
+**No raw rows, no credentials** (design.md section 14).
 """
 
 from __future__ import annotations
@@ -19,10 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ExecutionMode(StrEnum):
-    """哪种形态跑的（design.md 第 3 节）。
+    """Which form produced this run (design.md section 3).
 
-    ``SKILL`` 形态是 best-effort——agent 可能绕过脚本直接读数据，
-    报告页眉要注明。记在 manifest 里，读者才知道这份结果的保证有多强。
+    ``SKILL`` is best-effort: the agent may bypass the scripts and read the data
+    directly, which the report header notes. Recording it here lets a reader judge
+    how strong the provenance guarantee actually is.
     """
 
     MCP = "mcp"
@@ -31,7 +32,7 @@ class ExecutionMode(StrEnum):
 
 
 class Manifest(BaseModel):
-    """一次运行的 manifest。"""
+    """The manifest for one run."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -39,26 +40,27 @@ class Manifest(BaseModel):
     created_at: datetime
     execution_mode: ExecutionMode
 
-    # ---- 代码来源 ----
+    # ---- code provenance ----
     causpec_version: str
     git_sha: str | None = None
     python_version: str = ""
     package_versions: dict[str, str] = Field(default_factory=dict)
 
-    # ---- 输入 ----
+    # ---- inputs ----
     spec_hash: str
     snapshot_fingerprint: str | None = None
     seed: int
 
-    # ---- 判定依据 ----
-    # 措辞等级的规则文件哈希：规则变了，同一份数据可能得到不同的等级，
-    # 所以它和依赖版本一样属于「会影响结论的东西」。
+    # ---- decision basis ----
+    # Hash of the claim-level rules file: change the rules and the same data can earn a
+    # different wording level, so it belongs with the dependency versions as something
+    # that changes conclusions.
     claim_rules_hash: str = ""
 
-    # ---- 产物 ----
-    # 相对路径 -> sha256。用来验证 run 目录里的文件没被事后改动。
+    # ---- artefacts ----
+    # Relative path -> sha256, so a run directory edited after the fact is detectable.
     artifacts: dict[str, str] = Field(default_factory=dict)
 
     def reproducibility_key(self) -> tuple[str, str | None, int, str]:
-        """决定结果是否应当相同的那几样东西。两次运行这个元组相同则结果应相同。"""
+        """The parts that decide whether two runs should agree. Equal keys, equal results."""
         return (self.spec_hash, self.snapshot_fingerprint, self.seed, self.causpec_version)
