@@ -110,9 +110,9 @@ def test_skill_lists_exactly_the_writable_sections(skill_text: str) -> None:
         assert f"`{section.value}`" in skill_text or f"`{section.value}`" in reporting
     forbidden = set(Section) - MODEL_AUTHORED_SECTIONS
     for section in forbidden:
-        assert (
-            f"`{section.value}`" in reporting
-        ), f"reporting.md does not say {section.value} is not writable"
+        assert f"`{section.value}`" in reporting, (
+            f"reporting.md does not say {section.value} is not writable"
+        )
 
 
 def test_quality_checks_reference_covers_every_check() -> None:
@@ -130,9 +130,9 @@ def test_blocking_checks_are_marked_as_blocking_in_the_reference() -> None:
         for check_id, config in registry.load_declaration(family).get("checks", {}).items():
             if config["severity"] == "blocking":
                 line = next(line for line in text.splitlines() if check_id in line)
-                assert (
-                    "blocking" in line
-                ), f"{check_id} is a blocking check but the reference does not say so"
+                assert "blocking" in line, (
+                    f"{check_id} is a blocking check but the reference does not say so"
+                )
 
 
 # ---- the key rules ----

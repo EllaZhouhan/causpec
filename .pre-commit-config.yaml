@@ -11,12 +11,24 @@ repos:
         args: [--maxkb=500]
       - id: detect-private-key
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.6
+  # ruff runs through the project's own environment rather than a pinned mirror.
+  # Two ruff versions formatting the same code disagree and undo each other: a
+  # pre-commit ruff at 0.8.6 reformatted what the project's 0.16.8 then rejected in
+  # CI, so every commit fought the previous one. One version, one source of truth.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
+        name: ruff (project environment)
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-format
+        name: ruff-format (project environment)
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
 
   - repo: local
     hooks:
