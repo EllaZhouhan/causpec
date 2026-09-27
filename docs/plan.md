@@ -1,122 +1,161 @@
-# CauSpec 开发计划
+# CauSpec development plan
 
-版本：0.3
-作者：Han Zhou
-更新：2026-09-22
-配套文档：design.md
-
----
-
-## 1. 原则
-
-- 服务求职：尽早有可展示的版本，之后逐版加深。
-- 每个任务约一天，对应一个 PR，自然满足每天至少一次有意义的 commit。
-- 能复用就复用（design.md 中的【复用】标记），自己写的部分集中在 spec、质量检查、门控、报告，以及你自己的两种方法。
-- 计划中的周数已包含约 20% 的缓冲。
+Version: 0.4
+Author: Han Zhou
+Updated: 2026-09-27
+Companion document: design.md
 
 ---
 
-## 2. 里程碑
+## 1. Principles
 
-| 版本 | 周 | 日期（参考） | 内容 | 对外展示 |
+- In service of the job search: reach something demonstrable early, then deepen it
+  version by version.
+- Roughly one task per day, each a pull request, which naturally produces at least one
+  meaningful commit a day.
+- Reuse where reuse is possible (the [reuse] markers in design.md); the work written
+  here concentrates on the spec, the quality checks, the gates, the reporting, and the
+  author's own two methods.
+- The week counts below already include about 20% slack.
+
+---
+
+## 2. Milestones
+
+| Version | Week | Dates (indicative) | Contents | Shown externally |
 |---|---|---|---|---|
-| v0.0 | W1 | 9/21–9/27 | 研究代码产品化、contracts、合成数据 A | 无 |
-| v0.1 | W3 | 10/5–10/11 | HTE 端到端切片：CSV、质量检查、估计、占位符报告、CLI | 本地 CLI 演示 |
-| v0.2 | W4 | 10/12–10/18 | skill、skill+CLI 形态、golden tasks 初版 | claude.ai 演示 |
-| v0.3 | W5 | 10/19–10/25 | 本地 MCP、门控、Postgres demo | 三个 demo；更新 CV，开始投递 |
-| v0.4 | W7 | 11/2–11/8 | 纵向 IPCW | 纵向分析演示 |
-| v1.0 | W8 | 11/9–11/15 | README、Related work、视频、博客 | 完整作品集 |
+| v0.0 | W1 | 9/21-9/27 | Productionising the research code, contracts, synthetic dataset A | none |
+| v0.1 | W3 | 10/5-10/11 | An end-to-end HTE slice: CSV, quality checks, estimation, a placeholder report, the CLI | a local CLI demo |
+| v0.2 | W4 | 10/12-10/18 | The skill, the skill+CLI form, a first set of golden tasks | a claude.ai demo |
+| v0.3 | W5 | 10/19-10/25 | The local MCP server, the gates, the Postgres demo | three demos; update the CV and start applying |
+| v0.4 | W7 | 11/2-11/8 | Longitudinal IPCW | a longitudinal demo |
+| v1.0 | W8 | 11/9-11/15 | README, Related work, video, blog post | the full portfolio |
 
-0.3 版调整：砍掉关系型口径与数据集 B 的第三种口径、砍掉 StatsPAI 依赖，约省一周；这一周并入 Phase 4，使纵向 IPCW 能完整交付（含估计）。
-
----
-
-## 3. 前置事项
-
-- 与合作者确认研究代码的开源许可；确认之前仓库保持 private。
-- pre-commit 从第一天起阻止 csv、parquet、xlsx、duckdb 等数据文件进入提交。
-- 在 GitHub 个人设置中开启"显示私有仓库贡献"。
-- 在 README 草稿中列出外部来源及其许可：EconML、pandera、DoWhy、Baygent 为 MIT，DoubleML 为 BSD-3；StatsPAI（MIT）不作为依赖引入，只借鉴字段结构与做法；Causal desk 未声明许可证，只借鉴思路，不复制代码。
+Adjustment in version 0.3: dropping the relational shape and the third shape of dataset
+B, and dropping the StatsPAI dependency, saves about a week; that week goes into Phase 4
+so longitudinal IPCW can be delivered complete, with estimation.
 
 ---
 
-## 4. 分阶段任务
+## 3. Prerequisites
 
-### Phase 0（W1）
-
-1. 仓库初始化：uv、ruff、pyright、pytest、pre-commit、CI、import-linter（规则：core 不导入 family）
-2. contracts：Spec（字段级 source 与 status、variable_roles、key_non_edges）、QualityIssue、Result（带地址）、Manifest
-3. 把 DMLIV 迁入 families/hte_iv，剥离 I/O，并写数值回归测试
-4. 合成数据 A（HTE 部分）生成器，带真值
-5. ADR：只记设计文档没覆盖、或反直觉容易被后人「优化」掉的决定。
-   已写：0001（报告中的字面量数字）、0002（数据源边界）。
-   不写：计算在服务端、字段级确认、core/family 分层、外部代码复用策略——
-   这些 design.md 与 THIRD_PARTY_NOTICES 已经写清楚，ADR 只会是重复。
-
-### Phase 1（W2–W3）
-
-1. csv/parquet adapter、派生快照（parquet）、规范化指纹
-2. 轻量 mapping 与变量目录
-3. family.yaml 的 estimand 声明、route_family 与 estimand 对账；变量角色图渲染（可选 DoWhy 识别核对）
-4. 基础层质量检查（【复用】pandera）与 NULL 编码检测
-5. 时间一致性与可识别性检查；instrument relevance（effective F 自写 + 对照原论文数值例的回归测试；AR 检验入 backlog）
-6. 数据集 C 生成器，建立注入问题到 check_id 的映射，接入 CI
-7. hte_backdoor family（【复用】EconML CausalForestDML）
-8. HTE 校准（hte_backdoor【复用】EconML DRTester；hte_iv 用 IV 版本得分自写）与排序稳定性
-9. 敏感性与反驳（【复用】DoWhy refuter、DoubleML sensitivity_analysis；E-value 自写 + 数值回归测试）
-10. runtime：RunContext、原子写入、audit、manifest
-11. 报告：地址解析、占位符渲染、措辞等级判定（【复用】改写 Baygent check_refutation.py，保留 MIT 声明）
-12. CLI：quality、estimate、report（打 tag v0.1）
-
-### Phase 2（W4）
-
-1. SKILL.md 与 references（【复用】参考 Baygent causal-inference 的结构与关键规则）
-2. scripts/run.py 与 wheel；在 claude.ai 上验证
-3. golden tasks 10 个与评分表；加载 skill 与不加载的对照（【复用】参考 Baygent evals 的组织方式）（打 tag v0.2）
-
-### Phase 3（W5）
-
-1. MCP server：工具、readOnlyHint、outputSchema；数据源边界（root / allowed_relations，见 ADR-0002）
-2. 门控与结构化错误（注册表模式参考 StatsPAI agent/remediation.py，仅借鉴做法）
-3. postgres 薄 adapter；docker-compose 中使用只读账号和 view；doctor 实际验证账号无写权限。masked_columns 与 schema drift 放到 v1.0 之后
-4. 数据集 B 的两种口径（宽表、长事件表）与鲁棒性 evals
-5. 录制三个 demo：成功路径、只改 mapping 的换口径路径、数据有问题时拒绝下结论的安全失败路径（打 tag v0.3）
-
-v0.3 之后：仓库公开（许可问题已解决的前提下），替换 CV 中"AI Agent Integration"一段，开始投递。
-
-### Phase 4（W6–W7）
-
-1. 先写 longitudinal-ipcw.md：事件角色与估计量定义（design.md 7.3 节 TODO）
-2. longitudinal spec，字段结构对齐 target trial（对齐 StatsPAI TargetTrialProtocol 的字段划分，不引入依赖）
-3. 迁入你的 IPCW 并写数值回归测试；补上数据集 A 的纵向部分（informative censoring、变长轨迹、真值）
-4. 纵向质量检查（immortal time 检查的口径参考 StatsPAI immortal_time_check，仅借鉴做法）
-5. 纵向输出：各 lag 的效应、at-risk 人数、权重与 ESS、clipping 敏感性
-6. golden tasks 扩充到 20 个以上（打 tag v0.4）
-
-### Phase 5（W8）
-
-1. examples/deployments：demo-hospital、demo-retail，以及数据集 D
-2. README：定位、架构图、demo GIF、Related work、外部来源与许可
-3. demo 视频（3–5 分钟）；技术博客（打 tag v1.0）
+- Confirm with collaborators that the research code can be open-sourced; keep earlier
+  repositories private.
+- From day one, pre-commit blocks csv, parquet, xlsx, duckdb and similar data files from
+  entering a commit.
+- Enable "show private contributions" in the GitHub profile settings.
+- List external sources and licences in the README draft: EconML, pandera, DoWhy and
+  Baygent are MIT, DoubleML is BSD-3; StatsPAI (MIT) is not taken as a dependency and
+  only its field layout and practice are borrowed; Causal desk declares no licence, so
+  only ideas are borrowed and no code is copied.
 
 ---
 
-## 5. Git 规范
+## 4. Work by phase
 
-- main 始终可运行；功能分支经 PR 合并，CI 通过后才能合并。
-- commit message 采用 conventional commits 格式。
-- 每个里程碑打 tag 并更新 CHANGELOG。
-- 只做了调研的日子，提交一篇 ADR。
-- 复用外部代码时，在文件头注明来源、版本与许可，并在 THIRD_PARTY_NOTICES 中登记。
+### Phase 0 (W1)
+
+1. Repository setup: uv, ruff, pyright, pytest, pre-commit, CI, import-linter (rule:
+   core must not import a family)
+2. Contracts: Spec (field-level source and status, variable_roles, key_non_edges),
+   QualityIssue, Result (with addresses), Manifest
+3. Migrate DMLIV into families/hte_iv, strip the I/O, and write numerical regression
+   tests
+4. A generator for synthetic dataset A (cross-sectional part), with ground truth
+5. ADRs: record only decisions the design document does not cover, or that are
+   counter-intuitive enough that someone will later try to "simplify" them away.
+   Written: 0001 (literal numbers in reports), 0002 (data-source boundaries).
+   Not written: computation on the server, field-level confirmation, the core/family
+   split, the external-code reuse policy — design.md and THIRD_PARTY_NOTICES already
+   state these, and an ADR would only duplicate them.
+
+### Phase 1 (W2-W3)
+
+1. csv/parquet adapter, the derived snapshot (parquet), the normalised fingerprint
+2. Lightweight mapping and the variable catalogue
+3. Estimand declarations in family.yaml, route_family and estimand reconciliation;
+   rendering the variable-role diagram (optionally cross-checked with DoWhy)
+4. Basic-layer quality checks ([reuse] pandera) and NULL-encoding detection
+5. Temporal-consistency and identifiability checks; instrument relevance (effective F
+   written here, with a regression test against the original paper's numerical example;
+   the AR test goes to the backlog)
+6. A generator for dataset C, a mapping from each injected problem to a check_id, wired
+   into CI
+7. The hte_backdoor family ([reuse] EconML CausalForestDML)
+8. HTE calibration (hte_backdoor: [reuse] EconML DRTester; hte_iv: an IV-appropriate
+   score written here) and rank stability
+9. Sensitivity and refutation ([reuse] DoWhy refuters, DoubleML sensitivity_analysis;
+   the E-value written here with a numerical regression test)
+10. Runtime: RunContext, atomic writes, audit, manifest
+11. Reporting: address resolution, placeholder rendering, the claim-level decision
+    ([reuse] adapted from Baygent's check_refutation.py, MIT notice retained)
+12. CLI: quality, estimate, report (tag v0.1)
+
+### Phase 2 (W4)
+
+1. SKILL.md and the references ([reuse] structure and key rules follow Baygent
+   causal-inference)
+2. scripts/run.py and the wheel; verified on claude.ai
+3. Ten golden tasks and a scoring sheet; a comparison with and without the skill loaded
+   ([reuse] organisation follows Baygent's evals) (tag v0.2)
+
+### Phase 3 (W5)
+
+1. The MCP server: tools, readOnlyHint, outputSchema; data-source boundaries (root /
+   allowed_relations, see ADR-0002)
+2. The gates and structured errors (the registry pattern follows StatsPAI's
+   agent/remediation.py, practice only)
+3. A thin postgres adapter; a read-only account and views in docker-compose; doctor
+   verifying that the account genuinely cannot write. masked_columns and schema drift
+   move past v1.0
+4. Dataset B in two shapes (wide table, long event table) and the robustness evals
+5. Record three demos: the successful path, the change-of-shape path that only edits the
+   mapping, and the safe-failure path where the data is bad and no conclusion is drawn
+   (tag v0.3)
+
+After v0.3: make the repository public (assuming the licence question is resolved),
+replace the "AI Agent Integration" paragraph in the CV, and start applying.
+
+### Phase 4 (W6-W7)
+
+1. Write longitudinal-ipcw.md first: event roles and the definition of the estimand (the
+   TODO in design.md 7.3)
+2. The longitudinal spec, with its field layout aligned to a target trial (aligned to
+   StatsPAI's TargetTrialProtocol, no dependency taken)
+3. Migrate the IPCW code and write numerical regression tests; add the longitudinal part
+   of dataset A (informative censoring, variable-length trajectories, ground truth)
+4. Longitudinal quality checks (the immortal-time check follows the shape of StatsPAI's
+   immortal_time_check, practice only)
+5. Longitudinal outputs: the effect at each lag, numbers at risk, weights and ESS,
+   sensitivity to clipping
+6. Expand the golden tasks past twenty (tag v0.4)
+
+### Phase 5 (W8)
+
+1. examples/deployments: demo-hospital, demo-retail, and dataset D
+2. README: positioning, an architecture diagram, a demo GIF, Related work, external
+   sources and licences
+3. A demo video (3-5 minutes); a technical blog post (tag v1.0)
 
 ---
 
-## 6. 风险
+## 5. Git conventions
 
-| 风险 | 应对 |
+- `main` always runs; features merge through a pull request, and only after CI passes.
+- Commit messages follow conventional commits.
+- Tag each milestone and update the CHANGELOG.
+- On a day spent only on research, commit an ADR.
+- When external code is reused, note the source, version and licence in the file header,
+  and record it in THIRD_PARTY_NOTICES.
+
+---
+
+## 6. Risks
+
+| Risk | Response |
 |---|---|
-| 研究代码暂不能开源 | 先用接口一致的参考实现替代，确认后再替换 |
-| 真实数据误入仓库 | pre-commit 拦截；只使用合成数据 |
-| 闭式诊断量（E-value、effective F）自写出错 | 每个都配一份对照原论文数值例的回归测试，测试先于实现 |
-| 纵向语义复杂 | 先写文档后写代码；不阻塞 v0.3 投递 |
-| 范围蔓延 | 新想法先记入 backlog，只在里程碑之间评估 |
+| The research code cannot yet be open-sourced | Substitute an interface-compatible reference implementation, and swap it once confirmed |
+| Real data ends up in the repository | The pre-commit hook blocks it; only synthetic data is used |
+| A closed-form diagnostic written here (E-value, effective F) is wrong | Each carries a regression test against the original paper's numerical example, with the test written first |
+| Longitudinal semantics are complex | Write the document before the code; do not let it block the v0.3 applications |
+| Scope creep | New ideas go to the backlog and are assessed only between milestones |
