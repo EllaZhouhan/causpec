@@ -90,7 +90,13 @@ estimation:
 ./scripts/build_skill.sh     # 构建 wheel 放进 assets，打出 dist/causpec-analyst-skill.zip
 ```
 
-wheel 是构建产物，不入库——入库的 wheel 会和源码悄悄脱节，而 skill 在 claude.ai 上跑的正是它。
+wheel 是构建产物，不入库——入库的 wheel 会和源码悄悄脱节，而 skill 跑的正是它。
+
+**在 Claude Code 里试用**：`.claude/skills/causpec-analyst` 已经软链到 `skill/causpec-analyst`，
+clone 下来就能用，不需要打包。改了 SKILL.md 立刻生效。
+
+**在 claude.ai 网页版试用**：上传 `dist/causpec-analyst-skill.zip`（Settings → Capabilities → Skills）。
+那边需要 wheel，因为沙箱里装不了本地包。
 
 **为什么是 best-effort**：agent 在技术上可以绕过 `scripts/run.py` 直接读数据自己算，
 所以「数字只由代码产生」这条保证在 skill 形态下依赖 agent 遵守规则。报告页眉会注明这一点。
