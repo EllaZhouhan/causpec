@@ -507,9 +507,17 @@ references/reporting.md (MIT).
 
 ### 11.1 The workflow
 
-1. Question and estimand. This step does not look at the data, to avoid being led by
-   whichever variables happen to be present.
-2. Look at the data; settle the mapping.
+1. Check the data's shape, then fix the question and estimand. Two things get
+   conflated under "do not look at the data": reading the **variables** does lead the
+   question, whereas reading the **shape** — one row per unit or many, timestamp
+   columns present or not — does not. Shape decides which questions are answerable at
+   all, and lets a question about timing be asked concretely rather than in the
+   abstract ("your data has one row per patient and this flag is 0/1; does it mean ever
+   treated during the stay, or already on treatment at admission?") instead of asking a
+   clinician to classify their own treatment as static or time-varying. A wide table
+   does not settle it, since one row per patient can still be a flattened "ever
+   treated" — the shape only makes the question concrete.
+2. Map concepts onto columns; settle the mapping.
 3. Variable roles and key_non_edges (7.5).
 4. Identification strategy and assumption categories.
 5. Choose a family and reconcile the estimand (7.6); stop here if unsupported.

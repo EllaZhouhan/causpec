@@ -4,14 +4,28 @@ The order exists for a reason. Do not skip. Each step below suggests how to ask.
 
 ---
 
-## 1. Question and estimand — **without looking at the data**
+## 1. Check the shape, then fix the question
 
-Settle what is being asked before looking at what columns exist. The other way round
-lets whatever happens to be in the data drive the question — "oh, there's a `los`
-column, shall we look at length of stay too?" — and that is no longer the user's
-question.
+### Shape first, meaning later
 
-**What to ask** (one per turn):
+Two things get conflated under "do not look at the data":
+
+| Looking at | Does it drive the question? |
+|---|---|
+| **The shape** — one row per unit or many? Timestamp columns present? | No. Shape does not change what you want to ask, only what is answerable |
+| **The variables** — `los`, `lactate`, `sofa` … | Yes. "Oh, there's a length-of-stay column, shall we look at that too?" is exactly the failure to avoid |
+
+Read the shape now: row count, whether the unit id is unique, whether any column looks
+like a timestamp. Leave the variables to step 2. Reading a schema is not computing a
+result — that boundary is what the "numbers only from code" rule is about.
+
+If every unit appears once and there are no time columns, the data is cross-sectional.
+Say so and move on; do not ask about timing in the abstract.
+
+### Then fix the question
+
+Settle what is being asked before looking at what columns exist. **What to ask** (one
+per turn):
 
 > "What are you comparing: receiving what treatment, versus not receiving it?"
 > "What counts as the outcome, and within what time window?"
@@ -22,11 +36,38 @@ case `effect_modifiers` is central.
 
 Write it into the spec, each field carrying the user's own words, `status: confirmed`.
 
+### When the treatment might be time-varying
+
+Having seen the shape, ask concretely:
+
+> "Your data has one row per patient, and `rrt_started` is 0/1. Does that flag mean the
+> patient started dialysis **at any point during the stay**, or that they were
+> **already on it at admission**?"
+
+Only two answers matter:
+
+- **Already on it at admission** (or at a fixed baseline) — a static treatment, which is
+  what CauSpec supports
+- **At any point during the stay** — a time-varying treatment. Say what hangs on it in
+  one sentence, then say CauSpec does not support this:
+
+  > "A patient who starts on day 5 counts as untreated for those four days, and anyone
+  > who died early never had the chance to start — which would make dialysis look better
+  > than it is. That needs a longitudinal design, which this tool doesn't have. I won't
+  > force it into a comparison that would give you a number you can't rely on."
+
+Do not go into fixed windows, landmark analysis or g-methods unless they ask. See
+`longitudinal-ipcw.md`.
+
+**A wide table does not settle this.** One row per patient can still be a flattened
+"ever treated during the stay". The shape only lets you ask concretely; it does not
+answer for you.
+
 ---
 
-## 2. Look at the data
+## 2. Map the concepts onto columns
 
-Only now inspect the schema. **Do not paste raw rows into the conversation.**
+Now look at the variables. **Do not paste raw rows into the conversation.**
 
 Map the user's concepts onto specific columns and confirm each:
 

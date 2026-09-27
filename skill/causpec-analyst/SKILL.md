@@ -27,6 +27,18 @@ best-effort, spec_hash, family.
 
 Explain a technical detail **only when asked**, and then in their terms.
 
+**Do not justify the workflow.** "I'll fix the question before looking at the data,
+because otherwise whatever columns happen to exist would drive the question" explains
+the tool's design to someone who did not ask. Just ask the question.
+
+**Do say what hangs on the answer**, in one sentence, when the answer changes the
+result. "A patient who starts on day 5 counts as untreated for those four days, which
+would change the number" earns its place; a paragraph on immortal time bias and
+g-methods does not. State the consequence, not the mechanism, unless they ask.
+
+**Open by greeting them and saying what you are about to do**, in one or two lines,
+then ask one question. No preamble about execution modes or how the tool works.
+
 ## Key rules
 
 1. **One question per turn.** Start from the most important unconfirmed field; do not
@@ -44,9 +56,12 @@ Explain a technical detail **only when asked**, and then in their terms.
    words the user actually used (`said`). **Never confirm on the user's behalf**, even
    when the answer seems obvious. The report's front page prints every field's
    provenance and quote for them to check.
-6. **Fix the estimand before looking at the data.** Settle what is being asked, then
-   look at what columns exist. The other order lets whatever happens to be in the data
-   drive the question.
+6. **Fix the estimand before looking at the variables.** Settle what is being asked,
+   then look at what columns exist — otherwise whatever is in the data drives the
+   question. Checking the data's **shape** (one row per unit or many, timestamps
+   present or not) is not the same thing and comes first: it decides which questions
+   are answerable at all, and lets you ask about timing concretely instead of in the
+   abstract.
 7. **For `adjustment_set`, check measurement time before role.** A variable measured
    after treatment can never enter the adjustment set. Being pre-treatment is
    necessary, not sufficient.
@@ -90,17 +105,52 @@ every time"), without words like "deterministic".
 
 Strictly in order. Steps 1-5 confirm fields; estimation is not touched until step 6.
 
-### 1. Question and estimand — **without looking at the data**
+### 1. Check the data's shape, then fix the question
 
-Establish: what the treatment is, what the outcome is, and whether they want an
-average effect or "who benefits more". Write `treatment`, `outcome` and `estimand`
-into the spec, each with the user's own words.
+**Shape first, meaning later.** Two different things get conflated here:
 
-### 2. Look at the data
+| Looking at | Does it drive the question? |
+|---|---|
+| **The shape** — one row per patient, or one row per patient-time? Are there timestamp columns? | No. Shape does not change what you want to ask, only what is answerable |
+| **The variables** — `los`, `lactate`, `sofa` … | Yes. "Oh, there's a length-of-stay column, shall we look at that too?" is exactly the failure to avoid |
 
-Inspect the schema (column names, types, missingness) by some means other than
-`quality`. Do not paste raw rows into the conversation. Map the user's concepts onto
-specific columns and confirm each one: "By 'dialysis', do you mean the
+So read the shape now (row count, unit-id uniqueness, presence of time columns) and
+leave the variables until step 2. Reading a schema is not computing a result; that
+boundary is what rule 2 is about.
+
+If every unit appears once and there are no time columns, the data is cross-sectional
+and most of the timing discussion below is moot — say so and move on rather than
+asking about it in the abstract.
+
+Then establish: what the treatment is, what the outcome is, and whether they want an
+average effect or "who benefits more". Write `treatment`, `outcome` and `estimand` into
+the spec, each with the user's own words.
+
+**Asking about a treatment that may be time-varying.** Having seen the shape, ask
+concretely rather than abstractly:
+
+> "Your data has one row per patient, and `rrt_started` is 0/1. Does that flag mean
+> the patient started dialysis **at any point during the stay**, or that they were
+> **already on it at admission**?"
+
+Two answers matter, and only two:
+
+- **Already on it at admission** (or at some fixed baseline) — a static treatment,
+  which is what CauSpec supports
+- **At any point during the stay** — a time-varying treatment. Say what hangs on it in
+  one sentence ("a patient who starts on day 5 counts as untreated for those four days,
+  and patients who died early never had the chance, which would inflate the apparent
+  benefit"), then say this needs a longitudinal design that CauSpec does not have. Do
+  not go into fixed windows, landmark analysis or g-methods unless they ask.
+
+A wide table does not settle this: one row per patient can still be a flattened
+"ever treated during the stay". The question has to be asked; the shape only lets you
+ask it concretely.
+
+### 2. Map the concepts onto columns
+
+Now look at the variables. Do not paste raw rows into the conversation. Map the user's
+concepts onto specific columns and confirm each one: "By 'dialysis', do you mean the
 `isDialysisICU` column?"
 
 ### 3. Variable roles: `effect_modifiers` and `adjustment_set` are separate

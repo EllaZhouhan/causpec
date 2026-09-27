@@ -146,7 +146,7 @@ def test_blocking_checks_are_marked_as_blocking_in_the_reference() -> None:
         "Never upgrade it",
         "Ask the user when domain knowledge is needed",
         "Never confirm on the user's behalf",
-        "without looking at the data",
+        "before looking at the variables",
         "check measurement time before role",
         "say so and say why",
     ],
@@ -154,6 +154,48 @@ def test_blocking_checks_are_marked_as_blocking_in_the_reference() -> None:
 def test_key_rules_are_stated(skill_text: str, rule: str) -> None:
     """The eight key rules of design.md section 13."""
     assert rule in skill_text
+
+
+def test_shape_and_variables_are_distinguished(skill_text: str) -> None:
+    """Reading the data's shape is not the same as reading its variables.
+
+    The first version of rule 6 said only "do not look at the data", so the model asked
+    a clinician to classify their own treatment as baseline or time-varying — in the
+    abstract, before establishing that the table has one row per patient. Shape does not
+    lead the question; variables do. Checking the shape first lets the timing question be
+    asked concretely, and lets it be skipped entirely when the data is cross-sectional.
+    """
+    assert "Shape first, meaning later" in skill_text
+    assert "Reading a schema is not computing a result" in skill_text
+    assert "cross-sectional" in skill_text
+
+
+def test_skill_asks_about_timing_concretely_not_abstractly(skill_text: str) -> None:
+    """Two options only: already on treatment at baseline, or started at some point.
+
+    No fixed windows, landmark analysis or g-methods unless the user asks — those are
+    for a colleague, not for the clinician who asked the question.
+    """
+    assert "already on it at admission" in skill_text.lower()
+    assert "at any point during the stay" in skill_text.lower()
+    assert "unless they ask" in skill_text
+
+
+def test_skill_separates_justifying_the_workflow_from_stating_the_stakes(
+    skill_text: str,
+) -> None:
+    """Two kinds of reason, one to cut and one to keep.
+
+    Explaining why the tool works as it does lectures someone who did not ask.
+    Explaining what hangs on their answer is what lets them answer correctly.
+    """
+    assert "Do not justify the workflow" in skill_text
+    assert "Do say what hangs on the answer" in skill_text
+    assert "State the consequence, not the mechanism" in skill_text
+
+
+def test_skill_opens_with_a_greeting_not_a_preamble(skill_text: str) -> None:
+    assert "Open by greeting them" in skill_text
 
 
 def test_best_effort_belongs_in_the_report_not_the_conversation(skill_text: str) -> None:
