@@ -1,35 +1,39 @@
-# 第三方来源登记
+# Third-party sources
 
-本文件登记 CauSpec 中直接使用、改写，或仅借鉴思路的外部项目。改写外部代码时，在文件头注明来源、版本与许可。
+This file records the external projects CauSpec uses directly, adapts, or borrows ideas
+from. When external code is adapted, the source, version and licence are noted in the
+file header.
 
-## 作为依赖使用
+## Used as dependencies
 
-| 项目 | 许可 | 用途 |
+| Project | Licence | Used for |
 |---|---|---|
-| EconML | MIT | `CausalForestDML`（hte_backdoor baseline）、`econml.validate.DRTester`（HTE 校准） |
-| DoWhy | MIT | `CausalModel` 识别核对；refuter（placebo、random common cause、data subset） |
-| pandera | MIT | 基础层 DataFrame schema 检查 |
-| DoubleML | BSD-3-Clause | `sensitivity_analysis`（未观测混杂敏感性） |
+| EconML | MIT | `CausalForestDML` and `CausalIVForest`, `NonParamDMLIV`, `econml.validate.DRTester` |
+| DoWhy | MIT | `CausalModel` identification cross-check; refuters (placebo, random common cause, data subset) |
+| pandera | MIT | Basic-layer DataFrame schema checks |
+| DoubleML | BSD-3-Clause | `sensitivity_analysis` for unmeasured confounding |
 
-## 改写代码（保留原版权声明）
+## Adapted code (original copyright retained)
 
-| 来源 | 许可 | 改写内容 |
+| Source | Licence | What was adapted |
 |---|---|---|
-| Baygent `causal-inference` skill：`scripts/check_refutation.py`、`references/refutation.md` | MIT | 结论措辞等级判定；阈值按频率学派诊断重新设定 |
-| Baygent `references/reporting.md` | MIT | 固定结构报告、"假设写在结果之前" |
+| Baygent `causal-inference` skill: `scripts/check_refutation.py`, `references/refutation.md` | MIT | The claim-level decision; thresholds reset for frequentist diagnostics |
+| Baygent `references/reporting.md` | MIT | Fixed report structure; "assumptions before results" |
 
-## 仅借鉴思路（未复制代码）
+## Ideas borrowed, no code copied
 
-| 来源 | 说明 |
+| Source | Notes |
 |---|---|
-| StatsPAI（MIT） | **不作为依赖引入**。只借鉴：`target_trial/protocol.py` 的字段划分（纵向 spec 结构）、`agent/remediation.py` 的「错误到修复建议」注册表模式、`question/preregister.py` 的 post_hoc 偏离日志做法、`immortal_time_check` 的检查口径 |
-| Causal desk | 未声明许可证。借鉴 core/family 分层（ADR-0005）、字段冲突不自动裁决（ADR-0003）、地址引用机制（ADR-0002）、冻结交接件回归测试（ADR-0004）、展示被排除 family 及原因、每轮只问一个问题 |
+| StatsPAI (MIT) | **Not taken as a dependency.** Borrowed: the field layout of `target_trial/protocol.py` (the longitudinal spec structure), the error-to-remediation registry pattern of `agent/remediation.py`, the post-hoc deviation log of `question/preregister.py`, and the shape of the `immortal_time_check` |
+| Causal desk | No licence declared. Borrowed: the core/family split (ADR-0005), not adjudicating field conflicts automatically (ADR-0003), the address-citation mechanism (ADR-0002), frozen handoffs as regression tests (ADR-0004), showing excluded families with reasons, and one question per turn |
 
-## 自写并配数值回归测试
+## Written here, with numerical regression tests
 
-以下是闭式公式，自己实现比引入重依赖更可控，每个都配一份对照原始文献数值例的测试（见 ADR 与 design.md 第 9 节）：
+The following are closed-form, so implementing them is more controllable than taking a
+heavy dependency. Each carries a test against a numerical example from the original
+paper (see the ADRs and design.md section 9):
 
-| 内容 | 对照来源 |
+| Quantity | Checked against |
 |---|---|
 | E-value | VanderWeele & Ding (2017), *Annals of Internal Medicine* |
-| Effective F 检验 | Montiel Olea & Pflueger (2013), *JBES* |
+| Effective F test | Montiel Olea & Pflueger (2013), *JBES* |

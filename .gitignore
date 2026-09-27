@@ -1,4 +1,4 @@
-# ---- 数据文件：任何情况下都不入库（真实数据与生成的合成数据）----
+# ---- Data files: never committed, real or synthetic ----
 *.csv
 *.tsv
 *.parquet
@@ -18,10 +18,11 @@ data/**
 !data/generators/**
 !data/README.md
 
-# 极小的测试 fixture 放行，由 pre-commit 钩子把关大小（≤4KB）与位置
+# Tiny test fixtures are allowed through; the pre-commit hook enforces size (<=4KB)
+# and location.
 !tests/fixtures/*.csv
 
-# ---- 运行产物 ----
+# ---- Run artefacts ----
 runs/
 outputs/
 *.log
@@ -39,18 +40,18 @@ venv/
 !.env.example
 .ipynb_checkpoints/
 
-# ---- 工具缓存 ----
+# ---- Tool caches ----
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 .coverage
 htmlcov/
+.import_linter_cache/
 
-# ---- 编辑器与系统 ----
+# ---- Editors and OS ----
 .DS_Store
 .idea/
 .vscode/
-.import_linter_cache/
 
-# skill 的 wheel 是构建产物，用 make-skill.sh 生成，不入库
+# The skill's wheel is a build product, produced by make-skill.sh; not committed.
 skill/causpec-analyst/assets/*.whl

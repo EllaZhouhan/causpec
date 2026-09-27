@@ -1,11 +1,11 @@
 # examples/deployments/
 
-部署配置示例（design.md 第 5 节、6.1）。Phase 5 填充。
+Example deployment configurations (design.md section 5 and 6.1). Filled in during Phase 5.
 
-- `demo-hospital/` —— ICU 场景，Postgres 只读 view
-- `demo-retail/` —— 商业场景，带 non-compliance 的 A/B test
+- `demo-hospital/` — an ICU setting, Postgres read-only views
+- `demo-retail/` — a commercial setting, an A/B test with non-compliance
 
-每个示例包含 `sources.yaml`，形如：
+Each example carries a `sources.yaml` of the form:
 
 ```yaml
 sources:
@@ -16,5 +16,6 @@ sources:
     masked_columns: [patient_name, mrn]
 ```
 
-**复杂的连接和派生由数据方用 SQL view 实现并人工审阅，CauSpec 只读 view，不自建 ETL。**
-这也是 FDE 在客户现场的常规分工。
+**Complex joins and derivations are implemented by the data owner as SQL views and
+reviewed by a person; CauSpec reads the views and builds no ETL of its own.** That is
+also how the division of labour usually runs on a customer site.

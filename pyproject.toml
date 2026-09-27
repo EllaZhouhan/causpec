@@ -14,8 +14,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# family 的重依赖走 extra：core 保持轻量，装不装由用户按需要决定。
-# 缺失时 registry 给结构化错误 + 安装命令，不是裸的 ImportError。
+# A family's heavy dependencies live behind an extra, so core stays light and the user
+# installs only what they need. When one is missing the registry raises a structured
+# error carrying the install command, not a bare ImportError.
 hte = [
     "econml>=0.15",
     "joblib>=1.3",
@@ -56,8 +57,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# data/generators 不是包的一部分（生成器不随 wheel 分发），但测试要验证它，
-# 所以在测试时加进路径。
+# data/generators is not part of the package (generators do not ship in the wheel),
+# but the tests verify it, so it joins the path under test.
 pythonpath = ["packages", "data/generators"]
 
 [tool.pyright]
@@ -70,7 +71,7 @@ typeCheckingMode = "standard"
 root_packages = ["causpec"]
 
 [[tool.importlinter.contracts]]
-name = "core 不导入 family"
+name = "core must not import a family"
 type = "forbidden"
 source_modules = ["causpec.core"]
 forbidden_modules = ["causpec.families"]

@@ -1,26 +1,35 @@
-# 决策记录（ADR）
+# Architecture decision records
 
-一条重要决策一篇，记录**当时的处境、做了什么选择、为什么、放弃了什么**。
+One file per significant decision, recording **the situation at the time, what was
+chosen, why, and what was rejected**.
 
-## 什么该写成 ADR
+## What belongs here
 
-只写这三类：
+Only three kinds:
 
-1. **设计文档没覆盖、实现时才发现的**——例如 0001
-2. **有过真实取舍、放弃了别的方案的**
-3. **反直觉、容易被后人「优化」掉的**——例如 0001 里那条反制检查
+1. **Things the design document does not cover, discovered during implementation** —
+   e.g. 0001
+2. **Genuine trade-offs, where an alternative was rejected**
+3. **Counter-intuitive decisions someone will later try to "simplify" away** — e.g.
+   the counter-check in 0001
 
-**不写**设计文档已经讲清楚的决定。把 design.md 的内容抄成 ADR 是纯粹的重复，而且两份会慢慢不一致。「计算在服务端」「字段级确认」「core/family 分层」都属于这一类——它们在 design.md 里，而且有可执行的对应物（门控代码、import-linter 契约）。
+**Do not** record decisions the design document already explains. Copying design.md
+into an ADR is pure duplication, and the two will drift apart. "Computation on the
+server", "field-level confirmation" and "the core/family split" all fall into that
+category: they are in design.md, and each has an executable counterpart (the gate code,
+the import-linter contract).
 
-## 已有
+## Existing records
 
-| 编号 | 主题 | 状态 |
+| Number | Subject | Status |
 |---|---|---|
-| [0001](0001-literal-numbers-in-reports.md) | 报告正文中的字面量数字（`lit:` 命名空间） | accepted |
-| [0002](0002-data-source-boundary.md) | 数据源边界（`root` / `allowed_relations` 的强制执行） | proposed |
+| [0001](0001-literal-numbers-in-reports.md) | Literal numbers in report prose (the `lit:` namespace) | accepted |
+| [0002](0002-data-source-boundary.md) | Data-source boundaries (enforcing `root` / `allowed_relations`) | proposed |
 
-## 写法
+## How to write one
 
-复制 `0000-template.md`，编号递增，文件名 `NNNN-短标题.md`。已被取代的决策**不删除**，改 `status: superseded by ADR-NNNN`。
+Copy `0000-template.md`, increment the number, name the file `NNNN-short-title.md`. A
+superseded decision is **not deleted**; set `status: superseded by ADR-NNNN`.
 
-「放弃的选项」那一节比「理由」更有价值——半年后回头看，它解释了你不是没想到。
+The "options rejected" section is worth more than the rationale — six months later it
+is what shows you had in fact thought of the alternative.

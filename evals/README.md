@@ -1,23 +1,26 @@
 # evals/
 
-对应 design.md 第 16 节。六类评测：
+Mirrors design.md section 16. Six categories:
 
-| 类别 | 内容 | 何时建 |
+| Category | Contents | When |
 |---|---|---|
-| **数值** | 与直接调用 family 的结果一致；固定 seed 可复现；在数据集 A 上的真值覆盖率 | Phase 1 |
-| **质量检查** | 在数据集 C 上逐一召回注入的问题 | Phase 1 任务 6 |
-| **鲁棒性** | 数据集 B 的三种口径（宽表、长事件表、关系型）得出一致结论 | Phase 3 任务 4 |
-| **报告** | 渲染器拒绝未占位的数字和不存在的地址；措辞等级与诊断结果一致 | Phase 1 |
-| **agent** | 20–30 个 golden tasks：是否问对关键字段、是否遗漏诊断、是否越级措辞 | Phase 2 任务 3 起 |
-| **回归** | 冻结若干已确认的 spec 与快照作为 fixture，family 的改动不能改变结果 | Phase 1 |
+| **numerical** | Agreement with a direct family call; reproducibility under a fixed seed; ground-truth coverage on dataset A | Phase 1 |
+| **quality checks** | Recall of each injected problem on dataset C | Phase 1 task 6 |
+| **robustness** | The two shapes of dataset B reach the same conclusion | Phase 3 task 4 |
+| **reporting** | The renderer refuses un-placeheld numbers and unknown addresses; the claim level matches the diagnostics | Phase 1 |
+| **agent** | 20-30 golden tasks: does it ask about the critical fields, miss a diagnostic, or overstate the claim | From Phase 2 task 3 |
+| **regression** | Frozen confirmed specs and snapshots as fixtures; a change to a family must not change their results | Phase 1 |
 
-## golden tasks 必须覆盖
+## What the golden tasks must cover
 
-- estimand 与识别策略不匹配的任务（例如问「哪些患者获益」但只假设了 monotonicity）
-- 需要不支持的设计的任务（DiD、断点回归、合成控制）——正确行为是明确拒绝
-- 加载 skill 与不加载 skill 的对照
+- A mismatch between the requested estimand and the identification strategy (asking
+  "who benefits" while assuming only monotonicity)
+- A question needing an unsupported design (difference-in-differences, regression
+  discontinuity) — the correct behaviour is an explicit refusal
+- With and without the skill loaded, as a comparison
 
-## 来源
+## Sources
 
-- 组织方式参考 Baygent `evals/`（MIT）
-- 外部任务可选用 CAIS 使用的 CauSciBench 中设定相符的部分（**使用前核对许可**）
+- Organisation follows Baygent's `evals/` (MIT)
+- External tasks may draw on the parts of CauSciBench (as used by CAIS) that match this
+  project's setting — **check the licence before use**

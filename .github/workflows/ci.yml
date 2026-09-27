@@ -15,7 +15,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: 安装依赖（含 hte extra，family 测试需要 econml）
+      - name: Install dependencies (with the hte extra; family tests need econml)
         run: uv sync --all-extras --dev
 
       - name: ruff
@@ -27,7 +27,7 @@ jobs:
       - name: pyright
         run: uv run pyright
 
-      - name: import-linter（core 不导入 family）
+      - name: import-linter (core must not import a family)
         run: uv run lint-imports
 
       - name: pytest

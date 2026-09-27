@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""阻止数据文件进入提交。
+"""Stop data files from entering a commit.
 
-设计原则：任何真实数据都不得入库，合成数据由 data/generators/ 现场生成、不入库。
-这个钩子在 .gitignore 之外再设一道闸，防止 `git add -f` 或 .gitignore 疏漏。
+The rule: no real data in the repository at all, and synthetic data generated on
+demand by data/generators/ rather than committed. This hook is a second gate behind
+.gitignore, covering `git add -f` and any gap in the ignore rules.
 """
 
 from __future__ import annotations
@@ -27,7 +28,8 @@ DATA_SUFFIXES = {
     ".sav",
 }
 
-# 允许作为 fixture 的极小文件（字节）。超过则必须改用生成器。
+# The largest file allowed through as a fixture, in bytes. Anything larger belongs in
+# a generator.
 MAX_FIXTURE_BYTES = 4096
 FIXTURE_DIRS = ("tests/fixtures/",)
 
@@ -50,12 +52,14 @@ def main(argv: list[str]) -> int:
     if not offenders:
         return 0
 
-    print("拒绝提交：检测到数据文件。", file=sys.stderr)
+    print("Refusing the commit: data files detected.", file=sys.stderr)
     for name in offenders:
         print(f"  - {name}", file=sys.stderr)
     print(
-        "\n数据文件不入库。合成数据请用 data/generators/ 下的生成器现场生成；\n"
-        f"确需入库的极小 fixture 放在 tests/fixtures/ 且不超过 {MAX_FIXTURE_BYTES} 字节。",
+        "\nData files are not committed. Generate synthetic data on demand with the "
+        "generators under data/generators/;\n"
+        f"a fixture that genuinely must be committed goes in tests/fixtures/ and must "
+        f"be at most {MAX_FIXTURE_BYTES} bytes.",
         file=sys.stderr,
     )
     return 1

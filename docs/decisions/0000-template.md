@@ -1,24 +1,26 @@
-# ADR-NNNN：标题
+# ADR-NNNN: Title
 
-- 状态：proposed | accepted | superseded by ADR-NNNN
-- 日期：YYYY-MM-DD
+- Status: proposed | accepted | superseded by ADR-NNNN
+- Date: YYYY-MM-DD
 
-## 背景
+## Context
 
-当时的处境是什么，什么约束让这个决定变得必要。
+What the situation was, and which constraint made this decision necessary.
 
-## 决策
+## Decision
 
-做了什么选择，一两句话说清。
+What was chosen, in a sentence or two.
 
-## 理由
+## Rationale
 
-为什么是它。
+Why this one.
 
-## 放弃的选项
+## Options rejected
 
-考虑过什么、为什么没选——这一节比「理由」更有价值，半年后回头看时它解释了你不是没想到。
+What else was considered, and why it was not chosen. This section is worth more than
+the rationale: six months later it is what shows you had in fact thought of the
+alternative.
 
-## 后果
+## Consequences
 
-带来什么好处，付出什么代价，什么东西因此变难了。
+What this buys, what it costs, and what it makes harder.

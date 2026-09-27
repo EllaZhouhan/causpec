@@ -1,161 +1,197 @@
 # CauSpec
 
-把自然语言的因果问题，转成一份逐字段经用户确认的分析规格（spec），先评估数据能否支撑这个问题，再用确定性代码执行估计，最后产出数字全部可追溯到计算结果的报告。全程对数据源只读。
+Turn a causal question in plain language into an analysis spec confirmed field by
+field; assess whether the data can support that question before estimating anything;
+run the estimation in deterministic code; and produce a report whose every number
+traces back to a computation. Data sources are read-only throughout.
 
-> 状态：早期开发中（v0.0）。当前仓库为 private，v0.3 后转公开。
+> Status: early development (v0.0). The repository is private for now and goes public
+> after v0.3.
 
-## 它解决什么
+## What it is for
 
-在观测数据上做因果分析，失败通常发生在估计之前：treatment、outcome、time zero 定义含糊；存在 post-treatment 变量或 positivity 问题却没被发现；数据口径不统一；数字无法复现。而"LLM + 代码"类工具还会引入另一种失败：模型自己算数或编数。
+Causal analysis on observational data usually fails before the estimation: treatment,
+outcome and time zero are vaguely defined; a post-treatment variable or a positivity
+problem goes unnoticed; definitions drift between datasets; numbers cannot be
+reproduced. Tools of the "LLM plus code" kind add a failure of their own — the model
+computing, or inventing, the numbers itself.
 
-CauSpec 的四条原则：
+Four principles:
 
-1. **代码计算事实，模型做判断，框架设闸。**
-2. **spec 的每个关键字段都有来源（用户 / 模型 / 数据）和状态（草拟 / 确认）**，关键字段全部确认前不执行估计。
-3. **数字只由代码产生**，报告正文只能用占位符引用地址，渲染器代入；出现未占位的数字则渲染失败。
-4. **结论措辞等级由代码根据诊断结果判定**（causal / suggestive / associational / descriptive），模型不能自行升级。
+1. **Code computes the facts, the model exercises judgement, the framework holds the gate.**
+2. **Every critical spec field carries a source** (user / model / data) **and a status**
+   (drafted / confirmed); nothing is estimated until all of them are confirmed.
+3. **Only code produces numbers.** Report prose may cite them only through addresses,
+   which a renderer substitutes; an un-placeheld number fails the render.
+4. **The claim level is decided by code from the diagnostics** (causal / suggestive /
+   associational / descriptive) and the model may not upgrade it.
 
-## 支持的分析
+## Supported analyses
 
-| family | 说明 |
+| family | Notes |
 |---|---|
-| `hte_iv` | IV 设定下的异质处理效应（DMLIV） |
-| `hte_backdoor` | 后门调整下的 HTE（CausalForestDML），作为 baseline |
-| `longitudinal_ipcw` | 纵向处理效应（IPCW） |
+| `hte_iv` | Heterogeneous treatment effects under an IV design; binary and continuous instruments |
+| `hte_backdoor` | Heterogeneous treatment effects under backdoor adjustment |
+| `longitudinal_ipcw` | Longitudinal treatment effects via IPCW (not implemented) |
 
-不在支持范围内的设计（DiD、断点回归、合成控制）会被明确拒绝，并给出每个 family 被排除的原因。
+Designs outside that range — difference-in-differences, regression discontinuity,
+synthetic control — are refused explicitly, with a reason given for each excluded
+family.
 
-## 仓库结构
+## Installing
 
-三个交付物在同一个仓库里：**库**是厚的，**MCP server** 与 **skill** 是调用它的两层薄壳。两种形态调用同一套 `causpec` 函数，产出同样结构的 run 目录。
+Core stays light (pydantic, pyyaml, pandas, numpy). A family's heavy dependencies live
+behind an extra:
+
+| extra | Pulls in | Needed by |
+|---|---|---|
+| `hte` | EconML, scikit-learn, statsmodels, scipy, joblib | `hte_iv`, `hte_backdoor` |
+
+```bash
+# spec, quality checks and report rendering only
+uv sync
+
+# to run HTE estimation
+uv sync --extra hte
+```
+
+With pip: `pip install causpec` or `pip install 'causpec[hte]'`.
+
+**A missing extra does not surface as an ImportError** — the registry returns a
+structured error carrying the install command:
+
+```console
+$ causpec estimate --spec spec.yaml --data cohort.csv
+[FAMILY_DEPENDENCY_MISSING] family hte_iv has an uninstalled dependency (econml)
+  Fix: Install causpec[hte]: uv sync --extra hte (or pip install 'causpec[hte]')
+```
+
+## Repository layout
+
+Three deliverables live in one repository: the **library** is the thick part, the **MCP
+server** and the **skill** are two thin shells that call it. Both forms call the same
+`causpec` functions and produce the same run-directory layout.
 
 ```
-packages/causpec/          库：所有计算逻辑在这里
-  core/                      core 不导入任何 family（import-linter 在 CI 中强制）
-    contracts/                 Spec、QualityIssue、Result、Manifest
-    adapters/                  csv、parquet、postgres（只读）
-    mapping/                   轻量 mapping 与变量目录
-    quality/                   四层检查
-    runtime/                   RunContext、原子写入、audit、manifest
-    reporting/                 地址解析、占位符渲染、措辞等级判定
-    registry.py                family 注册表：core 与 family 的唯一接口
-  families/                  插件式，新增分析 = 一个目录 + 一行注册
+packages/causpec/          the library; all computation lives here
+  core/                      core never imports a family (enforced by import-linter in CI)
+    contracts/                 Spec, QualityIssue, Result, Manifest
+    adapters/                  csv, parquet, postgres (read-only)
+    mapping/                   lightweight mapping and the variable catalogue
+    quality/                   the four check layers
+    runtime/                   RunContext, atomic writes, audit log, manifest
+    reporting/                 address resolution, placeholder rendering, claim level
+    registry.py                the family registry: core's only interface to a family
+  families/                  plugins; a new analysis is a directory and one registration
     hte_iv/  hte_backdoor/  longitudinal_ipcw/
   cli.py                     causpec quality / estimate / report
 
-server/causpec_mcp/        MCP server（主形态）：持有凭据、执行门控
-skill/causpec-analyst/     skill（辅形态）：SKILL.md + references + scripts
-evals/                     数值、质量检查、鲁棒性、报告、agent、回归
-data/generators/           合成数据生成器（生成的数据不入库）
-examples/deployments/      demo-hospital、demo-retail 配置示例
-deploy/                    本地 Postgres demo（只读账号 + view）
-docs/                      design.md、plan.md、decisions/
+server/causpec_mcp/        the MCP server (primary form): holds credentials, runs the gates
+skill/causpec-analyst/     the skill (secondary form): SKILL.md, references, scripts
+evals/                     numerical, quality-check, robustness, reporting, agent, regression
+data/generators/           synthetic data generators (what they produce is never committed)
+examples/deployments/      demo-hospital and demo-retail configuration examples
+deploy/                    a local Postgres demo (read-only account plus views)
+docs/                      design.md, plan.md, decisions/
 ```
 
-目前除骨架外内容为空，按 [plan.md](docs/plan.md) 的阶段逐步填充。
+Outside the skeleton most of this is still empty; it fills in stage by stage, per
+[plan.md](docs/plan.md).
 
-## 估计器与置信区间
+## Estimators and confidence intervals
 
-`hte_iv` 有两个后端，由 `spec.estimation.params.estimator` 选。二值与连续 instrument 都支持。
+`hte_iv` has two backends, selected through `spec.estimation.params.estimator`. Both
+binary and continuous instruments are supported.
 
-| | `ivforest`（默认） | `dmliv` |
+| | `ivforest` (default) | `dmliv` |
 |---|---|---|
-| 类 | `econml.grf.CausalIVForest` | `econml.iv.dml.NonParamDMLIV` |
-| CATE 区间 | GRF honest 方差，一次拟合内完成 | bootstrap |
-| ATE 区间 | 对森林做单位层面 bootstrap | bootstrap |
-| 每次重抽样 | 约 5 秒（n=5000） | 约 26 秒 |
-| 多个 instrument / `adjustment_set` | 不支持 | 支持 |
+| Class | `econml.grf.CausalIVForest` | `econml.iv.dml.NonParamDMLIV` |
+| CATE interval | GRF honest variance, within one fit | bootstrap |
+| ATE interval | unit-level bootstrap of the forest | bootstrap |
+| Per replicate | about 5s (n=5000) | about 26s |
+| Multiple instruments / `adjustment_set` | not supported | supported |
 
-**为什么 `dmliv` 只能 bootstrap**：它的 final model 是任意回归器，EconML 推不出方差——`_get_inference_options()` 里就 `bootstrap` 一项。这不是选择，是唯一选项。
+**Why `dmliv` can only bootstrap**: its final model is an arbitrary regressor, so
+EconML can derive no variance for it — `_get_inference_options()` lists nothing else.
+That is not a choice, it is the only option.
 
-**为什么 `ivforest` 的 ATE 区间也要 bootstrap**：`econml.grf` 只提供**逐点**方差（`predict_and_var` 给的协方差矩阵是单点上各输出维之间的，不是不同 x 之间的）。同一片森林的各点估计高度相关，把逐点方差平均再除以 n 等于假设独立。所以 CATE 区间用 GRF 的解析方差，ATE 区间另走 bootstrap——两者来路不同，分别记在 `res:cate.ci_method` 与 `res:primary.ate_ci_method`，报告要分别说明。
+**Why `ivforest`'s ATE interval also bootstraps**: `econml.grf` exposes only
+**pointwise** variance (the covariance matrix from `predict_and_var` is across output
+dimensions at a single x, not across different x). The per-point estimates from one
+forest are highly correlated, so averaging pointwise variances and dividing by n would
+assume independence. The CATE interval therefore uses GRF's analytic variance while the
+ATE interval bootstraps — different mechanisms, recorded separately in
+`res:cate.ci_method` and `res:primary.ate_ci_method` for the report to explain.
 
-**重抽样次数**默认 200，两个后端共用，可覆盖：
+**The replicate count** defaults to 200 for both backends and is overridable:
 
 ```yaml
 estimation:
   params:
     estimator: ivforest
-    n_bootstrap_samples: 200   # 低于 100 时 res:estimation.bootstrap_adequate = "no"
-    bootstrap_n_jobs: 8        # 下标先一次性抽好再并行，不影响结果
+    n_bootstrap_samples: 200   # below 100, res:estimation.bootstrap_adequate = "no"
+    bootstrap_n_jobs: 8        # indices are drawn up front, so this cannot change the result
 ```
 
-调低次数会让区间失真：实测同一份数据，20 次重抽样与 GRF 解析区间给出的「个体显著获益人数」差了两个数量级（416 对 3）。所以次数不够时结果里会打标记，报告必须把这件事摆出来。
+Lowering the count distorts the interval: on the same data, 20 replicates and the GRF
+analytic interval differed by two orders of magnitude in the count of individuals with
+a significant benefit (416 against 3). Below the threshold the Result is flagged and the
+report has to surface it.
 
-## skill 形态
-
-`skill/causpec-analyst/` 是 claude.ai 上用的形态（best-effort）。打包：
+## Development
 
 ```bash
-./scripts/build_skill.sh     # 构建 wheel 放进 assets，打出 dist/causpec-analyst-skill.zip
-```
-
-wheel 是构建产物，不入库——入库的 wheel 会和源码悄悄脱节，而 skill 跑的正是它。
-
-**在 Claude Code 里试用**：`.claude/skills/causpec-analyst` 已经软链到 `skill/causpec-analyst`，
-clone 下来就能用，不需要打包。改了 SKILL.md 立刻生效。
-
-**在 claude.ai 网页版试用**：上传 `dist/causpec-analyst-skill.zip`（Settings → Capabilities → Skills）。
-那边需要 wheel，因为沙箱里装不了本地包。
-
-**为什么是 best-effort**：agent 在技术上可以绕过 `scripts/run.py` 直接读数据自己算，
-所以「数字只由代码产生」这条保证在 skill 形态下依赖 agent 遵守规则。报告页眉会注明这一点。
-MCP 形态没有这个问题——那边模型只能通过声明过的工具与数据交互（尚未实现）。
-
-## 文档
-
-- [设计文档](docs/design.md)
-- [开发计划](docs/plan.md)
-- [决策记录](docs/decisions/)
-
-## 安装
-
-core 保持轻量（pydantic、pyyaml、pandas、numpy）。分析 family 的重依赖走 extra，按需安装：
-
-| extra | 拉进来什么 | 哪些 family 需要 |
-|---|---|---|
-| `hte` | EconML、scikit-learn | `hte_iv`、`hte_backdoor` |
-
-```bash
-# 只用 spec、质量检查、报告渲染
-uv sync
-
-# 要跑 HTE 估计
-uv sync --extra hte
-```
-
-pip 用户：`pip install causpec` 或 `pip install 'causpec[hte]'`。
-
-**没装 extra 时不会崩在 `ImportError` 上**——注册表返回结构化错误并给出安装命令：
-
-```console
-$ causpec estimate --spec spec.yaml --data cohort.csv
-[FAMILY_DEPENDENCY_MISSING] family hte_iv 的依赖未安装（econml）
-  修复：安装 causpec[hte]：uv sync --extra hte（或 pip install 'causpec[hte]'）
-```
-
-## 开发
-
-```bash
-uv sync --all-extras --dev   # 全部依赖
-uv run pytest                # 测试
+uv sync --all-extras --dev   # everything
+uv run pytest                # tests
 uv run ruff check .          # lint
-uv run lint-imports          # 架构契约：core 不导入 family
-pre-commit install           # 启用提交前检查（含数据文件拦截）
+uv run lint-imports          # the architecture contract: core must not import a family
+pre-commit install           # enable the pre-commit checks, including the data-file block
 ```
 
-## 合成数据
+## Synthetic data
 
 ```bash
-# 带真值的数据集 A。生成的数据不入库。
+# Dataset A, with ground truth. What it produces is never committed.
 uv run python data/generators/dataset_a.py --out /tmp/a.csv --preset realistic
 uv run python data/generators/dataset_a.py --out /tmp/a.csv --preset high_power --instrument-kind binary
 ```
 
-`realistic` 照真实 ICU 研究的量级（处理率约 9.5%、死亡率约 4%），用于演示与质量检查；
-`high_power` 把 complier 份额与事件率提上去，供数值 evals——在 realistic 量级下
-IV 的标准误比真值本身还大，数值测试会被噪声淹没。
+`realistic` matches the scale of the real ICU study (about 9.5% treated, about 4%
+mortality) and is what demos and quality checks use. `high_power` raises the complier
+share and event rate for numerical evals — at the realistic scale an IV analysis has a
+standard error larger than the truth itself, and numerical tests drown in noise.
 
-## 许可
+## The skill
 
-MIT（见 [LICENSE](LICENSE)）。复用的外部代码及其许可登记在 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+`skill/causpec-analyst/` is the form used on claude.ai (best-effort). To package it:
+
+```bash
+./scripts/build_skill.sh     # build the wheel into assets, emit dist/causpec-analyst-skill.zip
+```
+
+The wheel is a build product and is not committed — a committed wheel drifts silently
+from the source, and the wheel is what the skill runs.
+
+**Trying it in Claude Code**: `.claude/skills/causpec-analyst` is a symlink to
+`skill/causpec-analyst`, so a clone has it immediately with no packaging step, and an
+edit to SKILL.md takes effect at once.
+
+**Trying it on claude.ai**: upload `dist/causpec-analyst-skill.zip` (Settings ->
+Capabilities -> Skills). That environment cannot install a local package, so it needs
+the wheel.
+
+**Why best-effort**: an agent is technically able to bypass `scripts/run.py` and read
+the data itself, so in skill form "only code produces numbers" rests on the agent
+following the rules. The report header notes this. MCP form does not have the problem —
+there the model can only reach the data through declared tools (not implemented yet).
+
+## Documentation
+
+- [Design](docs/design.md)
+- [Plan](docs/plan.md)
+- [Decision records](docs/decisions/)
+
+## Licence
+
+MIT (see [LICENSE](LICENSE)). External sources and their licences are recorded in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

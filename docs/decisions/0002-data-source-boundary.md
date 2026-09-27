@@ -1,69 +1,96 @@
-# ADR-0002：数据源边界
+# ADR-0002: Data-source boundaries
 
-- 状态：proposed
-- 日期：2026-09-22
-- 相关：design.md 6.1、原则 3、原则 4、1.3（非目标「任意 SQL」）
+- Status: proposed
+- Date: 2026-09-22
+- Related: design.md 6.1, principle 3, principle 4, 1.3 (arbitrary SQL as a non-goal)
 
-## 背景
+## Context
 
-MCP server 是整个系统里权限最大的地方：它持有数据库凭据，有文件系统访问权，而且它执行的请求来自模型。
+The MCP server is the most privileged component in the system: it holds database
+credentials and filesystem access, and the requests it executes come from a model.
 
-演示用的最小 server 是这么写的：
+The minimal demonstration server was written like this:
 
 ```python
 rows = list(csv.DictReader(Path(arguments["data_path"]).open()))
 ```
 
-**任意路径都收。** 模型可以发 `{"data_path": "/Users/.../真实病历.csv"}`，server 就真去读了。
+**Any path is accepted.** A model can send `{"data_path": "/Users/.../real-records.csv"}`
+and the server will read it.
 
-design.md 6.1 里已经有 `root` 和 `allowed_relations` 两个字段，但只作为配置项出现，没有写明它们是**强制边界**，也没有写明怎么执行。在接入真实医疗数据的场景里这个差别是致命的。
+design.md 6.1 already has `root` and `allowed_relations`, but only as configuration
+fields: it does not say they are **enforced boundaries**, nor how they are enforced. In a
+setting where real medical data is connected, that difference is fatal.
 
-## 决策
+## Decision
 
-把数据源边界作为 server 的硬性约束，写进 Phase 3 的验收条件：
+Treat data-source boundaries as hard constraints on the server, written into the Phase 3
+acceptance criteria.
 
-**文件源**
+**File sources**
 
-1. 路径必须先 `resolve()`（解析符号链接与 `..`），再判断是否落在配置的 `root` 之内；不在则拒绝
-2. 只接受配置里声明的扩展名（`.csv`、`.parquet`）
-3. 拒绝的结构化错误里**不回显解析后的绝对路径**——避免把目录结构泄回模型上下文
+1. A path must be `resolve()`d (following symlinks and `..`) and then checked to lie
+   inside the configured `root`; otherwise it is refused
+2. Only the extensions declared in the configuration are accepted (`.csv`, `.parquet`)
+3. The structured refusal **does not echo the resolved absolute path** — that would leak
+   the directory structure back into the model's context
 
-**数据库源**
+**Database sources**
 
-1. 只接受 `source_id` + `relation`，不接受任何 SQL 片段（design.md 1.3：任意 SQL 是非目标）
-2. `relation` 必须精确匹配 `allowed_relations` 里的一项
-3. `masked_columns` 在 adapter 层剔除，不依赖上层记得过滤
-4. `causpec-mcp doctor` 实际尝试一次写入来核实账号确实无写权限，失败即报错退出
+1. Only `source_id` plus `relation` are accepted; no SQL fragment of any kind
+   (design.md 1.3: arbitrary SQL is a non-goal)
+2. `relation` must match an entry in `allowed_relations` exactly
+3. `masked_columns` are dropped in the adapter, not left to a higher layer to remember
+4. `causpec-mcp doctor` actually attempts a write to confirm the account cannot write,
+   and exits with an error if it can
 
-**共同**
+**Both**
 
-工具签名里不存在「任意路径」「任意查询」这类参数。边界由 schema 表达，不由运行时判断兜底。
+No tool signature contains an "arbitrary path" or "arbitrary query" parameter. The
+boundary is expressed in the schema, not patched up at runtime.
 
-## 理由
+## Rationale
 
-原则 3 说「只读的保证来自数据库账号权限，不来自 prompt」。这句话对数据库成立，但**对文件源没有对应的保证**——文件系统没有「只读账号」这回事，只能靠 server 自己划边界。`root` 就是文件源的那个账号权限。
+Principle 3 says "the read-only guarantee comes from database account permissions, not
+from a prompt". That holds for databases, but **there is no counterpart for file
+sources** — a filesystem has no read-only account, so the server has to draw the
+boundary itself. `root` is that boundary.
 
-之所以现在记下来而不是 Phase 3 再说：这类约束越晚补越容易漏。等 server 写完、工具跑通了，回头加路径校验意味着每个工具入口都要改一遍，而且很容易漏掉一两个。写在验收条件里，实现时就不会绕过。
+Recording this now rather than at Phase 3: constraints of this kind get harder to add
+the later they come. Once the server is written and its tools work, adding path
+validation means editing every tool entry point, and one will be missed. Written into
+the acceptance criteria, it does not get skipped.
 
-## 放弃的选项
+## Options rejected
 
-**A. 在 SKILL.md 里写「不要访问 root 以外的路径」。** 这是 prompt 级约束，与原则 3 的立场直接冲突——那条原则的全部意义就是不靠 prompt 做安全保证。放弃。
+**A. Write "do not access paths outside root" into SKILL.md.** That is a prompt-level
+constraint and directly contradicts principle 3, whose entire point is not to rely on
+prompts for a safety guarantee. Rejected.
 
-**B. 完全不限制，由用户自己注意配置。** 把责任推给用户，而用户恰恰看不到模型发出的参数。放弃。
+**B. No restriction; the user is responsible for their own configuration.** This pushes
+responsibility onto the person who cannot see the parameters the model sends. Rejected.
 
-**C. 只做路径前缀匹配，不 resolve。** 少一步，但挡不住 `root/../../etc/passwd`，也挡不住指向外部的符号链接。放弃。
+**C. Prefix matching without resolving.** One step cheaper, but it fails against
+`root/../../etc/passwd` and against a symlink pointing outside. Rejected.
 
-## 后果
+## Consequences
 
-**好处**：文件源和数据库源有了对称的边界保证，原则 3 从「数据库的性质」变成「系统的性质」。
+**Benefits**: file and database sources gain symmetric boundary guarantees, and
+principle 3 becomes a property of the system rather than of databases.
 
-**代价**：
+**Costs**:
 
-1. 每个接受数据源参数的工具都要走同一个校验入口，不能各写各的。需要在 `core/adapters/` 里有一个统一的解析函数。
-2. 拒绝信息不回显绝对路径，会让用户调试配置时稍麻烦——错误里只能说「不在允许范围内」，具体路径要看 server 的 stderr 日志。
-3. `doctor` 真去写一次数据库，需要一个明确无害的目标（例如尝试在一个不存在的 schema 里建表并预期失败）。要小心不要在生产库上留下痕迹。
+1. Every tool taking a data-source argument must go through one validation entry point
+   rather than each writing its own. `core/adapters/` needs a single resolution function.
+2. Not echoing the absolute path in a refusal makes debugging a configuration slightly
+   harder — the error can only say "outside the permitted range", with the path visible
+   in the server's stderr log.
+3. `doctor` genuinely writing to the database needs a target that is clearly harmless
+   (attempting to create a table in a schema that does not exist, expecting failure).
+   Take care not to leave traces in a production database.
 
-## 待决
+## Open questions
 
-- `root` 允许配多个吗？（多项目场景下可能需要）
-- 上传文件形态（skill 在 claude.ai 上）落到临时目录，那个目录算不算一个隐式 `root`？
+- May `root` hold more than one directory? (A multi-project setup might need it.)
+- The upload form (skill on claude.ai) lands files in a temporary directory. Does that
+  directory count as an implicit `root`?

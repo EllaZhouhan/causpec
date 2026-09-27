@@ -21,7 +21,7 @@ repos:
   - repo: local
     hooks:
       - id: no-data-files
-        name: 拦截数据文件进入提交
+        name: block data files from being committed
         entry: python3 scripts/check_no_data_files.py
         language: system
         pass_filenames: true

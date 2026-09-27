@@ -1,65 +1,94 @@
-# ADR-0001：报告正文中的字面量数字
+# ADR-0001: Literal numbers in report prose
 
-- 状态：accepted
-- 日期：2026-09-22
-- 相关：design.md 10.1、G4；`packages/causpec/core/reporting/render.py`
+- Status: accepted
+- Date: 2026-09-22
+- Related: design.md 10.1, G4; `packages/causpec/core/reporting/render.py`
 
-## 背景
+## Context
 
-design.md 10.1 的规则是：
+design.md 10.1 states the rule:
 
-> 模型撰写的报告正文只能以占位符引用数字……引用不存在的地址，**或正文中出现未经占位的数字**，渲染就失败。
+> Report prose written by the model may reference numbers only through placeholders …
+> An unknown address, **or a bare number anywhere in the prose**, fails the render.
 
-实现并跑通垂直切片后，这条规则立刻拦住了一份完全正常的报告：
+Implementing this and running the vertical slice, the rule immediately rejected a
+perfectly ordinary report:
 
 ```markdown
-处理组 28 天死亡率为 {{res:primary.mean_treated}}
+Mortality at 28 days was {{res:primary.mean_treated}}
 ```
 
-`28` 被判为未经占位的数字。同类的还有「95% 置信区间」「AKI-3 期」「第 2 阶段」——**这些数字是术语的一部分，不是计算结果**。
+The `28` was judged an un-placeheld number. So are the `95` in "95% confidence
+interval", the `3` in "AKI stage 3", the `2` in "phase 2" — **these numbers are part of
+a term, not a computed result**.
 
-设计文档写这条规则时没有考虑这种情况。
+The design document did not anticipate this when it wrote the rule.
 
-## 决策
+## Decision
 
-引入 `lit:` 命名空间。术语里的固定数字写成 `{{lit:28}}`，渲染时原样输出。
+Introduce the `lit:` namespace. A fixed number inside a term is written `{{lit:28}}`
+and renders verbatim.
 
-**但附一条反制**：如果某个 `lit:` 的数值与任何计算结果相同（相对容差 2%），渲染失败。
+**With one counter-check**: if a `lit` value matches any computed result (2% relative
+tolerance), the render fails.
 
 ```
-lit:0.0289 与计算结果 res:primary.estimate（0.0289）相同。
-计算结果必须用地址引用，写成 {{res:primary.estimate}}；
-lit 只用于术语里的固定数字，例如 {{lit:28}} 天死亡率。
+lit:0.0289 equals the computed result res:primary.estimate (0.0289).
+Computed results must be cited by address, as {{res:primary.estimate}};
+lit is only for numbers inside a term, e.g. {{lit:28}}-day mortality.
 ```
 
-## 理由
+## Rationale
 
-保住了 G4 真正要的那个性质：**没有任何数字能不经显式声明进入报告**。
+This keeps the property G4 actually wants: **no number reaches the report without being
+declared**.
 
-`lit:` 不是放松，是换了一种约束形式——模型仍然不能顺手写数字，它必须停下来声明「这个数不是我算的」。而且 `lit:` 写在报告源文里，事后可审：谁都能 grep 出这份报告声明了哪些字面量。
+`lit:` is not a relaxation, it is a change of form. The model still cannot write a
+number casually; it has to stop and declare "this one is not something I computed".
+And the `lit:` is visible in the report source, so anyone can grep for every literal a
+report declared.
 
-反制那条堵住了唯一的滥用路径。没有它，模型可以用 `{{lit:0.0289}}` 把结果夹带进去，G4 的保证悄悄失效，而且**不会有任何测试变红**。
+The counter-check closes the only abuse. Without it the model could write
+`{{lit:0.0289}}` to smuggle a result through, G4 would quietly fail, and **no test
+would go red**.
 
-容差取 2% 而不是精确相等，是为了防止模型写 `0.029` 蒙混过去。
+The 2% tolerance rather than exact equality stops a model writing `0.029` to slip past.
 
-## 放弃的选项
+## Options rejected
 
-**A. 只拦小数，不拦整数。** 最省事，但 `res:primary.n = 60` 这类样本量是整数，正是最该受保护的数字之一。放弃。
+**A. Catch decimals only, not integers.** Simplest, but `res:primary.n = 60` is an
+integer sample size and among the numbers most in need of protection. Rejected.
 
-**B. 维护一张术语白名单**（「28 天」「95%」「AKI-3」……）。不需要模型改写法，但白名单永远补不全，而且每补一条都是一次静默的放宽——出问题时没人知道是哪条白名单放进来的。放弃。
+**B. Maintain a whitelist of terms** ("28 days", "95%", "AKI-3", …). No change of habit
+for the model, but the whitelist can never be complete, and each addition is a silent
+loosening — when something goes wrong, nobody can tell which entry let it through.
+Rejected.
 
-**C. 只在数字**旁边**出现结果类词汇（「效应」「差值」「置信区间」）时才拦。** 启发式，会同时产生漏报和误报，且行为不可预测。放弃。
+**C. Only catch a number when result-like words appear nearby** ("effect", "difference",
+"confidence interval"). A heuristic, producing both false negatives and false positives,
+with unpredictable behaviour. Rejected.
 
-**D. 干脆取消这条规则，只校验地址存在性。** 成本最低，但直接放弃了 G4 里最重要的那半——"模型不能直接写数字"就变成了一句劝告。放弃。
+**D. Drop the rule and verify addresses only.** Cheapest, but it abandons the more
+important half of G4 — "the model does not write numbers" becomes advice. Rejected.
 
-## 后果
+## Consequences
 
-**好处**：G4 的保证完整保留，且规则本身可解释——模型收到的错误信息里直接写了该怎么改。
+**Benefits**: G4's guarantee survives intact, and the rule explains itself — the error
+the model receives says what to write instead.
 
-**代价**：
+**Costs**:
 
-1. 模型多学一条语法。SKILL.md 和 `references/reporting.md` 必须写清楚 `res:` 与 `lit:` 的区别，golden tasks 要覆盖「模型该用 lit 时用了裸数字」和「模型拿 lit 夹带结果」两种情况。
-2. 2% 容差是拍的。如果将来出现两个真实结果恰好相差 2% 以内，且其中一个又该写成字面量，会产生误报。届时改成精确匹配 + 规范化（去尾零）更稳妥。
-3. `_strip_exempt` 里豁免了 Markdown 标题、有序列表序号、表格分隔线、代码块。这几条也是拍的，将来报告模板变复杂时要重新检查。
+1. One more piece of syntax for the model. SKILL.md and `references/reporting.md` have
+   to spell out the difference between `res:` and `lit:`, and golden tasks have to cover
+   both "used a bare number where a lit was needed" and "smuggled a result through lit".
+2. The 2% tolerance is a judgement call. If two genuine results ever land within 2% of
+   each other and one of them should also be written as a literal, there will be a false
+   positive. Exact matching plus normalisation (stripping trailing zeros) would be safer
+   then.
+3. `_strip_exempt` exempts Markdown headings, ordered-list numbers, table separators and
+   fenced code blocks. Those are judgement calls too, and need revisiting when the report
+   template grows more complex.
 
-**不要删掉 `_check_literals_are_not_results`。** 它看起来是个奇怪的特判，删掉之后所有测试仍然通过（除非把对应测试也删了），但 G4 会失效。
+**Do not delete `_check_literals_are_not_results`.** It looks like an odd special case,
+and every test still passes without it (unless its own test goes too) — but G4 stops
+holding.
