@@ -56,12 +56,11 @@ then ask one question. No preamble about execution modes or how the tool works.
    words the user actually used (`said`). **Never confirm on the user's behalf**, even
    when the answer seems obvious. The report's front page prints every field's
    provenance and quote for them to check.
-6. **Fix the estimand before looking at the variables.** Settle what is being asked,
-   then look at what columns exist — otherwise whatever is in the data drives the
-   question. Checking the data's **shape** (one row per unit or many, timestamps
-   present or not) is not the same thing and comes first: it decides which questions
-   are answerable at all, and lets you ask about timing concretely instead of in the
-   abstract.
+6. **Ask what they want to know before showing them any columns.** The risk is the
+   data supplying the question, and that comes from the user picking off a list they
+   have just been shown, or from you proposing an analysis because a variable happens
+   to exist — not from you reading the file. Read the schema freely; just never hand
+   over a menu, and never suggest a question they did not ask.
 7. **For `adjustment_set`, check measurement time before role.** A variable measured
    after treatment can never enter the adjustment set. Being pre-treatment is
    necessary, not sufficient.
@@ -105,29 +104,41 @@ every time"), without words like "deterministic".
 
 Strictly in order. Steps 1-5 confirm fields; estimation is not touched until step 6.
 
-### 1. Check the data's shape, then fix the question
+### 1. Ask what they want to know, then read the schema
 
-**Shape first, meaning later.** Two different things get conflated here:
+**Read the schema freely; just do not hand the user a menu.**
 
-| Looking at | Does it drive the question? |
+The failure this step guards against is the data supplying the question — "oh, there's
+a length-of-stay column, shall we look at that too?" That happens two ways, and neither
+is caused by you reading a file:
+
+| Risk | What prevents it |
 |---|---|
-| **The shape** — one row per patient, or one row per patient-time? Are there timestamp columns? | No. Shape does not change what you want to ask, only what is answerable |
-| **The variables** — `los`, `lactate`, `sofa` … | Yes. "Oh, there's a length-of-stay column, shall we look at that too?" is exactly the failure to avoid |
+| The **user** picks from a list of columns they have just been shown | Ask what they want to compare **before** showing them any column names |
+| **You** propose an analysis because a variable happens to exist | Only ever map their stated concepts onto columns; never suggest a question they did not ask |
 
-So read the shape now (row count, unit-id uniqueness, presence of time columns) and
-leave the variables until step 2. Reading a schema is not computing a result; that
-boundary is what rule 2 is about.
+Reading a schema is not computing a result, so read as much of it as you need. What is
+fixed first is the user's question, not your ignorance of the file.
 
-If every unit appears once and there are no time columns, the data is cross-sectional
-and most of the timing discussion below is moot — say so and move on rather than
-asking about it in the abstract.
+**So, in order:**
 
-Then establish: what the treatment is, what the outcome is, and whether they want an
-average effect or "who benefits more". Write `treatment`, `outcome` and `estimand` into
-the spec, each with the user's own words.
+1. Greet them, say in one line what you are about to do, and ask what they are
+   comparing — receiving what treatment, versus not receiving it. No column list.
+2. Read the schema yourself: row count, whether the unit id is unique, whether any
+   column looks like a timestamp, and which columns plausibly match what they said.
+3. Come back with specifics.
 
-**Asking about a treatment that may be time-varying.** Having seen the shape, ask
-concretely rather than abstractly:
+Also establish the outcome and whether they want an average effect or "who benefits
+more". Write `treatment`, `outcome` and `estimand` into the spec, each with the user's
+own words.
+
+**What the shape tells you.** If every unit appears once and there are no time columns,
+the data is cross-sectional: say so and move on. Do not ask a clinician to classify
+their own treatment as static or time-varying in the abstract — that is a hard question
+to answer cold, and often one the file has already answered.
+
+**Asking about a treatment that may be time-varying.** Having read the schema, ask
+concretely:
 
 > "Your data has one row per patient, and `rrt_started` is 0/1. Does that flag mean
 > the patient started dialysis **at any point during the stay**, or that they were
@@ -139,13 +150,13 @@ Two answers matter, and only two:
   which is what CauSpec supports
 - **At any point during the stay** — a time-varying treatment. Say what hangs on it in
   one sentence ("a patient who starts on day 5 counts as untreated for those four days,
-  and patients who died early never had the chance, which would inflate the apparent
-  benefit"), then say this needs a longitudinal design that CauSpec does not have. Do
-  not go into fixed windows, landmark analysis or g-methods unless they ask.
+  and anyone who died early never had the chance, which would make dialysis look better
+  than it is"), then say this needs a longitudinal design CauSpec does not have. Do not
+  go into fixed windows, landmark analysis or g-methods unless they ask.
 
-A wide table does not settle this: one row per patient can still be a flattened
-"ever treated during the stay". The question has to be asked; the shape only lets you
-ask it concretely.
+**A wide table does not settle this.** One row per patient can still be a flattened
+"ever treated during the stay". The schema lets you ask concretely; it does not answer
+for you.
 
 ### 2. Map the concepts onto columns
 

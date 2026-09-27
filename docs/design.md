@@ -507,16 +507,19 @@ references/reporting.md (MIT).
 
 ### 11.1 The workflow
 
-1. Check the data's shape, then fix the question and estimand. Two things get
-   conflated under "do not look at the data": reading the **variables** does lead the
-   question, whereas reading the **shape** — one row per unit or many, timestamp
-   columns present or not — does not. Shape decides which questions are answerable at
-   all, and lets a question about timing be asked concretely rather than in the
-   abstract ("your data has one row per patient and this flag is 0/1; does it mean ever
-   treated during the stay, or already on treatment at admission?") instead of asking a
-   clinician to classify their own treatment as static or time-varying. A wide table
-   does not settle it, since one row per patient can still be a flattened "ever
-   treated" — the shape only makes the question concrete.
+1. Ask what the user wants to know, then read the schema. The failure to avoid is the
+   data supplying the question, and it arrives two ways: the user picking off a column
+   list they have just been shown, or the agent proposing an analysis because a variable
+   happens to exist. Neither is caused by reading a file, so the constraint belongs on
+   what is shown and proposed, not on what may be read — ask what they are comparing
+   before showing any column names, then read the schema freely. Doing so lets a
+   question about timing be asked concretely ("your data has one row per patient and
+   this flag is 0/1; does it mean ever treated during the stay, or already on treatment
+   at admission?") rather than asking a clinician to classify their own treatment as
+   static or time-varying in the abstract; and when every unit appears once with no time
+   columns, the question can be skipped entirely. A wide table does not settle it, since
+   one row per patient can still be a flattened "ever treated" — the schema makes the
+   question concrete, it does not answer it.
 2. Map concepts onto columns; settle the mapping.
 3. Variable roles and key_non_edges (7.5).
 4. Identification strategy and assumption categories.

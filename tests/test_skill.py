@@ -146,7 +146,7 @@ def test_blocking_checks_are_marked_as_blocking_in_the_reference() -> None:
         "Never upgrade it",
         "Ask the user when domain knowledge is needed",
         "Never confirm on the user's behalf",
-        "before looking at the variables",
+        "before showing them any columns",
         "check measurement time before role",
         "say so and say why",
     ],
@@ -156,17 +156,23 @@ def test_key_rules_are_stated(skill_text: str, rule: str) -> None:
     assert rule in skill_text
 
 
-def test_shape_and_variables_are_distinguished(skill_text: str) -> None:
-    """Reading the data's shape is not the same as reading its variables.
+def test_the_constraint_is_on_showing_not_on_reading(skill_text: str) -> None:
+    """The risk is the user seeing a menu, not the agent reading a file.
 
-    The first version of rule 6 said only "do not look at the data", so the model asked
-    a clinician to classify their own treatment as baseline or time-varying — in the
-    abstract, before establishing that the table has one row per patient. Shape does not
-    lead the question; variables do. Checking the shape first lets the timing question be
-    asked concretely, and lets it be skipped entirely when the data is cross-sectional.
+    Rule 6 first said "do not look at the data", so the model asked a clinician to
+    classify their own treatment as baseline or time-varying — in the abstract, before
+    establishing that the table has one row per patient. The next attempt said "read the
+    shape but not the variables", which contradicted itself: naming `rrt_started` and
+    its 0/1 values in the question *is* reading a variable.
+
+    The data supplies the question two ways — the user picks off a list they were just
+    shown, or the agent invents an analysis from what happens to exist. Neither comes
+    from reading a file, so the constraint sits on what is shown and proposed.
     """
-    assert "Shape first, meaning later" in skill_text
+    assert "Read the schema freely" in skill_text
+    assert "do not hand the user a menu" in skill_text
     assert "Reading a schema is not computing a result" in skill_text
+    assert "never suggest a question they did not ask" in skill_text
     assert "cross-sectional" in skill_text
 
 
