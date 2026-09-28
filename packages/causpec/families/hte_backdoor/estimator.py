@@ -9,7 +9,7 @@ NonParamDMLIV can only bootstrap, because its final model is an arbitrary regres
 CausalForestDML's final model is the forest itself.
 
 The identification strategy is backdoor adjustment, so results here rest on
-unconfoundedness — an untestable assumption. All the code can do is check overlap
+unconfoundedness, an untestable assumption. All the code can do is check overlap
 (see checks.py); it cannot establish the absence of confounding. The claim-level
 ceiling is therefore suggestive (design.md 10.2).
 """
@@ -93,7 +93,7 @@ class HteBackdoor:
         if n_estimators % subforest_size:
             raise ValueError(
                 f"n_estimators ({n_estimators}) must be divisible by subforest_size "
-                f"({subforest_size}) — blb's variance estimate groups by sub-forest. "
+                f"({subforest_size}), blb's variance estimate groups by sub-forest. "
                 f"Use {n_estimators - n_estimators % subforest_size} or "
                 f"{n_estimators + subforest_size - n_estimators % subforest_size}."
             )

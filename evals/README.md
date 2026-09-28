@@ -16,11 +16,11 @@ Mirrors design.md section 16. Six categories:
 - A mismatch between the requested estimand and the identification strategy (asking
   "who benefits" while assuming only monotonicity)
 - A question needing an unsupported design (difference-in-differences, regression
-  discontinuity) — the correct behaviour is an explicit refusal
+  discontinuity), where the correct behaviour is an explicit refusal
 - With and without the skill loaded, as a comparison
 
 ## Sources
 
 - Organisation follows Baygent's `evals/` (MIT)
 - External tasks may draw on the parts of CauSciBench (as used by CAIS) that match this
-  project's setting — **check the licence before use**
+  project's setting; **check the licence before use**

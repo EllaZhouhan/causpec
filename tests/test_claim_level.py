@@ -111,7 +111,7 @@ def test_causal_requires_justification_and_approval() -> None:
 
 def test_code_cannot_grant_causal_without_user_justification() -> None:
     """Diagnostics all pass and the user approved, but nobody justified the
-    assumption — still only suggestive."""
+    assumption, still only suggestive."""
     decision = determine(make_spec([UNTESTABLE], approved=True), PASSING, gate_passed=True)
     assert decision.level is ClaimLevel.SUGGESTIVE
     assert decision.unjustified_assumptions == ["unconfoundedness"]

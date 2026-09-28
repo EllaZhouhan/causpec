@@ -9,7 +9,7 @@ Two ideas carry this module:
    be verified by any amount of data, so an automatic decision tops out at
    suggestive. Reaching causal requires a person to justify each untestable
    assumption, sign their name to it, and explicitly agree to causal wording. The
-   division of responsibility is then clean — code vouches that "the diagnostics
+   division of responsibility is then clean, code vouches that "the diagnostics
    found nothing wrong", a person vouches that "the assumptions hold", and the
    report says who did which.
 
@@ -68,7 +68,7 @@ def load_rules(path: Path | None = None) -> dict[str, Any]:
 
 
 def rules_hash(path: Path | None = None) -> str:
-    """Hash of the rules file, for the manifest — so the decision can be reproduced."""
+    """Hash of the rules file, for the manifest, so the decision can be reproduced."""
     return hashlib.sha256(_rules_bytes(path)).hexdigest()[:16]
 
 
@@ -76,7 +76,7 @@ class ClaimLevelDecision(BaseModel):
     """The outcome of a claim-level decision.
 
     ``reasons`` explains, point by point, why the level could not be higher. The
-    report's "claim level and reasoning" section uses it directly — design.md 10.2
+    report's "claim level and reasoning" section uses it directly, design.md 10.2
     requires every downgrade to name the check, its measured value, and the threshold.
     """
 
@@ -151,7 +151,7 @@ def determine(
         for check_id in failed:
             issue = report.get(check_id)
             note = " (waived, but the diagnosis is unchanged)" if check_id in waived else ""
-            reasons.append(f"Blocking check failed: {check_id} — {issue.summary}{note}")
+            reasons.append(f"Blocking check failed: {check_id}, {issue.summary}{note}")
         return ClaimLevelDecision(
             level=ClaimLevel(rules["rules"]["blocking_check_failed"]), reasons=reasons, **common
         )

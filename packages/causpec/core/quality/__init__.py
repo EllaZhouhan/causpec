@@ -13,5 +13,5 @@ Each check has an address ``qc:<check_id>`` for the report to cite. Repairs act 
 the derived snapshot only.
 
 Family-specific checks live with their family; this package is for the ones that
-apply regardless of design. Not implemented yet — see plan.md Phase 1 tasks 4 and 5.
+apply regardless of design. Not implemented yet, see plan.md Phase 1 tasks 4 and 5.
 """

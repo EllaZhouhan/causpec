@@ -150,7 +150,7 @@ class RunContext:
             claim_rules_hash=claim_rules_hash,
             artifacts=checksums,
         )
-        # The manifest is not itself an artefact — it records everyone else's checksums.
+        # The manifest is not itself an artefact, it records everyone else's checksums.
         write_json_atomic(self.directory / "manifest.json", manifest.model_dump(mode="json"))
         return manifest
 

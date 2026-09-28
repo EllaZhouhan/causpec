@@ -5,7 +5,7 @@ Mirrors design.md section 15. Its shape follows the real ICU dialysis study (abo
 instrument), but every individual's true treatment effect is emitted alongside, so
 evals can measure coverage.
 
-**The generated data is never committed** — only this generator is.
+**The generated data is never committed**, only this generator is.
 
 Structure
 ---------
@@ -23,10 +23,10 @@ Key properties:
    the tool can tell when adjustment is not enough.
 2. **Z affects Y only through T** (the exclusion restriction holds) and its effect on
    T is monotone (monotonicity holds).
-3. **The effect is heterogeneous**: tau(X) grows with AKI stage and potassium — the
+3. **The effect is heterogeneous**: tau(X) grows with AKI stage and potassium, the
    sicker the patient, the greater the benefit.
 4. Z can be continuous (the preference itself) or binary (preference above the
-   median), controlled by ``instrument_kind`` — the hte_iv family supports both.
+   median), controlled by ``instrument_kind``, the hte_iv family supports both.
 
 Truth columns
 -------------
@@ -87,7 +87,7 @@ class DatasetAConfig:
     # ---- effect structure ----
     # The effect is defined on the **logit scale**: logit(p1) = logit(p0) + beta(X).
     # Not as a risk difference: baseline mortality is only about 4%, so a risk
-    # difference can reach at most -0.04, and specifying one directly gets clipped —
+    # difference can reach at most -0.04, and specifying one directly gets clipped,
     # at which point tau_true is no longer the truth. (This bug was caught by the
     # ground-truth check.)
     #   beta(X) = base + aki * aki_stage + k * (potassium - 4.5)
@@ -122,7 +122,7 @@ class DatasetAConfig:
 # and quality checks use; but at that scale an IV analysis has almost no statistical
 # power (compliers around 8%, mortality around 4%, and the Wald standard error larger
 # than the truth itself), so numerical regression tests drown in noise. `high_power`
-# raises the complier share and the event rate for numerical evals — it is not
+# raises the complier share and the event rate for numerical evals, it is not
 # realistic, but it gives "is the estimator correct?" a determinate answer.
 PRESETS: dict[str, dict[str, object]] = {
     "realistic": {},
@@ -187,7 +187,7 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     data["gender_Male"] = rng.binomial(1, 0.58, n)
     data["admitType_EM"] = rng.binomial(1, 0.62, n)
 
-    # AKI stage follows creatinine and urine output — both a confounder and an effect modifier
+    # AKI stage follows creatinine and urine output, both a confounder and an effect modifier
     aki_linear = (
         0.010 * (data["max_creatinine"] - 180.0)
         - 0.0022 * (data["max_uo_12h_ml"] - 450.0)
@@ -223,7 +223,7 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     df["consultant_id"] = consultant
 
     # The observed preference is the consultant's dialysis rate among their other
-    # patients (leave-one-out), which is how the real data was built — so it is built
+    # patients (leave-one-out), which is how the real data was built, so it is built
     # that way here too: a random effect plus measurement noise.
     n_per_consultant = np.bincount(consultant, minlength=cfg.n_consultants)
     measurement_noise = rng.normal(
@@ -304,7 +304,7 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     df["p0_true"] = p0
     df["p1_true"] = p1
     # tau is the risk difference, computed straight from the potential-outcome
-    # probabilities — true by construction, and never clipped.
+    # probabilities, true by construction, and never clipped.
     df["tau_true"] = p1 - p0
 
     uniform_y = rng.uniform(0, 1, n)

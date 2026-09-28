@@ -8,7 +8,7 @@ No real data may go in this repository at all.
 
 The synthetic datasets (design.md section 15):
 
-- **A**: generated from a structural causal model with known ground truth —
+- **A**: generated from a structural causal model with known ground truth, with
   heterogeneous effects, an instrument, informative censoring, variable-length trajectories
 - **B**: dataset A in two shapes (wide table, long event table)
 - **C**: dataset A with problems injected, each mapped to an expected `check_id`

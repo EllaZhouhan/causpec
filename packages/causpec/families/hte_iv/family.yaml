@@ -29,7 +29,7 @@ estimators:
       pointwise variances and dividing by n would assume independence. The ATE
       interval therefore comes from a unit-level bootstrap: resample, refit the
       forest, predict on the original X, average, take percentiles. The forest is
-      cheap enough for this — measured at about 5 seconds per replicate against about
+      cheap enough for this, measured at about 5 seconds per replicate against about
       26 seconds for dmliv.
   dmliv:
     class: econml.iv.dml.NonParamDMLIV      # EconML, MIT
@@ -62,7 +62,7 @@ estimands:
     instrument_kind: binary
     requires_assumptions: [relevance, exclusion_restriction, monotonicity]
     interpretation: >
-      Holds for compliers only — the people whose treatment status changed because the
+      Holds for compliers only, the people whose treatment status changed because the
       instrument took a different value. Compliers cannot be identified individually,
       so this estimand is neither "the effect for this patient" nor the population
       CATE. The report must say so.
@@ -103,11 +103,11 @@ requires:
 
   # effect_modifiers and adjustment_set are confirmed separately and never merged.
   # The research code defined `controls` (75 columns) and `features` (60 columns) but
-  # passed only `features` as X with W=None, silently dropping the difference —
+  # passed only `features` as X with W=None, silently dropping the difference;
   # separating them at the spec level is what prevents a repeat.
   note_x_vs_w: >
     X determines how the effect varies; W only removes confounding. Putting a variable
-    in the wrong place raises no error — it quietly changes the estimand, because a
+    in the wrong place raises no error, it quietly changes the estimand, because a
     variable in X is treated as an effect modifier and one in W is not.
 
 assumptions:
@@ -129,7 +129,7 @@ assumptions:
 # Quality checks and thresholds. Thresholds live here rather than in code: they decide
 # how strongly a conclusion may be worded (design.md 10.2), so they must be fixed in
 # advance, printed in the report, and recorded in the manifest. Every number below is a
-# convention, not a law, and may reasonably be disputed — what matters is that it is
+# convention, not a law, and may reasonably be disputed, what matters is that it is
 # visible, configurable and reproducible.
 checks:
   iv_zero_variation:
@@ -145,7 +145,7 @@ checks:
     waivable: true
     # Robust F from a linear first stage. The Staiger-Stock rule of thumb is F > 10:
     # widely used, but a rule of thumb. The treatment is binary, so a probit first-stage
-    # LR test and McFadden increment are reported alongside — design.md 8.2: the form of
+    # LR test and McFadden increment are reported alongside, design.md 8.2: the form of
     # the diagnostic is the family's business, not a universal first-stage F.
     min_robust_f: 10.0
     max_lr_p_value: 0.05

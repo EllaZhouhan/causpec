@@ -66,7 +66,7 @@ so longitudinal IPCW can be delivered complete, with estimation.
    counter-intuitive enough that someone will later try to "simplify" them away.
    Written: 0001 (literal numbers in reports), 0002 (data-source boundaries).
    Not written: computation on the server, field-level confirmation, the core/family
-   split, the external-code reuse policy — design.md and THIRD_PARTY_NOTICES already
+   split, the external-code reuse policy: design.md and THIRD_PARTY_NOTICES already
    state these, and an ADR would only duplicate them.
 
 ### Phase 1 (W2-W3)

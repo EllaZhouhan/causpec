@@ -18,8 +18,8 @@ cannot be predicted.
 
 ## Why the existing families cannot be made to fit
 
-Flattening a longitudinal question into a cross-sectional one — say, "dialysed within
-24 hours of ICU admission" — introduces two problems:
+Flattening a longitudinal question into a cross-sectional one, say "dialysed within
+24 hours of ICU admission", introduces two problems:
 
 1. **Immortal time bias.** Belonging to the "dialysed within 24 hours" group requires
    surviving 24 hours; the comparison group carries no such requirement.
@@ -42,7 +42,7 @@ Even without estimation, you can:
 ## Outstanding
 
 The `longitudinal_ipcw` family still needs one document: how each event (death,
-discharge, transfer) is treated in estimation — as outcome, competing, censoring or
-terminal — and how the resulting estimand should be read.
+discharge, transfer) is treated in estimation (as outcome, competing, censoring or
+terminal) and how the resulting estimand should be read.
 
 Code follows that document, not the other way round (design.md 7.3, TODO).

@@ -73,7 +73,7 @@ python scripts/run.py estimate --spec spec.yaml --data <data> \
 ```
 
 Without one you get full precision (`-0.017936448014042473`), which is unreadable.
-**Do not round it yourself** — use a format spec; that is the permitted way.
+**Do not round it yourself**, use a format spec; that is the permitted way.
 
 ## Three things that fail the render
 
@@ -85,18 +85,17 @@ Right: The average effect is {{res:primary.ate|+.3f}}.
 ```
 
 **Numbers inside a term count too.** The `28` in "28-day mortality", the `95` in "95%
-confidence interval", the `3` in "AKI stage 3" — all of them must be written
+confidence interval", the `3` in "AKI stage 3", all of them must be written
 `{{lit:28}}`. The renderer does not read meaning, and cannot tell "28 days" from "the
 effect is 0.028", so it draws one line and asks you to declare which numbers you did
 not compute.
 
-**2. An unknown address.** The error lists every available address in that namespace —
-follow it.
+**2. An unknown address.** The error lists every available address in that namespace, so follow it.
 
 **3. Using `lit:` to smuggle in a result.**
 
 `{{lit:28}}` is for fixed numbers inside a term. If a `lit` value matches any computed
-result, the render is refused — that would be routing around the placeholder mechanism.
+result, the render is refused, that would be routing around the placeholder mechanism.
 
 ## Wording must match the level
 
@@ -105,8 +104,8 @@ has to match it:
 
 | Level | What you may say |
 |---|---|
-| `causal` | "reduced" / "increased" — asserting causal direction and magnitude |
-| `suggestive` | "suggests a possible association with ..." — asserting no causation |
+| `causal` | "reduced" / "increased"; asserting causal direction and magnitude |
+| `suggestive` | "suggests a possible association with ..."; asserting no causation |
 | `associational` | Describe the association, and state that this analysis does not support a causal reading |
 | `descriptive` | Report each group's numbers; draw no between-group inference |
 

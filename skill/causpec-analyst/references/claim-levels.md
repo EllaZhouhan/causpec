@@ -10,15 +10,15 @@ prose consistent with the decision.
 ```
 descriptive    <- the gate did not pass (spec unconfirmed, or an unwaived blocking issue)
 associational  <- either blocking check failed (even if it was waived)
-suggestive     <- both passed — the highest a code decision can reach
+suggestive     <- both passed, the highest a code decision can reach
 causal         <- suggestive + every untestable assumption justified by the user
                   + the user's explicit approval
 ```
 
 ## Why code cannot grant `causal`
 
-The `untestable` assumptions — unconfoundedness, the exclusion restriction,
-monotonicity — **cannot be verified by data in principle**. No number of diagnostics
+The `untestable` assumptions (unconfoundedness, the exclusion restriction,
+monotonicity) **cannot be verified by data in principle**. No number of diagnostics
 will establish them.
 
 So responsibility divides:
@@ -34,7 +34,7 @@ who can carry them.
 
 Seeing `suggestive`, a user may ask why it cannot be called causal. Answer plainly:
 
-> "The diagnostics all passed — nothing is wrong on the data side. But 'given these
+> "The diagnostics all passed, nothing is wrong on the data side. But 'given these
 > covariates, dialysis is unrelated to prognosis' is something no test can verify;
 > whether it holds is a clinical judgement. If you're willing to stand behind it and
 > say why, I can raise the wording to causal, and the report will record that the
@@ -64,17 +64,17 @@ A waiver lets the analysis run; it does not make the problem disappear.
 
 | Level | You may say | You may not say |
 |---|---|---|
-| `causal` | "dialysis reduced 28-day mortality by X" | — |
+| `causal` | "dialysis reduced 28-day mortality by X" |, |
 | `suggestive` | "the data suggests dialysis may be associated with lower mortality, effect size X" | "reduced" |
 | `associational` | "treated patients had mortality lower by X; this analysis does not support a causal reading" | anything implying direction, like "is associated with" |
 | `descriptive` | "mortality was X in the treated group and Y in the control group" | any between-group inference |
 
-At `descriptive`, report the numbers and **do not even say how much lower** — the gate
+At `descriptive`, report the numbers and **do not even say how much lower**, the gate
 failing means the comparison itself is unreliable.
 
 ## The rules are inspectable
 
 The decision rules live in `claim_levels.yaml`, and the report records its version and
 hash. Both the thresholds and the rules are conventions, not laws, and may be
-disputed — what matters is that they are fixed in advance, printed in the report, and
+disputed, what matters is that they are fixed in advance, printed in the report, and
 reproducible later.

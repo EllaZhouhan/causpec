@@ -22,7 +22,7 @@ Athey-Tibshirani-Wager honest forest variance and needs no resampling.
 but the out-of-the-box default should be the one that stands up: a trustworthy
 percentile interval needs hundreds of replicates at roughly 26 seconds each, so 200
 replicates is an hour and a half. Lowering the count is faster but distorts the
-interval — on the same data, 20 replicates and the GRF analytic interval differed by
+interval, on the same data, 20 replicates and the GRF analytic interval differed by
 two orders of magnitude in the count of individuals with a significant benefit (416
 against 3). Rather than ship a default that is both slow and untrustworthy, the
 analytic interval is the default and ``dmliv`` is kept for a confirmatory run that
@@ -289,7 +289,7 @@ class HteIv:
         # **not guaranteed** to bracket the point estimate: an honest forest shrinks
         # towards the mean, so the resampling distribution can sit systematically off
         # theta-hat. Centring on theta-hat means the basic (reverse-percentile) method,
-        # which is a different choice — expose it through the spec if wanted, rather
+        # which is a different choice, expose it through the spec if wanted, rather
         # than switching silently here.
         lower, upper = np.percentile(ates, [2.5, 97.5])
         return float(lower), float(upper)
@@ -313,7 +313,7 @@ class HteIv:
         if n_estimators % subforest_size:
             raise ValueError(
                 f"ivforest's n_estimators ({n_estimators}) must be divisible by "
-                f"subforest_size ({subforest_size}) — GRF's variance estimate groups by "
+                f"subforest_size ({subforest_size}), GRF's variance estimate groups by "
                 f"sub-forest. Use {n_estimators - n_estimators % subforest_size} or "
                 f"{n_estimators + subforest_size - n_estimators % subforest_size}."
             )

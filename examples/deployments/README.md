@@ -2,8 +2,8 @@
 
 Example deployment configurations (design.md section 5 and 6.1). Filled in during Phase 5.
 
-- `demo-hospital/` — an ICU setting, Postgres read-only views
-- `demo-retail/` — a commercial setting, an A/B test with non-compliance
+- `demo-hospital/`: an ICU setting, Postgres read-only views
+- `demo-retail/`: a commercial setting, an A/B test with non-compliance
 
 Each example carries a `sources.yaml` of the form:
 

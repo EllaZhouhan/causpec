@@ -6,7 +6,7 @@ Mirrors design.md section 4. The dependency runs one way:
     core.*           --imports-->  families.*           forbidden (import-linter)
 
 Core defines what a family must look like; each family implements it and registers
-itself. Core never names a specific family — ``get()`` imports by id, relying on the
+itself. Core never names a specific family, ``get()`` imports by id, relying on the
 ``causpec.families.<id>`` convention rather than a hard-coded import.
 
 Heavy dependencies (econml and friends) live behind an extra so core stays light.
@@ -95,12 +95,12 @@ def load_declaration(family_id: str) -> dict[str, Any]:
     """Read one family's family.yaml declaration.
 
     The declaration states what question the family answers, which estimands it can
-    identify, what it needs and what it assumes — the basis for the estimand
+    identify, what it needs and what it assumes, the basis for the estimand
     reconciliation of design.md 7.6.
     """
     # Navigate from the parent package and **do not import the subpackage**:
     # resources.files("causpec.families.hte_iv") executes that package's __init__ and
-    # pulls in econml. Reading a declaration should not require its dependencies —
+    # pulls in econml. Reading a declaration should not require its dependencies:
     # the whole point of `requires_extra` is telling people what to install first.
     resource = resources.files(FAMILIES_PACKAGE).joinpath(family_id).joinpath("family.yaml")
     try:
@@ -146,7 +146,7 @@ def get(family_id: str) -> Family:
 
     if family_id not in _REGISTRY:
         raise RuntimeError(
-            f"causpec.families.{family_id} imported but never called register() — "
+            f"causpec.families.{family_id} imported but never called register(), "
             f"check that package's __init__.py"
         )
     return _REGISTRY[family_id]

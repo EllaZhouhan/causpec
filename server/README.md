@@ -44,5 +44,5 @@ causpec-mcp doctor
 ```
 
 Checks dependencies, data-source connectivity, and **whether the database account
-genuinely cannot write** — the read-only guarantee comes from account permissions, not
+genuinely cannot write**: the read-only guarantee comes from account permissions, not
 from a prompt.

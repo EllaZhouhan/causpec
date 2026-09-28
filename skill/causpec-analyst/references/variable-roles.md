@@ -11,21 +11,28 @@ error**.
 | `adjustment_set` | Removes confounding only; does not enter the CATE | A variable that should explain heterogeneity is demoted to pure confounding control |
 
 Both are just "columns handed to the estimator". Putting one in the wrong place
-throws no exception — it **quietly changes the estimand**.
+throws no exception, it **quietly changes the estimand**.
 
 The rule comes from a real lesson: a piece of research code defined 75 `controls` and
 60 `features`, passed only `features` as X with `W=None`, and silently dropped the
 dozen-odd columns in between with no warning at all. CauSpec makes them two fields,
 each confirmed separately, to prevent a repeat.
 
-**How to ask**:
+**Do not ask the user to enumerate them.** They came to find out which patients
+benefit; asking them to name the variables the benefit varies over asks them to answer
+their own question, and with forty covariates it is forty questions.
 
-> "For `sofa_total_24h` — do you want to see whether the **effect varies with it**
-> (say, sicker patients benefiting more), or is it just a confounder you want
-> controlled?"
+Draft it and confirm the draft:
 
-The former goes in `effect_modifiers`, the latter in `adjustment_set`. Both, if they
-want both.
+1. Default X to every pre-treatment covariate. The forest finds the heterogeneity.
+2. Ask the one thing only they can answer: which of these were measured after treatment
+   started. A column name will not tell you, and that answer affects correctness rather
+   than presentation.
+3. Offer a focus rather than requiring one: "If you already suspect the benefit differs
+   by severity, I can report that breakdown first."
+
+Use W for a variable they want controlled but not treated as an axis the answer is
+expressed along.
 
 ## Variables that can never enter the adjustment set
 
@@ -41,14 +48,14 @@ Was this measured before time zero?
   `- yes -> now ask whether it is a confounder, an effect modifier, or irrelevant
 ```
 
-When the timing is unclear, do not guess — ask: "Was `max_creatinine` measured at ICU
+When the timing is unclear, do not guess, ask: "Was `max_creatinine` measured at ICU
 admission, or does it include values after dialysis started?"
 
 ## Pre-treatment is necessary, not sufficient
 
 A pre-treatment variable can still be a collider on a backdoor path (M-bias). The
 usual practice in high-dimensional DML is to adjust for every pre-treatment variable;
-the literature disagrees about this — Ding and Miratrix (2015) argue that M-bias is
+the literature disagrees about this, Ding and Miratrix (2015) argue that M-bias is
 usually smaller than the confounding bias from not adjusting, while Pearl (2015)
 disputes the scope of that conclusion.
 

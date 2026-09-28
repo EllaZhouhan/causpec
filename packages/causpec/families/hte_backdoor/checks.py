@@ -7,8 +7,8 @@ the two blocking checks).
 G3 requires the quality report to be a deliverable even when the analysis cannot run,
 and overlap bad enough to stop estimation is exactly when that report matters most.
 
-Only overlap blocks. Following the trade-off of design.md 10.2 — "if the confidence
-interval already says it, do not gate on it" — sample size and precision speak for
+Only overlap blocks. Following the trade-off of design.md 10.2 ("if the confidence
+interval already says it, do not gate on it"), sample size and precision speak for
 themselves through the interval. What an interval cannot express is systematic bias,
 and under backdoor adjustment the main source of that is missing common support:
 a group of people with no comparable controls, whose effect is extrapolated. The
@@ -64,7 +64,7 @@ def estimate_propensity(
 
     Cross-fitting is mandatory: fitting and predicting on the same data lets the model
     memorise individuals, pushing scores towards 0 and 1, so common support only
-    *appears* to be missing — which would condemn perfectly good data.
+    *appears* to be missing, which would condemn perfectly good data.
 
     The default is gradient boosting rather than logistic regression: overlap asks
     whether there is a region where treatment is near-deterministic, and a too-narrow
@@ -84,7 +84,7 @@ def standardized_mean_difference(
 
     The weighted variant checks balance after IPW. The denominator always uses the
     **unweighted** standard deviation, so the SMD before and after weighting are
-    comparable — otherwise the weights move numerator and denominator together and any
+    comparable, otherwise the weights move numerator and denominator together and any
     improvement is invisible.
     """
     treated, control = treatment == 1, treatment == 0

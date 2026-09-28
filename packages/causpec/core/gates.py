@@ -1,6 +1,6 @@
 """Gates: the hard checks that run before estimation.
 
-Mirrors design.md 11.2. This is where "the framework holds the gate" lands — these
+Mirrors design.md 11.2. This is where "the framework holds the gate" lands, these
 are ``if`` statements in code, not rules in a prompt, so the model cannot route
 around them.
 
@@ -89,7 +89,7 @@ def check_all(
 ) -> None:
     """Run every gate. Any failure raises GateError.
 
-    Omitting ``report`` checks spec confirmation only — the slice path. Once quality
+    Omitting ``report`` checks spec confirmation only, the slice path. Once quality
     checks are wired up the report must be passed.
     """
     check_spec_confirmed(spec)

@@ -12,14 +12,14 @@ the milestones in plan.md section 2.
   out of the bundled wheel when causpec is not installed in the sandbox), and
   `scripts/build_skill.sh` for packaging
 - **Skill consistency tests**: the families, checks, writable sections and claim levels
-  the documentation lists must match what the code actually does — documentation drifts,
+  the documentation lists must match what the code actually does; documentation drifts,
   and these tests pin the two together
 - **Fixed report structure** (design.md 10.3): ten sections in an order decided by code,
   so "assumptions before results" is a structural guarantee rather than a reminder. The
   spec-provenance table and the claim-level decision are code-generated and the model may
   not author them; the remaining sections accept interpretation, always through
   placeholder rendering
-- **Placeholder format specs**: `{{res:primary.ate|+.3f}}`, `{{qc:...frac|.1%}}` — without
+- **Placeholder format specs**: `{{res:primary.ate|+.3f}}`, `{{qc:...frac|.1%}}`; without
   them the report shows 17 significant digits, and a model's natural response to that is
   to round it itself, which defeats G4
 - **CLI `--report` / `--narrative`**: `--report` emits the fixed structure, `--narrative`
@@ -30,16 +30,16 @@ the milestones in plan.md section 2.
   detects later tampering. Every write is atomic (temporary file in the same directory,
   fsync, `os.replace`)
 - **Audit log**: one line per call, with **the parameters hashed rather than stored**;
-  metadata passes a sensitive-key check that raises on password/dsn/token and similar —
-  "no credentials in the log" enforced by code
+  metadata passes a sensitive-key check that raises on password/dsn/token and similar, so
+  "no credentials in the log" is enforced by code
 - **CLI `--run-dir`**: persist a whole run, including the waiver reasons
 - **The claim-level decision** (design.md 10.2, principle 5): the four-level rules live in
   `core/reporting/claim_levels.yaml` and the decision carries the rules hash. The ceiling
-  for an automatic decision is suggestive — untestable assumptions cannot be verified by
+  for an automatic decision is suggestive: untestable assumptions cannot be verified by
   any diagnostic, so reaching causal takes a user justification for each and explicit
   approval. A waiver does not change the diagnosis
 - **The `Assumption` contract**: three categories (empirically_assessed /
-  requires_justification / untestable), justification text, and `justified_by` — a model's
+  requires_justification / untestable), justification text, and `justified_by`; a model's
   own justification does not count
 - **The `claim:` namespace**; the renderer now takes a merged address table, so `res:`,
   `qc:` and `claim:` can be cited in one report
@@ -54,7 +54,7 @@ the milestones in plan.md section 2.
   severity, waivable, evidence, affected_columns, impact_on_analysis, recommended_repair,
   with every piece of evidence addressable as `qc:<check_id>.<key>`
 - **Instrument checks for `hte_iv`**: migrated from the research code's
-  `test_iv_validity` — relevance (linear robust F, partial R-squared, probit LR test,
+  `test_iv_validity`: relevance (linear robust F, partial R-squared, probit LR test,
   McFadden increment), complier share, covariate balance with a Benjamini-Hochberg FDR
   correction. Thresholds live in family.yaml
 - **Gate condition 2**: refuse to estimate while a blocking quality issue stands
@@ -92,7 +92,7 @@ the milestones in plan.md section 2.
   where the original message buried the fix
 - **Package resources are read through `importlib.resources`** (`family.yaml`,
   `claim_levels.yaml`). The previous `Path(__file__).parent` finds no file when the
-  package is imported out of a wheel — a bug found by actually running the skill's
+  package is imported out of a wheel: a bug found by actually running the skill's
   `run.py` in a clean environment
 - Reading a family's declaration no longer imports that family:
   `resources.files("causpec.families.hte_iv")` executes its `__init__` and pulls in

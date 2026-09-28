@@ -1,6 +1,6 @@
 """Addressed computation results.
 
-Mirrors design.md 10.1. Every computed artefact has an address — ``res:primary.ate``,
+Mirrors design.md 10.1. Every computed artefact has an address, ``res:primary.ate``,
 ``qc:overlap_extreme_propensity``, ``fig:cate_distribution``. Report prose may only
 reference numbers through these addresses; the renderer substitutes them.
 """

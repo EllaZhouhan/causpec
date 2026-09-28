@@ -41,11 +41,11 @@ class AssumptionCategory(StrEnum):
 
     The category determines what can possibly support the assumption:
 
-    - ``EMPIRICALLY_ASSESSED`` — the data can speak to it. Quality checks produce
+    - ``EMPIRICALLY_ASSESSED``: the data can speak to it. Quality checks produce
       the evidence (overlap, instrument relevance).
-    - ``REQUIRES_JUSTIFICATION`` — the data cannot settle it, but it can be argued
+    - ``REQUIRES_JUSTIFICATION``: the data cannot settle it, but it can be argued
       (e.g. whether the treatment has a single well-defined version).
-    - ``UNTESTABLE`` — no amount of data can verify it (unconfoundedness, exclusion
+    - ``UNTESTABLE``: no amount of data can verify it (unconfoundedness, exclusion
       restriction, monotonicity). **No diagnostic will ever prove these.**
 
     That last category caps what the code may claim: code can only report "the
@@ -63,7 +63,7 @@ class Assumption(BaseModel):
     """One identification assumption.
 
     ``statement`` comes from family.yaml; ``justification`` comes from the user.
-    ``justified_by`` records who argued for it — a ``source=model`` justification
+    ``justified_by`` records who argued for it, a ``source=model`` justification
     does not count, because a model vouching for its own assumptions is circular
     (design.md 10.2).
     """
@@ -86,14 +86,14 @@ class SpecField(BaseModel):
 
     ``said`` is required in two places (design.md 7.1):
 
-    - when ``source=user`` — what the user said is the evidence, and it is kept verbatim
-    - when ``status=confirmed`` — the words the user used when confirming, regardless
+    - when ``source=user``: what the user said is the evidence, and it is kept verbatim
+    - when ``status=confirmed``: the words the user used when confirming, regardless
       of who proposed the value
 
     The second rule plugs the gate's root hole: ``update_field`` is called by the
     model, and the server has no way to verify that the user really confirmed
     anything. Requiring a quote means a model that skips confirmation has to
-    fabricate one — and the fabricated quote lands on the report's front page,
+    fabricate one, and the fabricated quote lands on the report's front page,
     where the user will recognise it as something they never said. It does not
     close the hole; it raises the cost and leaves a trace.
     """

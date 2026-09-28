@@ -18,7 +18,7 @@ When a causal question is put to observational data, the failure usually happens
 the estimation: treatment, outcome and time zero are vaguely defined; a post-treatment
 variable or a positivity problem goes unnoticed; definitions drift between datasets;
 the numbers cannot be reproduced. Tools of the "LLM plus code" kind introduce a further
-failure — the model computing, or inventing, the numbers itself.
+failure, the model computing, or inventing, the numbers itself.
 
 CauSpec does four things:
 
@@ -43,7 +43,7 @@ Data sources are read-only throughout.
   address, and the model cannot write a number directly.
 - G5: fixing the inputs and the seed reproduces the result; every run carries a manifest
   and an audit log.
-- G6: it can be evaluated — numerically, on quality-check recall, and on agent behaviour.
+- G6: it can be evaluated, numerically, on quality-check recall, and on agent behaviour.
 
 ### 1.3 Non-goals
 
@@ -183,15 +183,15 @@ expressions are not accepted.
 Data is materialised into a **derived snapshot**. The snapshot must provide two things;
 how it is implemented is not constrained:
 
-1. **A writable working copy** — mapping and quality repairs act only on it, and the
+1. **A writable working copy**: mapping and quality repairs act only on it, and the
    original source is never modified
-2. **snapshot_fingerprint** — computed over the **normalised content** (sort by primary
+2. **snapshot_fingerprint**: computed over the **normalised content** (sort by primary
    key, then fix column order and dtypes), not over the file's bytes
 
 The default implementation reads with pandas/polars, applies the mapping, writes a
 parquet file, and fingerprints the normalised content. Below about a hundred thousand
 rows this is the simplest route with the fewest dependencies. Beyond what fits in
-memory, switch to DuckDB or another columnar engine — that is an implementation detail
+memory, switch to DuckDB or another columnar engine; that is an implementation detail
 and does not change the two contracts above.
 
 Database sources additionally record the query text and the time of reading.
@@ -224,19 +224,19 @@ Rules:
 - The critical fields are: population, treatment, outcome, time_zero, estimand,
   variable_roles, key_non_edges, identification_strategy, adjustment_set, instrument,
   plus event_roles for longitudinal analyses. The gate's requirements are in 11.2.
-- **`status: confirmed` requires `said`** — the words the user used when confirming,
+- **`status: confirmed` requires `said`**: the words the user used when confirming,
   regardless of `source`. A value the model inferred and the user then accepted is also
   marked confirmed; `source` stays `model` while `said` records the user's words at
   acceptance.
 - A conflict between what the user said and what the data shows gets no separate field
   status. Quality checks find it and raise a blocking issue, which gate condition 2
-  already stops. The conflict sits in the quality report for a person to judge — change
+  already stops. The conflict sits in the quality report for a person to judge: change
   the spec, or record a waiver with a reason. The system does not adjudicate on the
   user's behalf, and does not carry a second state machine to do so.
 
 Stated plainly: confirmation happens in conversation, `update_field` is called by the
 model, and **the server can verify neither that the user saw the spec nor that `said` is
-true**. That hole cannot be closed in this form — as long as confirmation happens in
+true**. That hole cannot be closed in this form, as long as confirmation happens in
 conversation and is relayed by a model, there is no cryptographic guarantee. What can be
 done is raise the cost and leave a trace: requiring a quote means a model skipping
 confirmation must fabricate the user's words, and the report's front page shows the full
@@ -273,7 +273,7 @@ competing, censoring or terminal.
 
 [reuse] The field layout follows StatsPAI's TargetTrialProtocol (MIT,
 src/statspai/target_trial/protocol.py), so the two can be compared against each other;
-**the structure only — the dependency is not taken**.
+**the structure only, the dependency is not taken**.
 
 TODO: state how each event is handled under the IPCW method, and how the estimand should
 be read.
@@ -331,8 +331,8 @@ under monotonicity alone means the report must state that what is estimated is t
 conditional LATE among compliers, not the population CATE. [reuse] The reconciliation
 step follows step 5 of Baygent causal-inference's design choices (MIT).
 
-When the design a question needs is outside the supported families — difference-in-
-differences, regression discontinuity, synthetic control — the system says so
+When the design a question needs is outside the supported families (difference-in-
+differences, regression discontinuity, synthetic control), the system says so
 explicitly, lists each excluded family with its reason, and does not force the question
 into backdoor adjustment. [reuse] Showing excluded families with reasons follows Causal
 desk (ideas only).
@@ -360,7 +360,7 @@ the backlog, to be added when needed.
 
 StatsPAI is not taken as a dependency for these two functions: it is large (numba,
 linearmodels and more), iterates quickly, and has corrected the behaviour of several
-functions in recent versions — while both tests are closed-form, so writing them with
+functions in recent versions, while both tests are closed-form, so writing them with
 tests is more controllable than pinning a heavy dependency, and makes the provenance of
 the numbers easier to state.
 
@@ -389,7 +389,7 @@ Repairs act on the derived snapshot only.
 | Refutation: placebo treatment, random common cause, data subset | [reuse] DoWhy (MIT) refuters |
 | Longitudinal IPCW | The author's code; correctness verified by ground-truth coverage on synthetic dataset A |
 
-Dependency policy: only four direct dependencies — EconML, DoWhy, pandera and DoubleML,
+Dependency policy: only four direct dependencies (EconML, DoWhy, pandera and DoubleML),
 all mature with stable interfaces. Closed-form diagnostics (E-value, effective F) are
 written here with numerical regression tests: writing them costs a few dozen lines,
 while each additional heavy dependency adds version drift and correctness risk. StatsPAI
@@ -402,7 +402,7 @@ borrowed (see 7.3, 7.4, 11.2).
 
 ### 10.1 Addresses and placeholders
 
-Every computed artefact has an address — `res:primary.estimate`, `res:primary.ci`,
+Every computed artefact has an address: `res:primary.estimate`, `res:primary.ci`,
 `qc:overlap_extreme_propensity`, `fig:cate_distribution`. Report prose written by the
 model may reference numbers only through placeholders, e.g.
 `{{res:primary.estimate}}`; the renderer substitutes by address. An unknown address, or
@@ -422,7 +422,7 @@ prose's wording to match the level decided.
 amount of data, so the ceiling for an automatic decision is suggestive. Reaching causal
 takes two further conditions, both recorded in the spec: every assumption with
 `category: untestable` carries a `justification` whose field has `source=user`; and the
-user explicitly agrees to causal wording. The division of responsibility is then clean —
+user explicitly agrees to causal wording. The division of responsibility is then clean:
 code vouches that "the diagnostics found nothing wrong", a person vouches that "the
 assumptions hold", and the report says who did which.
 
@@ -440,8 +440,8 @@ bias, and that has two sources:
 | Overlap / positivity | at most 5% of the sample has a propensity score outside [0.05, 0.95] | Some people have no comparable controls and their effect is extrapolated; the interval will look narrow, but narrow in a way that means nothing |
 | Instrument relevance (IV designs only) | effective F above the MOP critical value for the tolerated bias level | Under a weak instrument the bias can be arbitrarily large and the interval loses coverage |
 
-Every other diagnostic — the E-value, DoWhy's three refutation tests, adjusted SMD, rank
-stability over repeated cross-fitting, the paired results for a suspected_collider — is
+Every other diagnostic (the E-value, DoWhy's three refutation tests, adjusted SMD, rank
+stability over repeated cross-fitting, the paired results for a suspected_collider) is
 **computed, reported, and not gated on**. They go into the report for the reader to
 weigh; they do not enter the decision. A tool that blocks on two things is taken
 seriously; a tool that blocks on fifteen is routed around.
@@ -476,12 +476,12 @@ Two further details settled during implementation:
   level at associational, and the report notes "waived, but the diagnosis is unchanged".
   A waiver lets the analysis run; it does not make the problem disappear.
 - **The justification must come from the user.** A `source=model` justification does not
-  count — a model vouching for its own assumptions is circular. `Assumption` therefore
+  count, a model vouching for its own assumptions is circular. `Assumption` therefore
   records `justified_by`.
 
 The decision reaches the report through the `claim:` namespace: `claim:level`,
 `claim:n_unjustified_assumptions`, `claim:rules_version`, `claim:rules_hash`. The
-renderer accepts the merged address table from all three sources — `res:`, `qc:` and
+renderer accepts the merged address table from all three sources: `res:`, `qc:` and
 `claim:`.
 
 [reuse] The level scheme and the "passing is not proving" framing are adapted from
@@ -511,14 +511,14 @@ references/reporting.md (MIT).
    data supplying the question, and it arrives two ways: the user picking off a column
    list they have just been shown, or the agent proposing an analysis because a variable
    happens to exist. Neither is caused by reading a file, so the constraint belongs on
-   what is shown and proposed, not on what may be read — ask what they are comparing
+   what is shown and proposed, not on what may be read: ask what they are comparing
    before showing any column names, then read the schema freely. Doing so lets a
    question about timing be asked concretely ("your data has one row per patient and
    this flag is 0/1; does it mean ever treated during the stay, or already on treatment
    at admission?") rather than asking a clinician to classify their own treatment as
    static or time-varying in the abstract; and when every unit appears once with no time
    columns, the question can be skipped entirely. A wide table does not settle it, since
-   one row per patient can still be a flattened "ever treated" — the schema makes the
+   one row per patient can still be a flattened "ever treated". The schema makes the
    question concrete, it does not answer it.
 2. Map concepts onto columns; settle the mapping.
 3. Variable roles and key_non_edges (7.5).
@@ -577,13 +577,13 @@ Implementation notes:
   mapping's expectations and reports the differences on a mismatch.
 
 **How deep Postgres goes**: v0.3 delivers only a thin adapter plus a docker-compose demo,
-enough to show two things — that a read-only view built by the data owner can be
+enough to show two things: that a read-only view built by the data owner can be
 connected, and that the read-only guarantee genuinely comes from account permissions
 (verified by `doctor`). `masked_columns` and the schema-drift check move past v1.0. The
 reason: this project's distinguishing work is the controlled causal-inference workflow,
 not database integration, and the marginal return on going deeper into Postgres is far
 below that of making the quality checks and calibration solid. `allowed_relations` and
-the path boundary (ADR-0002) are **not** part of that reduction — they are safety
+the path boundary (ADR-0002) are **not** part of that reduction: they are safety
 boundaries, not features.
 
 ---
@@ -667,7 +667,7 @@ under any circumstances.
 | quality checks | Recall of each injected problem on dataset C |
 | robustness | The two shapes of dataset B reach the same conclusion |
 | reporting | The renderer refuses un-placeheld numbers and unknown addresses; the claim level matches the diagnostics |
-| agent | 20-30 golden tasks: does it ask about the critical fields, miss a diagnostic, overstate the claim — including tasks where the estimand and identification strategy do not match, and tasks needing an unsupported design (difference-in-differences, regression discontinuity) |
+| agent | 20-30 golden tasks: does it ask about the critical fields, miss a diagnostic, overstate the claim, including tasks where the estimand and identification strategy do not match, and tasks needing an unsupported design (difference-in-differences, regression discontinuity) |
 | regression | Freeze a few confirmed specs and snapshots as fixtures; a change to a family must not change their results |
 
 [reuse] Frozen handoffs as regression tests follow Causal desk ADR-0004 (ideas only); the

@@ -10,7 +10,7 @@ adding two things the original lacked:
    alone; without a correction that noise reads as imbalance. Benjamini-Hochberg
    controls the FDR here.
 2. **Thresholds outside the code.** Where the line falls is declared in family.yaml,
-   not buried here — thresholds decide how strongly a conclusion may be worded, so
+   not buried here, thresholds decide how strongly a conclusion may be worded, so
    they must be fixed in advance and end up in the report and the manifest.
 
 The form of the diagnostic is the family's business, not a universal first-stage F
@@ -81,7 +81,7 @@ def _first_stage_linear(
     """Linear first stage: robust F and partial R-squared.
 
     The partial R-squared goes through Frisch-Waugh-Lovell: residualise both T and Z
-    on the controls, then take the R-squared between the residuals — that is Z's
+    on the controls, then take the R-squared between the residuals, that is Z's
     explanatory power for T once the controls are held fixed.
     """
     full = sm.OLS(treatment, _design_matrix(data, instruments + controls)).fit(cov_type=ROBUST_COV)
@@ -145,7 +145,7 @@ def _covariate_balance(
 
     If the instrument really is close to randomly assigned, the covariates should be
     balanced across it. This is a **necessary** condition for "the instrument is
-    independent of unmeasured confounders" — imbalance is a bad sign, but balance is
+    independent of unmeasured confounders", imbalance is a bad sign, but balance is
     not evidence that the exclusion restriction holds, since that one cannot be tested
     at all.
     """
@@ -293,7 +293,7 @@ def check_instrument(
                 impact_on_analysis=(
                     "The estimand is the conditional LATE among compliers. A small "
                     "complier share means the conclusion holds only for a narrow slice of "
-                    "the population, and compliers cannot be identified individually — "
+                    "the population, and compliers cannot be identified individually, "
                     "the report has to say so."
                 ),
                 recommended_repair=(
@@ -340,7 +340,7 @@ def check_instrument(
                     "The instrument is associated with covariates, so it may not be close "
                     "to randomly assigned, which weakens the case for 'the instrument is "
                     "independent of unmeasured confounders'. This is a failed necessary "
-                    "condition — balance on its own would not be evidence for the "
+                    "condition, balance on its own would not be evidence for the "
                     "exclusion restriction."
                 ),
                 recommended_repair=(

@@ -7,10 +7,10 @@ chosen, why, and what was rejected**.
 
 Only three kinds:
 
-1. **Things the design document does not cover, discovered during implementation** —
+1. **Things the design document does not cover, discovered during implementation**,
    e.g. 0001
 2. **Genuine trade-offs, where an alternative was rejected**
-3. **Counter-intuitive decisions someone will later try to "simplify" away** — e.g.
+3. **Counter-intuitive decisions someone will later try to "simplify" away**: e.g.
    the counter-check in 0001
 
 **Do not** record decisions the design document already explains. Copying design.md
@@ -31,5 +31,5 @@ the import-linter contract).
 Copy `0000-template.md`, increment the number, name the file `NNNN-short-title.md`. A
 superseded decision is **not deleted**; set `status: superseded by ADR-NNNN`.
 
-The "options rejected" section is worth more than the rationale — six months later it
+The "options rejected" section is worth more than the rationale, six months later it
 is what shows you had in fact thought of the alternative.

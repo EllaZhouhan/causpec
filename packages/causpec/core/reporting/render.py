@@ -9,8 +9,8 @@ Mirrors design.md 10.1 and G4. Three rules, all enforced by code:
 2. A **bare number** anywhere in the prose fails the render.
 3. Numbers that are part of a term ("28-day mortality", "95% confidence interval",
    "AKI stage 3") are written ``{{lit:28}}``, declaring explicitly that they are not
-   results. **But a lit whose value matches any computed result is also refused** —
-   that would be smuggling.
+   results. **But a lit whose value matches any computed result is also refused**,
+   because that would be smuggling.
 
 On failure the error goes back to the model to rewrite. There is no other path by
 which a number reaches the report.
@@ -22,7 +22,7 @@ import contextlib
 import re
 from collections.abc import Iterable, Mapping
 
-# {{res:primary.ate}} or {{res:primary.ate|.3f}} — after the pipe is a Python format spec.
+# {{res:primary.ate}} or {{res:primary.ate|.3f}}, after the pipe is a Python format spec.
 # Format specs are not a nicety: without them the report shows
 # -0.017936448014042473, and a model's natural response to that is to round it itself,
 # which defeats G4. Letting it declare precision is safer than letting it do the maths.
@@ -34,7 +34,7 @@ PLACEHOLDER = re.compile(r"\{\{([a-z]+):([A-Za-z0-9_.\-]+?)(?:\|([^}]+))?\}\}")
 # The trailing lookahead is `(?!\d)`, not `(?![\w.])`. The stricter form refuses to
 # match a number followed by a period, which in Chinese prose was harmless (sentences
 # end in a full-width period) but in English silently exempts every number at the end
-# of a sentence — "the effect is about -0.08." would have passed. Found while
+# of a sentence, "the effect is about -0.08." would have passed. Found while
 # translating the project; the leading lookbehind still prevents matching a fragment
 # of a longer number.
 BARE_NUMBER = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?!\d)")
@@ -88,7 +88,7 @@ def _format_address_list(addresses: Iterable[str], limit: int = 12) -> str:
     """Lay out addresses so a person can read them.
 
     Listing every address inline produces dozens on one line and buries the actual
-    fix — that is how the cold-start test went wrong. Group by namespace, truncate.
+    fix, that is how the cold-start test went wrong. Group by namespace, truncate.
     """
     grouped: dict[str, list[str]] = {}
     for address in sorted(addresses):
@@ -111,7 +111,7 @@ def _as_float(value: object) -> float | None:
 def _addresses_near(
     number: float, addresses: Mapping[str, float | int | str], tolerance: float = 0.05
 ) -> list[str]:
-    """Addresses whose value is close to a given number — a bare number is usually
+    """Addresses whose value is close to a given number, a bare number is usually
     meant to be one of them."""
     near = []
     for address, value in addresses.items():
@@ -148,7 +148,7 @@ def render(template: str, addresses: Mapping[str, float | int | str]) -> str:
 
     ``addresses`` is the merged table from every source: estimation (``res:``),
     quality checks (``qc:``) and the claim level (``claim:``). The renderer knows
-    nothing about any source's type, only about addresses — so adding a new kind of
+    nothing about any source's type, only about addresses, so adding a new kind of
     artefact does not touch this function.
 
     Raises:

@@ -19,7 +19,7 @@ Mortality at 28 days was {{res:primary.mean_treated}}
 ```
 
 The `28` was judged an un-placeheld number. So are the `95` in "95% confidence
-interval", the `3` in "AKI stage 3", the `2` in "phase 2" — **these numbers are part of
+interval", the `3` in "AKI stage 3", the `2` in "phase 2", **these numbers are part of
 a term, not a computed result**.
 
 The design document did not anticipate this when it wrote the rule.
@@ -61,7 +61,7 @@ integer sample size and among the numbers most in need of protection. Rejected.
 
 **B. Maintain a whitelist of terms** ("28 days", "95%", "AKI-3", …). No change of habit
 for the model, but the whitelist can never be complete, and each addition is a silent
-loosening — when something goes wrong, nobody can tell which entry let it through.
+loosening, when something goes wrong, nobody can tell which entry let it through.
 Rejected.
 
 **C. Only catch a number when result-like words appear nearby** ("effect", "difference",
@@ -69,11 +69,11 @@ Rejected.
 with unpredictable behaviour. Rejected.
 
 **D. Drop the rule and verify addresses only.** Cheapest, but it abandons the more
-important half of G4 — "the model does not write numbers" becomes advice. Rejected.
+important half of G4, "the model does not write numbers" becomes advice. Rejected.
 
 ## Consequences
 
-**Benefits**: G4's guarantee survives intact, and the rule explains itself — the error
+**Benefits**: G4's guarantee survives intact, and the rule explains itself, the error
 the model receives says what to write instead.
 
 **Costs**:
@@ -90,5 +90,5 @@ the model receives says what to write instead.
    template grows more complex.
 
 **Do not delete `_check_literals_are_not_results`.** It looks like an odd special case,
-and every test still passes without it (unless its own test goes too) — but G4 stops
+and every test still passes without it (unless its own test goes too), but G4 stops
 holding.

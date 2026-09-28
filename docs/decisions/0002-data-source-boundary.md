@@ -32,7 +32,7 @@ acceptance criteria.
 1. A path must be `resolve()`d (following symlinks and `..`) and then checked to lie
    inside the configured `root`; otherwise it is refused
 2. Only the extensions declared in the configuration are accepted (`.csv`, `.parquet`)
-3. The structured refusal **does not echo the resolved absolute path** — that would leak
+3. The structured refusal **does not echo the resolved absolute path**, that would leak
    the directory structure back into the model's context
 
 **Database sources**
@@ -53,7 +53,7 @@ boundary is expressed in the schema, not patched up at runtime.
 
 Principle 3 says "the read-only guarantee comes from database account permissions, not
 from a prompt". That holds for databases, but **there is no counterpart for file
-sources** — a filesystem has no read-only account, so the server has to draw the
+sources**, a filesystem has no read-only account, so the server has to draw the
 boundary itself. `root` is that boundary.
 
 Recording this now rather than at Phase 3: constraints of this kind get harder to add
@@ -83,7 +83,7 @@ principle 3 becomes a property of the system rather than of databases.
 1. Every tool taking a data-source argument must go through one validation entry point
    rather than each writing its own. `core/adapters/` needs a single resolution function.
 2. Not echoing the absolute path in a refusal makes debugging a configuration slightly
-   harder — the error can only say "outside the permitted range", with the path visible
+   harder, the error can only say "outside the permitted range", with the path visible
    in the server's stderr log.
 3. `doctor` genuinely writing to the database needs a target that is clearly harmless
    (attempting to create a table in a schema that does not exist, expecting failure).

@@ -13,7 +13,7 @@ traces back to a computation. Data sources are read-only throughout.
 Causal analysis on observational data usually fails before the estimation: treatment,
 outcome and time zero are vaguely defined; a post-treatment variable or a positivity
 problem goes unnoticed; definitions drift between datasets; numbers cannot be
-reproduced. Tools of the "LLM plus code" kind add a failure of their own — the model
+reproduced. Tools of the "LLM plus code" kind add a failure of their own: the model
 computing, or inventing, the numbers itself.
 
 Four principles:
@@ -34,8 +34,8 @@ Four principles:
 | `hte_backdoor` | Heterogeneous treatment effects under backdoor adjustment |
 | `longitudinal_ipcw` | Longitudinal treatment effects via IPCW (not implemented) |
 
-Designs outside that range — difference-in-differences, regression discontinuity,
-synthetic control — are refused explicitly, with a reason given for each excluded
+Designs outside that range (difference-in-differences, regression discontinuity,
+synthetic control) are refused explicitly, with a reason given for each excluded
 family.
 
 ## Installing
@@ -57,7 +57,7 @@ uv sync --extra hte
 
 With pip: `pip install causpec` or `pip install 'causpec[hte]'`.
 
-**A missing extra does not surface as an ImportError** — the registry returns a
+**A missing extra does not surface as an ImportError**, the registry returns a
 structured error carrying the install command:
 
 ```console
@@ -112,7 +112,7 @@ binary and continuous instruments are supported.
 | Multiple instruments / `adjustment_set` | not supported | supported |
 
 **Why `dmliv` can only bootstrap**: its final model is an arbitrary regressor, so
-EconML can derive no variance for it — `_get_inference_options()` lists nothing else.
+EconML can derive no variance for it, `_get_inference_options()` lists nothing else.
 That is not a choice, it is the only option.
 
 **Why `ivforest`'s ATE interval also bootstraps**: `econml.grf` exposes only
@@ -120,7 +120,7 @@ That is not a choice, it is the only option.
 dimensions at a single x, not across different x). The per-point estimates from one
 forest are highly correlated, so averaging pointwise variances and dividing by n would
 assume independence. The CATE interval therefore uses GRF's analytic variance while the
-ATE interval bootstraps — different mechanisms, recorded separately in
+ATE interval bootstraps, different mechanisms, recorded separately in
 `res:cate.ci_method` and `res:primary.ate_ci_method` for the report to explain.
 
 **The replicate count** defaults to 200 for both backends and is overridable:
@@ -158,7 +158,7 @@ uv run python data/generators/dataset_a.py --out /tmp/a.csv --preset high_power 
 
 `realistic` matches the scale of the real ICU study (about 9.5% treated, about 4%
 mortality) and is what demos and quality checks use. `high_power` raises the complier
-share and event rate for numerical evals — at the realistic scale an IV analysis has a
+share and event rate for numerical evals, at the realistic scale an IV analysis has a
 standard error larger than the truth itself, and numerical tests drown in noise.
 
 ## The skill
@@ -169,7 +169,7 @@ standard error larger than the truth itself, and numerical tests drown in noise.
 ./scripts/build_skill.sh     # build the wheel into assets, emit dist/causpec-analyst-skill.zip
 ```
 
-The wheel is a build product and is not committed — a committed wheel drifts silently
+The wheel is a build product and is not committed, a committed wheel drifts silently
 from the source, and the wheel is what the skill runs.
 
 **Trying it in Claude Code**: `.claude/skills/causpec-analyst` is a symlink to
@@ -182,7 +182,7 @@ the wheel.
 
 **Why best-effort**: an agent is technically able to bypass `scripts/run.py` and read
 the data itself, so in skill form "only code produces numbers" rests on the agent
-following the rules. The report header notes this. MCP form does not have the problem —
+following the rules. The report header notes this. MCP form does not have the problem:
 there the model can only reach the data through declared tools (not implemented yet).
 
 ## Documentation

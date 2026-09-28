@@ -71,7 +71,7 @@ def strong_report(strong):
     return check_instrument(strong, SPEC, CONFIG)
 
 
-# ---- Benjamini–Hochberg ----
+# ---- Benjamini-Hochberg ----
 
 
 def test_bh_controls_fdr_under_the_null() -> None:

@@ -160,12 +160,12 @@ def test_the_constraint_is_on_showing_not_on_reading(skill_text: str) -> None:
     """The risk is the user seeing a menu, not the agent reading a file.
 
     Rule 6 first said "do not look at the data", so the model asked a clinician to
-    classify their own treatment as baseline or time-varying — in the abstract, before
+    classify their own treatment as baseline or time-varying, in the abstract, before
     establishing that the table has one row per patient. The next attempt said "read the
     shape but not the variables", which contradicted itself: naming `rrt_started` and
     its 0/1 values in the question *is* reading a variable.
 
-    The data supplies the question two ways — the user picks off a list they were just
+    The data supplies the question two ways, the user picks off a list they were just
     shown, or the agent invents an analysis from what happens to exist. Neither comes
     from reading a file, so the constraint sits on what is shown and proposed.
     """
@@ -179,7 +179,7 @@ def test_the_constraint_is_on_showing_not_on_reading(skill_text: str) -> None:
 def test_skill_asks_about_timing_concretely_not_abstractly(skill_text: str) -> None:
     """Two options only: already on treatment at baseline, or started at some point.
 
-    No fixed windows, landmark analysis or g-methods unless the user asks — those are
+    No fixed windows, landmark analysis or g-methods unless the user asks, those are
     for a colleague, not for the clinician who asked the question.
     """
     assert "already on it at admission" in skill_text.lower()
@@ -200,6 +200,53 @@ def test_skill_separates_justifying_the_workflow_from_stating_the_stakes(
     assert "State the consequence, not the mechanism" in skill_text
 
 
+def test_skill_does_not_re_ask_what_the_user_already_said(skill_text: str) -> None:
+    """Asking "which patients benefit more" already settles the estimand.
+
+    The exploratory run asked the user to confirm that heterogeneity was the primary
+    target, after they had asked for it in their opening sentence. Infer from what was
+    said; ask only about what is genuinely undetermined.
+    """
+    assert "Do not ask again what they already told you" in skill_text
+    assert "Ask only about what is genuinely undetermined" in skill_text
+
+
+def test_skill_drafts_effect_modifiers_rather_than_asking_for_them(skill_text: str) -> None:
+    """A user asking which patients benefit cannot also be the one to name them.
+
+    The first version asked, per variable, whether the effect should be allowed to vary
+    with it. With forty covariates that is forty questions, and it asks the user to
+    answer the question they came to have answered. design.md 7.5 already rejects the
+    same move for DAGs: the agent drafts from the measurement window, the user confirms.
+
+    What the user genuinely knows, and the tool cannot infer, is which variables were
+    measured after treatment started.
+    """
+    assert "Do not ask the user to enumerate the effect modifiers" in skill_text
+    assert "Default X to every pre-treatment covariate" in skill_text
+    assert "measured after" in skill_text
+    assert "Offer a focus, do not require one" in skill_text
+
+
+def test_no_dash_punctuation_anywhere_in_the_skill() -> None:
+    """Dashes as punctuation are out, at any length.
+
+    Hyphens inside a word (`pre-treatment`, `cross-sectional`) are spelling and stay;
+    this only looks for a dash standing alone between words, and for the em and en
+    dashes, which have no other use.
+    """
+    import re
+
+    offenders = []
+    for path in [SKILL_MD, *REFERENCES.glob("*.md"), SKILL_DIR / "assets" / "report-template.md"]:
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if re.match(r"^\s*[-*]\s", line) or line.strip().startswith("|-"):
+                continue  # markdown list bullet or table rule
+            if re.search(r"[\u2013\u2014]|(?<=[^\s|])\s-\s(?=[^\s|])", line):
+                offenders.append(f"{path.name}:{number}")
+    assert not offenders, f"dash used as punctuation: {offenders}"
+
+
 def test_skill_opens_with_a_greeting_not_a_preamble(skill_text: str) -> None:
     assert "Open by greeting them" in skill_text
 
@@ -208,9 +255,9 @@ def test_best_effort_belongs_in_the_report_not_the_conversation(skill_text: str)
     """design.md section 3 says only "noted in the report header", not "said up front".
 
     The first version phrased this as "you must tell the user this is best-effort
-    mode", so the model opened with a paragraph about the tool's own limitations —
+    mode", so the model opened with a paragraph about the tool's own limitations,
     including an unprompted "I could technically bypass the scripts and compute this
-    myself" — to a user who had just asked a clinical question. That is not
+    myself", and said it to a user who had just asked a clinical question. That is not
     transparency but buck-passing: the user can do nothing with it. This test watches
     for the drift back.
     """

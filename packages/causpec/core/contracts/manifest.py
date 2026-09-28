@@ -4,8 +4,8 @@ Mirrors design.md section 14 and G5 (same inputs and seed, same results).
 
 The manifest has to answer one question: **could I rerun this analysis six months
 from now and get the same numbers?** So it records everything that can change the
-result — code version, dependency versions, spec hash, data fingerprint, seed,
-decision-rule hash — plus a checksum per artefact, so tampering is detectable.
+result (code version, dependency versions, spec hash, data fingerprint, seed,
+decision-rule hash) plus a checksum per artefact, so tampering is detectable.
 
 **No raw rows, no credentials** (design.md section 14).
 """

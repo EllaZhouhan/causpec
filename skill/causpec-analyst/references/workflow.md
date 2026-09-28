@@ -8,7 +8,7 @@ The order exists for a reason. Do not skip. Each step below suggests how to ask.
 
 ### Read the schema freely; just do not hand the user a menu
 
-The failure this step guards against is the data supplying the question — "oh, there's
+The failure this step guards against is the data supplying the question, "oh, there's
 a length-of-stay column, shall we look at that too?" It happens two ways, and neither
 is caused by reading a file:
 
@@ -45,7 +45,7 @@ Write it into the spec, each field carrying the user's own words, `status: confi
 
 If every unit appears once and there are no time columns, the data is cross-sectional.
 Say so and move on. Do not ask a clinician to classify their own treatment as static or
-time-varying in the abstract — that is hard to answer cold, and the file has often
+time-varying in the abstract, that is hard to answer cold, and the file has often
 answered it already.
 
 ### When the treatment might be time-varying
@@ -58,13 +58,13 @@ Having read the schema, ask concretely:
 
 Only two answers matter:
 
-- **Already on it at admission** (or at a fixed baseline) — a static treatment, which is
+- **Already on it at admission** (or at a fixed baseline), a static treatment, which is
   what CauSpec supports
-- **At any point during the stay** — a time-varying treatment. Say what hangs on it in
+- **At any point during the stay**, a time-varying treatment. Say what hangs on it in
   one sentence, then say CauSpec does not support this:
 
   > "A patient who starts on day 5 counts as untreated for those four days, and anyone
-  > who died early never had the chance to start — which would make dialysis look better
+  > who died early never had the chance to start, which would make dialysis look better
   > than it is. That needs a longitudinal design, which this tool doesn't have. I won't
   > force it into a comparison that would give you a number you can't rely on."
 
@@ -93,7 +93,7 @@ When a column name is ambiguous, ask. Do not guess.
 ## 3. Variable roles
 
 Confirm `effect_modifiers` (X) and `adjustment_set` (W) **separately**. See
-`variable-roles.md` — this is the easiest place to go wrong without any error.
+`variable-roles.md`, this is the easiest place to go wrong without any error.
 
 **Measurement time first**: a variable measured after treatment can never enter the
 adjustment set.
@@ -117,8 +117,8 @@ The key question:
 
 Record the assumptions in `assumptions`, by category. Spell out the `untestable` ones:
 
-> "'Given these covariates, who received dialysis is unrelated to their prognosis' —
-> no statistical test can verify that. Whether it holds is a clinical judgement. Are
+> "'Given these covariates, who received dialysis is unrelated to their prognosis'.
+> No statistical test can verify that. Whether it holds is a clinical judgement. Are
 > you willing to stand behind it? If so, tell me why and I'll record it in the report."
 
 ---
@@ -177,7 +177,7 @@ How to write `narrative.yaml` is in `reporting.md`.
 
 Afterwards:
 
-- Tell the user the claim level **and the reasoning** — not just the level, but why it
+- Tell the user the claim level **and the reasoning**, not just the level, but why it
   could not be higher
 - Point them at the run directory, which holds the manifest (dependency versions and
   checksums) and makes the run reproducible

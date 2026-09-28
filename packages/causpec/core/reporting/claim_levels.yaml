@@ -15,7 +15,7 @@ code_maximum: suggestive
 rules:
   # The gate failed (spec unconfirmed, or an unwaived blocking quality issue).
   gate_failed: descriptive
-  # A blocking check failed — **even if it was waived**. A waiver lets the analysis
+  # A blocking check failed, **even if it was waived**. A waiver lets the analysis
   # proceed; it does not make the problem go away, and the diagnosis still has to
   # show up in the wording.
   blocking_check_failed: associational
@@ -38,9 +38,9 @@ causal_requires:
 # How each level may be phrased, for the skill to follow (design.md 10.2).
 wording:
   causal: >-
-    may say "reduced" or "increased" — asserts causal direction and magnitude
+    may say "reduced" or "increased"; asserts causal direction and magnitude
   suggestive: >-
-    may only say "suggests a possible association with ..." — asserts no causation
+    may only say "suggests a possible association with ..."; asserts no causation
   associational: >-
     describe the association only, and state that this analysis does not support a
     causal reading

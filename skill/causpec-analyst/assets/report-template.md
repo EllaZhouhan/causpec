@@ -54,7 +54,7 @@ Same for "{{lit:95}}% confidence interval", "AKI stage {{lit:3}}", "the first
 {{lit:24}} hours".
 
 **This is not pedantry.** If numbers inside terms were let through, there would be no
-mechanical way to tell "28 days" from "the effect is 0.028" — and the second is
+mechanical way to tell "28 days" from "the effect is 0.028", and the second is
 precisely what has to be stopped. The renderer does not read meaning, so it draws one
 line and asks you to declare which numbers you did not compute.
 
@@ -70,7 +70,7 @@ Un-placeheld number(s) in the prose: 28.
 
 | What you wrote | Why it fails |
 |---|---|
-| `the outcome is 28-day mortality` | Numbers inside terms need placeholders too — write `{{lit:28}}` |
+| `the outcome is 28-day mortality` | Numbers inside terms need placeholders too: write `{{lit:28}}` |
 | `The average effect is about -0.018.` | A bare number; the renderer refuses it |
 | `{{res:primary.ate}}` with no format spec | Works, but prints 17 significant digits |
 | `{{lit:0.018}}` used as the effect | Smuggling a result through `lit:`; refused |

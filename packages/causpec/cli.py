@@ -1,6 +1,6 @@
 """CauSpec command-line entry point.
 
-``quality`` runs the checks alone — G3 requires the quality report to be a
+``quality`` runs the checks alone, G3 requires the quality report to be a
 deliverable even when the analysis cannot run.
 ``estimate`` runs the checks, passes the gate, estimates, and optionally renders a
 report.
@@ -48,7 +48,7 @@ def _load_narrative(path: Path | None) -> dict[str, str]:
 
     A YAML mapping of ``{section: prose}``. A single free-form document is not
     accepted: the report's structure comes from design.md 10.3, not from whoever is
-    writing — least of all the rule that assumptions precede results.
+    writing, least of all the rule that assumptions precede results.
     """
     if path is None:
         return {}
@@ -149,7 +149,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     data = _load_data(args.data)
     family = _resolve_family(spec)
 
-    # The gate runs before estimation and stops the command if it fails — an `if` in
+    # The gate runs before estimation and stops the command if it fails, an `if` in
     # code, not a rule in a prompt. Condition 1 checks spec confirmation, condition 2
     # checks for unwaived blocking quality issues.
     waivers = _parse_waivers(args.waive)

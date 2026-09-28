@@ -2,8 +2,8 @@
 
 ## When to use `hte_iv`
 
-The user believes there is **unmeasured confounding** — that the observable covariates
-are not enough to control it — but has a credible instrument.
+The user believes there is **unmeasured confounding**, meaning the observable
+covariates are not enough to control it, but has a credible instrument.
 
 That is a judgement for them to make, not something you can read off the data. How to
 ask:
@@ -22,7 +22,7 @@ Yes, and there is an instrument -> consider IV. No, and the user is confident ->
 ### Binary instrument
 
 Under relevance, the exclusion restriction and monotonicity, what is identified is the
-**conditional LATE among compliers** — the people whose treatment status changed
+**conditional LATE among compliers**, the people whose treatment status changed
 because the instrument took a different value.
 
 Compliers **cannot be identified individually**. So:
@@ -58,7 +58,7 @@ itself untestable**, and the user has to own it explicitly.
 ## Estimand reconciliation
 
 A user asking "which patients benefit" wants a CATE. If the identification strategy is
-IV under monotonicity alone, **those do not match** — stop at step 5 and give the user
+IV under monotonicity alone, **those do not match**, stop at step 5 and give the user
 the choice:
 
 1. Restate the estimand and accept that the conclusion covers compliers only
@@ -84,7 +84,7 @@ interval: on the same data, 20 replicates and the analytic interval differed by 
 orders of magnitude in the count of individuals with a significant benefit. Below 100
 the Result is flagged (`res:estimation.bootstrap_adequate`) and the report has to say so.
 
-On a multi-core machine add `bootstrap_n_jobs: 8` — measured at 4.6x faster with
+On a multi-core machine add `bootstrap_n_jobs: 8`, measured at 4.6x faster with
 identical results.
 
 ## Recording the three assumptions
@@ -108,6 +108,6 @@ The exclusion restriction needs a **domain argument**, so you have to ask:
 > dialysis tendency reach mortality by any other route? Are consultants who dialyse
 > more also more aggressive in other ways?"
 
-The `iv_covariate_imbalance` check only tests a **necessary** condition — if the
+The `iv_covariate_imbalance` check only tests a **necessary** condition, if the
 instrument really were close to random, covariates should be balanced across it.
 **Balance is not evidence that the exclusion restriction holds.**

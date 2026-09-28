@@ -41,7 +41,7 @@ class QualityIssue(BaseModel):
     **Invariant: ``severity`` reflects the check's outcome, not its declaration.**
     A check that passes is always downgraded to ``INFO``; only a failure carries the
     severity declared in family.yaml. ``QualityReport.blocking`` is therefore exactly
-    the set of checks that were declared blocking *and* failed — both the gate and the
+    the set of checks that were declared blocking *and* failed, both the gate and the
     claim-level decision rely on this. Pass/fail is recorded separately in
     ``evidence["passed"]``.
     """

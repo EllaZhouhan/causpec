@@ -20,7 +20,7 @@ estimands:
 
 requires:
   # The field layout follows the seven components of a target trial (StatsPAI's
-  # TargetTrialProtocol, MIT — structure only, no dependency).
+  # TargetTrialProtocol, MIT, structure only, no dependency).
   spec_fields:
     - eligibility
     - treatment_strategies

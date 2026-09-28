@@ -47,7 +47,7 @@ build one from the repository root:
 
 Estimation additionally needs causpec[hte] (econml, scikit-learn). When that cannot be
 installed in the sandbox, the quality checks and report rendering still work but
-estimation does not — say so plainly rather than computing a number some other way.
+estimation does not, say so plainly rather than computing a number some other way.
 """
 
 

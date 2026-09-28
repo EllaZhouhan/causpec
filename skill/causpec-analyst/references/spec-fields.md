@@ -18,7 +18,7 @@ assumptions:
     category: untestable           # empirically_assessed | requires_justification | untestable
     statement: given the adjustment set, assignment is independent of potential outcomes
     justification: ""              # the user's argument; required for causal wording
-    justified_by: user             # must be `user` — a model's own argument does not count
+    justified_by: user             # must be `user`; a model's own argument does not count
 
 fields:
   treatment:
@@ -47,15 +47,15 @@ fields:
 
 ## Two rules about `said`
 
-1. Required when `source: user` — what the user said is the evidence, kept verbatim
+1. Required when `source: user`, what the user said is the evidence, kept verbatim
 2. **Required when `status: confirmed`**, whatever the source
 
 The second matters most. You infer `outcome = death` (`source: model`), the user says
-"yes, in-hospital death" — you then mark it `confirmed`, `source` stays `model`, and
+"yes, in-hospital death", you then mark it `confirmed`, `source` stays `model`, and
 `said` records the words they used when agreeing.
 
 **Never confirm on the user's behalf.** The system cannot verify that the user ever
-saw the spec, which is why confirmation requires a quote — and the report's front page
+saw the spec, which is why confirmation requires a quote, and the report's front page
 prints every field's provenance and quote for them to check. A quote they never said
 is one they will recognise instantly.
 
@@ -80,5 +80,5 @@ Each family needs more:
 | `untestable` | **Cannot be verified by data in principle** | Only the user, who carries the responsibility |
 
 Only the `untestable` ones gate `causal` wording. While any of them lacks a user
-justification, the ceiling for an automatic decision is `suggestive` — see
+justification, the ceiling for an automatic decision is `suggestive`, see
 `claim-levels.md`.

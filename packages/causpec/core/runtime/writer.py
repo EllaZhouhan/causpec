@@ -3,7 +3,7 @@
 Mirrors design.md section 14: "writes use a temporary file plus an atomic rename".
 
 Why atomicity is required: when a run is interrupted, half a results.json is worse
-than no results.json — it looks like a result but its contents are truncated. A
+than no results.json, it looks like a result but its contents are truncated. A
 temporary file plus ``os.replace`` guarantees a reader sees either the complete old
 version or the complete new one, never an intermediate state.
 """
@@ -53,7 +53,7 @@ def write_atomic(path: Path, content: str | bytes) -> Path:
 
 def write_json_atomic(path: Path, payload: Any) -> Path:
     """Write JSON atomically, with sorted keys so identical content yields identical
-    bytes — otherwise the checksum means nothing."""
+    bytes, otherwise the checksum means nothing."""
     text = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, default=str)
     return write_atomic(path, text + "\n")
 
@@ -61,8 +61,8 @@ def write_json_atomic(path: Path, payload: Any) -> Path:
 def append_atomic(path: Path, line: str) -> None:
     """Append one line.
 
-    The audit log grows line by line, so it cannot use read-modify-atomic-replace —
-    that loses lines under concurrency. POSIX guarantees that a single write smaller
+    The audit log grows line by line, so it cannot use read-modify-atomic-replace, which
+    loses lines under concurrency. POSIX guarantees that a single write smaller
     than PIPE_BUF to a file opened in append mode does not interleave, and audit lines
     are far below that bound.
     """
