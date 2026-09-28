@@ -12,7 +12,9 @@ that a trajectory is still active one period on. The weight of a lag-kappa windo
 product of one reciprocal per continuation decision from the anchor period to the outcome
 period, ``prod_{s=a}^{t} 1 / lambda-hat(X[s], A[s])``. At lag 0 no weight is applied: with
 only the current shock left in the residual, one-step independence is enough, which is
-what the paper's special case establishes.
+what the paper's special case establishes. And when the horizon is fixed, meaning every unit
+is observed for the same number of periods, no model is fitted and every weight is exactly
+one: see ``_continuation``, where that is decided from the data rather than from a setting.
 
 **The peeled outcome.** The outcome of a period carries the effects of several earlier
 treatment periods at once. Subtracting the already-estimated shorter lags leaves one
@@ -237,11 +239,35 @@ class DynamicLagDmlFit:
     # ---- Stage 0 ----
 
     def _continuation(self, trajectories: list[Trajectory], folds: np.ndarray) -> list[np.ndarray]:
-        """Cross-fitted one-step continuation probability per unit and period."""
+        """Cross-fitted one-step continuation probability per unit and period.
+
+        **A fixed horizon needs no weights, and that is settled here rather than left to a
+        setting.** Reaching the end of the observation window is not leaving: nothing is
+        known about whether such a trajectory would have continued, so its final period
+        contributes no record to the continuation model. When every trajectory ends that way,
+        which is what a balanced panel is, there are no exits to model, no model is fitted,
+        and every weight is exactly one. ``horizon_`` records which case it was and the
+        Result carries it, so a reader can see that the weighting was skipped and why.
+
+        Getting this wrong is not harmless. Labelling the end of every trajectory as an exit
+        asks the model to predict "is this the last period", which in a balanced panel is a
+        function of the period index, and the period index is not among the features. On an
+        eight-period balanced panel it fitted continuation probabilities as low as 0.40 and
+        weights up to 4.3, all of which should have been 1. The ratio moment is nearly
+        immune, because a roughly constant weight cancels, but the variance is not, and the
+        report would have told the reader there was censoring to correct when there was
+        none.
+        """
         self.continuation_min_ = float("nan")
         self.continuation_clipped_share_ = float("nan")
-        if not self.use_weights:
-            return [np.ones(t.length) for t in trajectories]
+        lengths = [trajectory.length for trajectory in trajectories]
+        window_end = max(lengths)
+        # Fixed horizon: every trajectory runs to the end of the observation window, so none
+        # of them left early and there is nothing for the weights to correct.
+        self.horizon_ = "fixed" if min(lengths) == window_end else "random"
+        self.ipcw_applied_ = self.use_weights and self.horizon_ == "random"
+        if not self.ipcw_applied_:
+            return [np.ones(length) for length in lengths]
         if self.oracle_continuation:
             return [
                 np.clip(np.asarray(t.continuation, dtype=float), self.lambda_floor, 1 - 1e-9)
@@ -251,11 +277,18 @@ class DynamicLagDmlFit:
         features: list[np.ndarray] = []
         labels: list[float] = []
         owner: list[int] = []
+        at_period: list[int] = []
         for index, trajectory in enumerate(trajectories):
+            censored = trajectory.length == window_end
             for period in range(trajectory.length):
+                continued = period + 1 < trajectory.length
+                if not continued and censored:
+                    continue  # cut off by the window; nothing is known about continuing
                 features.append(np.append(trajectory.state[period], trajectory.treatment[period]))
-                labels.append(1.0 if period + 1 < trajectory.length else 0.0)
+                labels.append(1.0 if continued else 0.0)
                 owner.append(index)
+                at_period.append(period)
+
         design = np.asarray(features, dtype=float)
         label = np.asarray(labels, dtype=float)
         # Explicitly integer: it indexes the fold array, and a float index is not indexing.
@@ -275,10 +308,14 @@ class DynamicLagDmlFit:
         self.continuation_clipped_share_ = float(np.mean(fitted <= self.lambda_floor))
         fitted = np.clip(fitted, self.lambda_floor, 1 - 1e-9)
 
-        out, cursor = [], 0
-        for trajectory in trajectories:
-            out.append(fitted[cursor : cursor + trajectory.length])
-            cursor += trajectory.length
+        # Scattered back by (unit, period) rather than by position: a censored trajectory
+        # contributes one record fewer than it has periods, so the rows and the periods no
+        # longer line up. Anything with no record keeps 1, and a window's weight never
+        # reaches a unit's final period anyway, since the outcome period is at most the
+        # second to last.
+        out = [np.ones(length) for length in lengths]
+        for row, (index, period) in enumerate(zip(owner, at_period, strict=True)):
+            out[index][period] = fitted[row]
         return out
 
     def _predict_continuation(
@@ -668,6 +705,11 @@ class DynamicLagDml:
             "res:profile.ci_calibration": "exploratory",
             "res:profile.continuation_min": float(fit.continuation_min_),
             "res:profile.continuation_clipped_share": float(fit.continuation_clipped_share_),
+            # Whether any trajectory ended before the end of the observation window. A fixed
+            # horizon has nothing to weight, and the report should say the weighting was
+            # skipped rather than leave the reader to infer it from weights of exactly 1.
+            "res:profile.horizon": str(fit.horizon_),
+            "res:profile.ipcw_applied": str(fit.ipcw_applied_),
         }
         by_lag = {lag_fit.lag: lag_fit for lag_fit in fit.fits_}
         for lag in range(fit.max_lag + 1):

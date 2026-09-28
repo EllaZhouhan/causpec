@@ -25,6 +25,13 @@ the milestones in plan.md section 2.
   the generator's first heterogeneity design put the lag-2 estimate at +4.7 where its
   nominal truth was +1.2. A blocking, waivable check now refuses a modifier that varies
   within a unit
+- **A fixed horizon is detected, and then no weighting is applied**: when every unit is
+  observed for the same number of periods, no trajectory left early, so no continuation
+  model is fitted and every weight is exactly one, with `res:profile.horizon` and
+  `res:profile.ipcw_applied` on the result so the report can say the weighting was skipped
+  rather than leaving a reader to infer it from weights of one. The same rule handles the
+  mixed case: reaching the end of the observation window is not leaving, so a trajectory
+  ending there contributes no record to the continuation model while earlier endings do
 - **Seven panel quality checks**: period gaps and duplicates (blocking, not waivable,
   because the lag index counts rows and a gap silently relabels every later lag), a state
   column that is nearly a copy of the same period's treatment, too few complete windows per
@@ -118,6 +125,14 @@ the milestones in plan.md section 2.
 - ADR-0001 (literal numbers in reports), ADR-0002 (data-source boundaries)
 
 ### Changed
+
+- **The continuation model no longer treats the end of every trajectory as an exit.** It
+  used to, which asks the model to predict "is this the last period" from the state and the
+  treatment, and the period index is not among them. On an eight-period balanced panel that
+  produced fitted continuation probabilities as low as 0.40 and weights up to 4.3 in a world
+  where every weight should have been 1. The ratio moment was nearly immune, because a
+  roughly constant weight cancels, but the variance was not, and the report would have told
+  the reader there was censoring to correct when there was none
 
 - **`longitudinal_ipcw` became `dynamic_lag_dml`**, and its contents changed with its
   name. The old declaration specified the seven components of a target trial plus

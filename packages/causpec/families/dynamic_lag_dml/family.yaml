@@ -215,6 +215,18 @@ estimator:
     continuation model leaves a bias that does not shrink with the sample size, while
     the boosted one tracks the oracle. The orthogonal direction is the opposite story,
     where linear nuisances are enough and a boosted one only adds variance.
+  note_fixed_horizon: >
+    A fixed horizon is detected, not configured. When every unit is observed for the same
+    number of periods, no trajectory left early, there is nothing for the weights to
+    correct, no continuation model is fitted, and every weight is exactly one; the result
+    carries res:profile.horizon = fixed and res:profile.ipcw_applied = False so the report
+    can say the weighting was skipped rather than leaving a reader to infer it from weights
+    of one. The same rule handles the mixed case: reaching the end of the observation window
+    is not leaving, so a trajectory that ends there contributes no record to the continuation
+    model, while the ones that ended earlier do. Treating every trajectory's end as an exit
+    asks the model to predict "is this the last period", which the state and the treatment
+    cannot say; on an eight-period balanced panel that produced fitted continuation
+    probabilities as low as 0.40 and weights up to 4.3 in a world where all of them were 1.
   lambda_floor_default: 0.05
   note_lambda_floor: >
     The fitted continuation probabilities are clipped below at a fixed constant before

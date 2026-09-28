@@ -78,6 +78,16 @@ wrong quantity.
 
 At lag 0 no weighting is needed, and the estimator does not apply any.
 
+**If every unit is observed for the same number of periods, no weighting is needed at all**,
+and the estimator applies none: nobody left early, so there is nothing to correct. It detects
+this from the data rather than taking it as a setting, and the report says
+`horizon: fixed`. The same rule covers a panel where some units end early and others simply
+reach the end of the observation window: ending at the window is not leaving, so those
+trajectories say nothing about continuing, while the ones that ended earlier do.
+
+So when a user asks whether the censoring correction is needed for their fixed-length panel,
+the answer is that it is not, and that the tool will not apply one.
+
 ## What to tell the user about the interval
 
 **The point estimate is the result; the interval is an indication.** The theory proves

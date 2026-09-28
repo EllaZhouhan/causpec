@@ -423,7 +423,26 @@ def _continuation_positivity(fit: Any, config: dict[str, Any], floor: float) -> 
     max_clipped = _threshold(config, "continuation_positivity", "max_clipped_share", 0.05)
     clipped = float(getattr(fit, "continuation_clipped_share_", float("nan")))
     smallest = float(getattr(fit, "continuation_min_", float("nan")))
+    horizon = str(getattr(fit, "horizon_", "random"))
+    if horizon == "fixed":
+        # Every trajectory ran to the end of the observation window, so none of them left
+        # early. There is no censoring to correct and no weights were applied, which is worth
+        # saying rather than leaving the reader to notice that every weight equals one.
+        return _issue(
+            config,
+            "continuation_positivity",
+            passed=True,
+            summary=(
+                "the horizon is fixed: every unit is observed for the same number of periods, "
+                "so no trajectory left early and no continuation weighting was applied"
+            ),
+            evidence={"horizon": horizon, "ipcw_applied": False},
+            impact="",
+            repair="",
+        )
     evidence: dict[str, float | int | str | bool] = {
+        "horizon": horizon,
+        "ipcw_applied": True,
         "lambda_floor": floor,
         "continuation_min_fitted": round(smallest, 4) if np.isfinite(smallest) else "n/a",
         "clipped_share": round(clipped, 4) if np.isfinite(clipped) else "n/a",

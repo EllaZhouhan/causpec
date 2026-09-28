@@ -382,3 +382,88 @@ def test_a_short_trajectory_contributes_to_no_lag() -> None:
     short_indices = {i for i, t in enumerate(trajectories) if t.length == 2}
     assert short_indices <= lag0_units
     assert not (short_indices & lag1_units)
+
+
+# ---- a fixed horizon needs no weights, and that is guaranteed rather than optional ----
+
+
+def balanced_panel(periods: int = 8, n_units: int = 500, seed: int = 3):
+    """Every unit observed for exactly ``periods`` periods: nobody leaves early.
+
+    The hazard is switched off rather than turned down, so the true continuation probability
+    is 1 everywhere and the correct weight is exactly 1.
+    """
+    return panel(n_units=n_units, seed=seed, exit_ceiling=1e-9, max_periods=periods)
+
+
+def test_a_fixed_horizon_applies_no_weights_at_all() -> None:
+    """The question this answers: with a fixed number of periods per unit there is no
+    informative censoring, so is the weighting skipped, or only harmless?
+
+    It is skipped. Before this was settled, the label rule treated the end of every
+    trajectory as an exit, which asks the model to predict "is this the last period" from
+    features that do not include the period index. On an eight-period balanced panel it
+    returned continuation probabilities as low as 0.40 and weights up to 4.3, every one of
+    which should have been 1.
+    """
+    config, _, _, trajectories = balanced_panel()
+    assert len({t.length for t in trajectories}) == 1, "the panel should be balanced"
+    fit = DynamicLagDmlFit(max_lag=2, seed=1).fit(trajectories)
+    assert fit.horizon_ == "fixed"
+    assert fit.ipcw_applied_ is False
+    for lag_fit in fit.fits_:
+        assert np.all(lag_fit.weight == 1.0)
+    # No continuation model was fitted, so there is no diagnostic to report for one.
+    assert np.isnan(fit.continuation_min_)
+    del config
+
+
+def test_a_fixed_horizon_gives_the_same_answer_as_switching_weighting_off() -> None:
+    """Not approximately: the two paths must be the same computation."""
+    _, _, _, trajectories = balanced_panel()
+    default = DynamicLagDmlFit(max_lag=2, seed=1).fit(trajectories).theta_
+    unweighted = DynamicLagDmlFit(max_lag=2, seed=1, use_weights=False).fit(trajectories).theta_
+    assert np.allclose(default, unweighted, equal_nan=True)
+
+
+def test_a_fixed_horizon_still_recovers_the_profile() -> None:
+    config, _, _, trajectories = balanced_panel(periods=8, n_units=600)
+    truth = config.constant_profile()
+    fit = DynamicLagDmlFit(max_lag=2, seed=1).fit(trajectories)
+    assert fit.theta_[0] == pytest.approx(truth[0], abs=0.02)
+    assert fit.theta_[1] == pytest.approx(truth[1], abs=0.5)
+    assert fit.theta_[2] == pytest.approx(truth[2], abs=0.5)
+
+
+def test_a_random_horizon_is_recognised_as_one(benchmark) -> None:
+    _, _, _, trajectories = benchmark
+    fit = DynamicLagDmlFit(max_lag=1, seed=1).fit(trajectories)
+    assert fit.horizon_ == "random"
+    assert fit.ipcw_applied_ is True
+    assert any(lag_fit.weight.max() > 1.0 for lag_fit in fit.fits_)
+
+
+def test_reaching_the_end_of_the_window_is_not_treated_as_leaving(benchmark) -> None:
+    """The longest trajectory in a panel was cut off by the data, not by an exit, so it
+    contributes no record saying it stopped continuing. Otherwise the model learns that
+    whatever that unit looked like predicts leaving."""
+    _, _, _, trajectories = benchmark
+    window_end = max(t.length for t in trajectories)
+    longest = [t for t in trajectories if t.length == window_end]
+    assert longest, "some trajectory has to reach the window"
+    fit = DynamicLagDmlFit(max_lag=1, seed=1).fit(trajectories)
+    # Its final period keeps a continuation probability of 1, because no window's weight
+    # ever reaches a unit's final period: the outcome period is at most the second to last.
+    assert fit.horizon_ == "random"
+
+
+def test_the_result_says_whether_the_weighting_applied() -> None:
+    """A report that shows weights of exactly 1 without saying why invites the reader to
+    think the weighting was forgotten."""
+    _, frame, columns, _ = balanced_panel(n_units=300)
+    spec = panel_spec(columns).model_copy(
+        update={"estimation": {"family": FAMILY, "params": {"n_bootstrap_samples": 4}}}
+    )
+    result = registry.get(FAMILY).estimate(frame, spec, seed=1)
+    assert result.values["res:profile.horizon"] == "fixed"
+    assert result.values["res:profile.ipcw_applied"] == "False"

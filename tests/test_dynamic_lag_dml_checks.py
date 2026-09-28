@@ -258,3 +258,24 @@ def test_the_modifier_check_is_waivable() -> None:
     declaration = registry.load_declaration(FAMILY)
     assert declaration["checks"]["lag_cate_time_varying_modifier"]["waivable"] is True
     assert declaration["checks"]["panel_period_gaps"]["waivable"] is False
+
+
+def test_a_fixed_horizon_is_reported_as_needing_no_weighting() -> None:
+    """With every unit observed for the same number of periods there is no censoring to
+    correct. The check has to say so: a reader who sees weights of exactly 1 and no
+    explanation cannot tell that from a weighting step that was forgotten.
+    """
+    _, frame, columns = make_panel(n_units=400, seed=3, exit_ceiling=1e-9, max_periods=8)
+    report = run_checks(frame, panel_spec(columns))
+    issue = report.get("continuation_positivity")
+    assert issue.severity is Severity.INFO
+    assert issue.evidence["horizon"] == "fixed"
+    assert issue.evidence["ipcw_applied"] is False
+    assert "no continuation weighting was applied" in issue.summary
+
+
+def test_a_random_horizon_still_reports_its_weight_diagnostics(clean_report) -> None:
+    issue = clean_report.get("continuation_positivity")
+    assert issue.evidence["horizon"] == "random"
+    assert issue.evidence["ipcw_applied"] is True
+    assert "lag2_effective_windows" in issue.evidence
