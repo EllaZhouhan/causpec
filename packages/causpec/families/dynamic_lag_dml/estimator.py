@@ -13,8 +13,10 @@ product of one reciprocal per continuation decision from the anchor period to th
 period, ``prod_{s=a}^{t} 1 / lambda-hat(X[s], A[s])``. At lag 0 no weight is applied: with
 only the current shock left in the residual, one-step independence is enough, which is
 what the paper's special case establishes. And when the horizon is fixed, meaning every unit
-is observed for the same number of periods, no model is fitted and every weight is exactly
-one: see ``_continuation``, where that is decided from the data rather than from a setting.
+is observed for the same number of periods, no model is fitted, every weight is exactly one,
+and each unit's final period contributes a window: see ``_continuation`` and ``_build_rows``.
+The horizon is a confirmed spec field rather than an inference, because a panel truncated to a
+fixed length has the same shape as a fixed horizon and a very different meaning.
 
 **The peeled outcome.** The outcome of a period carries the effects of several earlier
 treatment periods at once. Subtracting the already-estimated shorter lags leaves one
@@ -171,6 +173,7 @@ def to_trajectories(
         raise ValueError(f"columns not in the data: {missing}")
 
     ordered = data.sort_values([unit, period], kind="stable")
+    _refuse_missing_values(ordered, unit, period, [treatment, outcome, *state])
     trajectories: list[Trajectory] = []
     for key, group in ordered.groupby(unit, sort=True):
         periods = group[period].to_numpy()
@@ -207,6 +210,52 @@ def to_trajectories(
             )
         )
     return trajectories
+
+
+def _refuse_missing_values(
+    ordered: pd.DataFrame, unit: str, period: str, columns: list[str]
+) -> None:
+    """Refuse a missing value in any column that enters the estimation.
+
+    Left to itself this surfaces as ``Input y contains NaN`` from inside a nuisance
+    regression, which names neither the column nor the repair. A missing value here is not
+    something to impute either: the state, the treatment and the outcome of a period are the
+    period, and a guess at one of them is a guess at the effect.
+
+    The final-period pattern is called out separately because it has its own cause and its
+    own fix. A fixed-horizon panel now uses the last period's outcome, and that outcome is
+    the one most likely to be absent, since its measurement window can run past the end of
+    data collection.
+    """
+    offenders: list[str] = []
+    final_only: list[str] = []
+    is_final = np.asarray(
+        ordered.groupby(unit)[period].transform("max") == ordered[period], dtype=bool
+    )
+    for column in columns:
+        missing = np.asarray(ordered[column].isna(), dtype=bool)
+        if not missing.any():
+            continue
+        count = int(missing.sum())
+        if bool((missing == (missing & is_final)).all()):
+            final_only.append(f"{column} ({count}, all on final periods)")
+        else:
+            offenders.append(f"{column} ({count})")
+    if not offenders and not final_only:
+        return
+    detail = ", ".join(offenders + final_only)
+    hint = ""
+    if final_only and not offenders:
+        hint = (
+            " Missing only on final periods usually means the outcome's measurement window "
+            "runs past the end of data collection: record one period fewer per unit rather "
+            "than leaving the last one blank."
+        )
+    raise ValueError(
+        f"missing values in columns the estimation uses: {detail}. The state, the treatment "
+        f"and the outcome of a period are the period, so these cannot be imputed."
+        f"{hint}"
+    )
 
 
 def _exit_marks(values: np.ndarray) -> np.ndarray:
@@ -478,22 +527,42 @@ class DynamicLagDmlFit:
     ) -> dict[str, np.ndarray] | None:
         """Every usable lag-``lag`` window, with its weight, anchor state and peeled outcome.
 
-        A window is usable when the outcome period is recorded **and** the trajectory was
-        still active one period after it, which is the convention the paper's analysis set
-        uses: the outcome of period t is realised before period t+1, so observing it means
-        surviving that step, and the weight includes it.
+        Under a variable horizon a window is usable when the outcome period is recorded
+        **and** the trajectory was still active one period after it, which is the paper's
+        analysis set: the outcome of period t is realised before period t+1, so observing it
+        means surviving that step, and the weight includes that step.
+
+        **Under a fixed horizon the final period is usable too.** Nobody leaves, so the
+        outcome of the last period is recorded like any other and the condition it was
+        standing in for cannot fail. Excluding it would discard one window per unit per lag
+        for a reason that does not apply: on an eight-period panel that is a sixth of the
+        lag-2 windows. The relaxation is keyed on the declared horizon and not on whether
+        weights happen to be 1, because under a variable horizon with weighting switched off
+        the outcome genuinely may be unobserved.
+
+        A mixed panel keeps the paper's convention throughout. A trajectory cut off by the
+        window does have its final outcome recorded, but whether it would have continued is
+        unknown, so the step the weight corrects for is unobservable rather than absent. One
+        convention for that case, conservatively.
         """
         unit_index: list[int] = []
         weights: list[float] = []
         peeled: list[float] = []
         anchors: list[np.ndarray] = []
         treatments: list[list[float]] = []
+        include_final = self.horizon == "fixed"
         for index, trajectory in enumerate(trajectories):
-            last_usable = trajectory.length - 1  # t <= length - 2
+            # t <= length - 2 normally; t <= length - 1 when nobody leaves.
+            last_usable = trajectory.length if include_final else trajectory.length - 1
             for outcome_period in range(lag, last_usable):
                 anchor = outcome_period - lag
                 if self.use_weights and lag > 0:
-                    factors = continuation[index][anchor : outcome_period + 1]
+                    # One factor per continuation decision from the anchor through the step
+                    # that makes the outcome observable. Capped at the recorded periods,
+                    # which only binds when the final period is included and the weights are
+                    # all 1 anyway.
+                    end = min(outcome_period + 1, trajectory.length)
+                    factors = continuation[index][anchor:end]
                     weight = float(np.prod(1.0 / factors))
                 elif self.use_weights:
                     # Lag 0 needs no weight: one-step independence is enough there.
@@ -831,6 +900,10 @@ class DynamicLagDml:
             # skipped rather than leave the reader to infer it from weights of exactly 1.
             "res:profile.horizon": str(fit.horizon_),
             "res:profile.ipcw_applied": str(fit.ipcw_applied_),
+            # Whether the last period of each trajectory contributed a window. It can only
+            # when nobody leaves, and it is worth saying because it changes the counts a
+            # reader compares against the number of rows.
+            "res:profile.final_period_included": str(fit.horizon_ == "fixed"),
         }
         by_lag = {lag_fit.lag: lag_fit for lag_fit in fit.fits_}
         for lag in range(fit.max_lag + 1):

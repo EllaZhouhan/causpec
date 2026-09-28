@@ -421,12 +421,22 @@ def test_a_fixed_horizon_applies_no_weights_at_all() -> None:
     del config
 
 
-def test_a_fixed_horizon_gives_the_same_answer_as_switching_weighting_off() -> None:
-    """Not approximately: the two paths must be the same computation."""
+def test_on_a_fixed_horizon_the_weighting_contributes_nothing() -> None:
+    """Not approximately: with the window convention held fixed, the two paths are the same
+    computation, because every weight is 1.
+
+    Switching the weighting off is not the same as declaring a fixed horizon, and that is the
+    point of holding the convention fixed here: a fixed horizon also uses each trajectory's
+    final period, which the sensitivity arm on a variable horizon does not.
+    """
     _, _, _, trajectories = balanced_panel()
-    default = DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed").fit(trajectories).theta_
-    unweighted = DynamicLagDmlFit(max_lag=2, seed=1, use_weights=False).fit(trajectories).theta_
-    assert np.allclose(default, unweighted, equal_nan=True)
+    weighted = DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed").fit(trajectories).theta_
+    unweighted = (
+        DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed", use_weights=False)
+        .fit(trajectories)
+        .theta_
+    )
+    assert np.allclose(weighted, unweighted, equal_nan=True)
 
 
 def test_a_fixed_horizon_still_recovers_the_profile() -> None:
@@ -558,4 +568,83 @@ def test_rows_recorded_after_a_unit_left_are_refused(benchmark) -> None:
             TREATMENT_COLUMN,
             OUTCOME_COLUMN,
             termination="exit_reason",
+        )
+
+
+def test_a_fixed_horizon_uses_the_final_period(benchmark) -> None:
+    """Nobody leaves, so the last period's outcome is recorded like any other and the
+    condition the paper's analysis set stands in for cannot fail. Excluding it would discard
+    one window per unit per lag: on an eight-period panel, a sixth of the lag-2 windows.
+    """
+    del benchmark
+    _, _, _, trajectories = balanced_panel(periods=8, n_units=200)
+    relaxed = DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed").fit(trajectories)
+    strict = DynamicLagDmlFit(max_lag=2, seed=1, horizon="variable").fit(trajectories)
+    for lag in range(3):
+        gained = len(relaxed.fits_[lag].weight)
+        withheld = len(strict.fits_[lag].weight)
+        assert gained == withheld + len(trajectories), f"lag {lag}"
+    # 200 units, 8 periods: every unit contributes 8 - lag windows rather than 7 - lag.
+    assert len(relaxed.fits_[2].weight) == 200 * 6
+
+
+def test_a_variable_horizon_keeps_the_papers_window(benchmark) -> None:
+    """Including trajectories the observation window cut off: their final outcome is
+    recorded, but whether they would have continued is unknown, so the step the weight
+    corrects for is unobservable rather than absent. One convention, conservatively."""
+    _, _, _, trajectories = benchmark
+    fit = DynamicLagDmlFit(max_lag=0, seed=1).fit(trajectories)
+    expected = sum(t.length - 1 for t in trajectories)
+    assert len(fit.fits_[0].weight) == expected
+
+
+def test_the_result_says_which_window_convention_was_used(benchmark) -> None:
+    _, frame, columns, _ = benchmark
+    spec = panel_spec(columns).model_copy(
+        update={"estimation": {"family": FAMILY, "params": {"n_bootstrap_samples": 4}}}
+    )
+    result = registry.get(FAMILY).estimate(frame, spec, seed=1)
+    assert result.values["res:profile.final_period_included"] == "False"
+
+
+def test_relaxing_the_window_does_not_move_the_estimate(benchmark) -> None:
+    """More windows, same answer. If the extra period were biased, this is where it shows."""
+    del benchmark
+    config, _, _, trajectories = balanced_panel(periods=8, n_units=800, seed=11)
+    truth = config.constant_profile()
+    relaxed = DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed").fit(trajectories)
+    assert relaxed.theta_[0] == pytest.approx(truth[0], abs=0.02)
+    assert relaxed.theta_[1] == pytest.approx(truth[1], abs=0.4)
+    assert relaxed.theta_[2] == pytest.approx(truth[2], abs=0.5)
+
+
+# ---- a missing value is refused, not imputed ----
+
+
+def test_a_missing_value_names_its_column(benchmark) -> None:
+    """Left alone this surfaces as "Input y contains NaN" from inside a nuisance regression,
+    which names neither the column nor the repair."""
+    _, frame, columns, _ = benchmark
+    broken = frame.copy()
+    broken.loc[broken.index[5], columns[0]] = np.nan
+    with pytest.raises(ValueError, match=f"missing values.*{columns[0]}"):
+        to_trajectories(
+            broken, UNIT_COLUMN, PERIOD_COLUMN, columns, TREATMENT_COLUMN, OUTCOME_COLUMN
+        )
+
+
+def test_missing_values_on_final_periods_get_their_own_explanation() -> None:
+    """The pattern the relaxation makes more likely: the outcome's measurement window runs
+    past the end of data collection, so the last period has a state and a treatment but no
+    outcome. The fix is to record one period fewer, not to impute."""
+    _, frame, columns, _ = balanced_panel(periods=6, n_units=100)
+    broken = frame.copy()
+    final = np.asarray(
+        broken.groupby(UNIT_COLUMN)[PERIOD_COLUMN].transform("max") == broken[PERIOD_COLUMN],
+        dtype=bool,
+    )
+    broken.loc[final, OUTCOME_COLUMN] = np.nan
+    with pytest.raises(ValueError, match="all on final periods"):
+        to_trajectories(
+            broken, UNIT_COLUMN, PERIOD_COLUMN, columns, TREATMENT_COLUMN, OUTCOME_COLUMN
         )

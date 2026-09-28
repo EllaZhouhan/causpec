@@ -38,6 +38,17 @@ the milestones in plan.md section 2.
   that reach eight periods moves the lag-1 estimate from 4.22 to 2.87 against a truth of 4.0.
   The `horizon_declaration` check compares the declaration with the data and refuses both
   contradictions, and rows recorded after a unit left are refused outright
+- **A fixed horizon uses each unit's final period.** Its outcome is recorded like any other,
+  so the paper's condition, that a window's outcome survives into the next period, cannot fail
+  when nobody leaves. That is one extra window per unit per lag, about a sixth of the lag-2
+  windows on an eight-period panel: measured over 30 replications, unbiased at every lag and
+  the lag-2 RMSE improves from 0.247 to 0.227. A variable horizon keeps the paper's convention
+  throughout, including for units the observation window cut off, whose final outcome is
+  recorded but whose continuation is unknown. `res:profile.final_period_included` says which
+- **Missing values in the columns the estimation uses are refused**, with the columns named
+  and the final-period pattern called out separately, since that is where an outcome is most
+  likely to be absent and its fix is to record one period fewer rather than to impute.
+  Previously this surfaced from inside a nuisance regression as `Input y contains NaN`
 - **Reaching the end of the observation window is not leaving**: only a real exit is evidence
   that a trajectory could have continued and did not, so a trajectory cut off by the window
   contributes no record to the continuation model. Where a column marks exits, the column

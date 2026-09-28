@@ -89,7 +89,15 @@ analysis refuses to run without them.
 > different times because patients leave?"
 
 **Fixed** means no weighting is needed and none is applied: nobody left early, so there is
-nothing to correct.
+nothing to correct. It also means each unit's **last period is used**: its outcome is recorded
+like any other, so the condition that a window's outcome must survive into the next period
+cannot fail there. That is one extra window per unit per lag, about a sixth of the lag-2
+windows on an eight-period panel.
+
+One thing to watch for in that case. The last period is where an outcome is most likely to be
+missing, because its measurement window can run past the end of data collection. If the data
+has a state and a treatment for the final period but no outcome, the analysis refuses rather
+than imputing, and the fix is to record one period fewer per unit.
 
 **Why you cannot read this off the file.** A panel where every unit has eight periods is
 either a fixed horizon, or a variable one whose data pull kept the first eight buckets of the
@@ -112,7 +120,10 @@ Two answers, and they lead to different handling:
 | A column marks it (a discharge flag, a reason, a date) | `termination: <that column>` |
 
 **What hangs on it.** Only a real exit is evidence that a trajectory could have continued and
-did not. A trajectory that simply reached the end of the observation window says nothing, so
+did not. Under a variable horizon each unit's final period is set aside, including for units
+the observation window simply cut off: their last outcome is recorded, but whether they would
+have continued is unknown, so the step the weighting corrects for is unobservable rather than
+absent. A trajectory that simply reached the end of the observation window says nothing, so
 it contributes no record to the continuation model. With a column, the column decides; without
 one, a trajectory that stops before the window is read as having left. And rows recorded after
 a patient left are refused outright, because they are not observations of an active

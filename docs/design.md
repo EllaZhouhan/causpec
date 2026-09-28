@@ -298,7 +298,13 @@ lag-1 estimate from 4.22 to 2.87 against a truth of 4.0, and a tool that guessed
 would report that as a clean analysis with weights of one.
 
 So the user confirms it, a check compares the answer against the data and refuses a
-contradiction, and the estimator refuses to run without it. When the horizon is variable a
+contradiction, and the estimator refuses to run without it. The answer also decides the
+analysis set: under a fixed horizon each unit's final period contributes a window, because its
+outcome is recorded like any other and the condition the paper's set stands in for, surviving
+one period past the outcome, cannot fail. That is about a sixth of the lag-2 windows on an
+eight-period panel, at no cost in bias. Under a variable horizon the paper's convention holds
+throughout, including for units the window cut off, whose final outcome is recorded but whose
+continuation is unknown. When the horizon is variable a
 second field is required: how leaving is identified, either because the rows stop there or
 because a column marks it. Only a real exit is evidence that a trajectory could have
 continued and did not; reaching the end of the observation window is not. This is the same

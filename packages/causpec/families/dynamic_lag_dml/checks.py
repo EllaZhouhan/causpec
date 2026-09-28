@@ -115,6 +115,7 @@ def check_panel(data: pd.DataFrame, spec: Spec, declaration: dict[str, Any]) -> 
 
     issues = [
         _horizon_declaration(data, config, spec, unit, period),
+        _missing_values(data, config, unit, period, [treatment, outcome, *state]),
         _duplicate_periods(data, config, unit, period),
         _period_gaps(data, config, unit, period),
         _post_treatment_state(data, config, state, treatment),
@@ -127,7 +128,12 @@ def check_panel(data: pd.DataFrame, spec: Spec, declaration: dict[str, Any]) -> 
             )
         )
 
-    prerequisites = {"horizon_declaration", "panel_duplicate_periods", "panel_period_gaps"}
+    prerequisites = {
+        "horizon_declaration",
+        "panel_missing_values",
+        "panel_duplicate_periods",
+        "panel_period_gaps",
+    }
     ready = all(
         issue.severity is not Severity.BLOCKING
         for issue in issues
@@ -275,6 +281,67 @@ def _horizon_declaration(
             )
         ),
         evidence=evidence,
+    )
+
+
+# ---- basic layer: what has to be there at all ----
+
+
+def _missing_values(
+    data: pd.DataFrame, config: dict[str, Any], unit: str, period: str, columns: list[str]
+) -> QualityIssue:
+    """Missing values in the columns the estimation uses.
+
+    Called out separately when they sit only on final periods, because that has its own cause
+    and its own fix. A fixed-horizon panel uses the last period's outcome, and that is the one
+    most likely to be absent: its measurement window can run past the end of data collection.
+    """
+    check_id = "panel_missing_values"
+    is_final = np.asarray(data.groupby(unit)[period].transform("max") == data[period], dtype=bool)
+    evidence: dict[str, float | int | str | bool] = {}
+    scattered: list[str] = []
+    final_only: list[str] = []
+    total = 0
+    for column in columns:
+        missing = np.asarray(data[column].isna(), dtype=bool)
+        if not missing.any():
+            continue
+        count = int(missing.sum())
+        total += count
+        evidence[f"{column}_missing"] = count
+        if bool((missing == (missing & is_final)).all()):
+            final_only.append(column)
+        else:
+            scattered.append(column)
+    evidence["n_missing"] = total
+    evidence["n_columns_affected"] = len(scattered) + len(final_only)
+    passed = total == 0
+    if passed:
+        summary = "no missing values in the columns the estimation uses"
+    elif final_only and not scattered:
+        summary = (
+            f"{total:,} missing values, all on final periods, in {', '.join(sorted(final_only))}"
+        )
+    else:
+        summary = f"{total:,} missing values in {', '.join(sorted(scattered + final_only))}"
+    return _issue(
+        config,
+        check_id,
+        passed=passed,
+        summary=summary,
+        evidence=evidence,
+        columns=sorted(scattered + final_only),
+        impact=(
+            "The state, the treatment and the outcome of a period are the period. A missing one "
+            "cannot be imputed without guessing at the quantity being estimated, and left alone "
+            "it surfaces from inside a nuisance regression as a bare complaint about NaN."
+        ),
+        repair=(
+            "On final periods only, the outcome's measurement window probably runs past the end "
+            "of data collection: record one period fewer per unit rather than leaving the last "
+            "one blank. Scattered elsewhere, fix the extraction, or drop those units and say in "
+            "the report how many and why."
+        ),
     )
 
 

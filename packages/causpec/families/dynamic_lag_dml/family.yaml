@@ -108,6 +108,14 @@ requires:
     then state, then treatment, then outcome, then the next period. A state column
     measured after the period's treatment began is post-treatment and cannot be in X.
     An outcome recorded before the treatment belongs to the previous period.
+  note_final_period: >
+    Under a fixed horizon the last period of every trajectory contributes a window, because
+    nobody leaves and its outcome is recorded like any other; the paper's condition, that the
+    trajectory survived one period past the outcome, cannot fail there. Under a variable
+    horizon it does not, including for trajectories the observation window cut off: their
+    final outcome is recorded but whether they would have continued is unknown, so the step
+    the weight corrects for is unobservable rather than absent, and one convention covers that
+    case conservatively. res:profile.final_period_included says which was used.
   note_consecutive_periods: >
     The lag index counts rows, not clock time. A missing bucket in the middle of a
     trajectory silently turns a lag-2 window into a lag-3 window, so gaps are a
@@ -318,6 +326,16 @@ checks:
     # repairs. On the benchmark design, keeping the 3.5% of units that reach eight periods
     # moves the lag-1 estimate from 4.22 to 2.87 against a truth of 4.0.
     max_share_at_window_when_variable: 0.9
+
+  panel_missing_values:
+    layer: basic
+    severity: blocking
+    waivable: false
+    # In the columns the estimation uses. Not waivable and not imputable: the state, the
+    # treatment and the outcome of a period are the period, so a guess at one of them is a
+    # guess at the effect. Reported separately when the missing values sit only on final
+    # periods, which has its own cause, the outcome's measurement window running past the end
+    # of data collection, and its own fix, recording one period fewer per unit.
 
   panel_duplicate_periods:
     layer: basic

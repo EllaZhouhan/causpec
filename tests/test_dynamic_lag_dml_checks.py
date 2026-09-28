@@ -341,3 +341,42 @@ def test_a_matching_declaration_passes(clean_report) -> None:
     issue = clean_report.get("horizon_declaration")
     assert issue.severity is Severity.INFO
     assert issue.evidence["declared_horizon"] == "variable"
+
+
+# ---- a missing value is refused, not imputed ----
+
+
+def test_missing_values_block(clean) -> None:
+    _, frame, columns = clean
+    broken = frame.copy()
+    broken.loc[broken.index[3], columns[1]] = np.nan
+    report = run_checks(broken, panel_spec(columns))
+    issue = report.get("panel_missing_values")
+    assert issue.severity is Severity.BLOCKING
+    assert issue.waivable is False
+    assert columns[1] in issue.affected_columns
+    # Nothing downstream ran: a NaN would otherwise reach a nuisance regression.
+    assert "continuation_positivity" not in {i.check_id for i in report.issues}
+
+
+def test_missing_values_only_on_final_periods_are_reported_as_such(clean) -> None:
+    """Its own cause and its own fix: the outcome's measurement window runs past the end of
+    data collection, so record one period fewer rather than leaving the last one blank."""
+    _, frame, columns = clean
+    broken = frame.copy()
+    final = np.asarray(
+        broken.groupby(UNIT_COLUMN)[PERIOD_COLUMN].transform("max") == broken[PERIOD_COLUMN],
+        dtype=bool,
+    )
+    broken.loc[final, OUTCOME_COLUMN] = np.nan
+    report = run_checks(broken, panel_spec(columns))
+    issue = report.get("panel_missing_values")
+    assert issue.severity is Severity.BLOCKING
+    assert "all on final periods" in issue.summary
+    assert "one period fewer" in issue.recommended_repair
+
+
+def test_a_clean_panel_reports_no_missing_values(clean_report) -> None:
+    issue = clean_report.get("panel_missing_values")
+    assert issue.severity is Severity.INFO
+    assert issue.evidence["n_missing"] == 0
