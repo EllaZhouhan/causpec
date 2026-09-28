@@ -1,0 +1,245 @@
+# dynamic_lag_dml: the lag profile of one treatment period on per-period outcomes.
+# Mirrors design.md 7.3 (the panel protocol) and 7.6 (estimand reconciliation).
+id: dynamic_lag_dml
+status: planned              # planned | implemented
+analysis_type: panel
+requires_extra: dynamic      # the registry uses this to name the install command
+
+answers: >
+  When the treatment is given period by period, what one period of treatment does to
+  the outcome of that period and to the outcomes of the periods that follow, on data
+  where trajectories end at times that depend on the patient's state and treatment.
+
+# Not a marginal structural model and not a strategy contrast. The unit of exposure is
+# one period, and the target is the whole lag profile rather than a single summary.
+# "Start early versus start late", the cumulative effect of staying on treatment, and a
+# survival endpoint are all different questions; see unsupported_questions below.
+identification_strategy: sequential_conditional_mean
+
+# The structural model behind the estimand (Zhou 2026, sections 3 to 4). It is an
+# assumption, not a description of the data, and it is untestable: see the assumptions
+# block. Written out because every reading of theta depends on it.
+structural_model:
+  state: X[t+1] = C * A[t] + B * X[t] + eta[t+1]
+  outcome: Y[t] = theta_0 * A[t] + mu' * X[t] + epsilon[t+1]
+  mean_restrictions: >
+    E[eta[t+1] | H[t], A[t], L[t]=1] = 0 and E[epsilon[t+1] | H[t], A[t], L[t]=1] = 0,
+    where H[t] is the recorded history before the period-t treatment. The treatment
+    mechanism itself is unrestricted: it may depend on the whole history.
+  lag_effect: theta_kappa = mu' * B^(kappa-1) * C  for kappa >= 1
+  note: >
+    theta_kappa is therefore not a free parameter per lag; it is what the state
+    propagation implies. With a binary outcome the conditional mean is a probability,
+    so every theta_kappa reads as a risk difference for one period of treatment.
+
+estimands:
+  - id: lag_profile
+    label: Lag profile (theta_0 ... theta_K)
+    requires_assumptions:
+      - conditionally_independent_continuation
+      - continuation_positivity
+      - sequential_conditional_mean
+      - no_unmeasured_state_confounding
+      - lag_relevance
+    interpretation: >
+      theta_0 is the effect of one period of treatment on the outcome of that same
+      period. theta_kappa for kappa >= 1 is the effect of that same period of
+      treatment on the outcome kappa periods later. Each is defined on the anchor risk
+      set, meaning among trajectories still active at the treatment period, so the
+      profile says nothing about patients who had already left. A trajectory that ends
+      is not an outcome here: exit truncates the window, and death and discharge are
+      treated identically as termination. The report must say this, because "no effect
+      at lag 3" reads to a clinician as "no effect on dying", which is not what was
+      estimated.
+
+  - id: lag_cate
+    label: Lag profile varying with the state (theta_kappa(x))
+    requires_assumptions:
+      - conditionally_independent_continuation
+      - continuation_positivity
+      - sequential_conditional_mean
+      - no_unmeasured_state_confounding
+      - lag_relevance
+      - linear_cate_projection
+    interpretation: >
+      theta_kappa(x) is the lag-kappa effect for a period whose state at the start was
+      x, so the modifiers are read at the treatment period, not at the outcome period.
+      Structurally this is C(x) varying with the state: the same period of treatment
+      moves a sicker patient's trajectory differently. The projection is linear in the
+      declared effect_modifiers, so what is reported is the best linear approximation
+      to theta_kappa(x), not an arbitrary function of it.
+    extends_paper: true
+    note: >
+      The paper states identification and consistency for the constant profile only.
+      The heterogeneous version replaces the scalar moment with a weighted linear
+      projection of the same peeled residual moment, which is the natural extension
+      and is how the author's earlier panel code did it, but no theorem covers it.
+      Its intervals are exploratory for a second reason on top of the one below, and
+      claim_levels.yaml caps it accordingly.
+
+# What the question has to look like for this family to be the right one.
+requires:
+  data_shape: panel
+  spec_fields:
+    - unit_id            # the patient; the independent unit and the resampling unit
+    - period_index       # consecutive integers from 0 within each unit, no gaps
+    - period_length      # what one period means in clock time, e.g. 12 hours
+    - state              # X, recorded at the START of the period, before that period's treatment
+    - treatment          # A, the exposure over the period
+    - instant_outcome    # Y, realised after that period's treatment and before the next state
+    - max_lag            # K; the profile is theta_0 ... theta_K
+    - termination        # what ends a trajectory, and that it is absorbing
+    - effect_modifiers   # only for lag_cate; read at the treatment period
+  note_period_alignment: >
+    The within-period order is fixed and the whole estimand depends on it: active,
+    then state, then treatment, then outcome, then the next period. A state column
+    measured after the period's treatment began is post-treatment and cannot be in X.
+    An outcome recorded before the treatment belongs to the previous period.
+  note_consecutive_periods: >
+    The lag index counts rows, not clock time. A missing bucket in the middle of a
+    trajectory silently turns a lag-2 window into a lag-3 window, so gaps are a
+    blocking quality issue rather than something to impute.
+
+assumptions:
+  - id: sequential_conditional_mean
+    category: untestable
+    statement: >
+      the additive, time-homogeneous state and outcome equations hold, with the state
+      and outcome shocks mean-zero given the recorded history and the current treatment
+    note: >
+      Stronger than sequential exchangeability alone: it is a functional form as well
+      as an independence statement. theta_kappa = mu' B^(kappa-1) C has structural
+      meaning only under it. No diagnostic establishes it.
+
+  - id: conditionally_independent_continuation
+    category: untestable
+    statement: >
+      whether a trajectory continues past a period may depend arbitrarily on the
+      recorded state and treatment of that period, but not on the outcome or state
+      shocks that come later
+    note: >
+      Sicker patients leaving earlier is allowed and is the reason IPCW is needed.
+      What is ruled out is exit driven by something unrecorded that also moves the
+      later outcome.
+
+  - id: continuation_positivity
+    category: empirically_assessed
+    statement: >
+      the one-step continuation probability is bounded away from zero on the support of
+      the recorded state and treatment
+    evidence: >
+      the fitted continuation probabilities, the share of them clipped at the floor,
+      and the largest IPCW weight at each lag. The weight over a lag-kappa window is a
+      product of kappa+1 reciprocals, so a floor of c bounds it by c^-(kappa+1): the
+      bound grows geometrically in the lag, which is why the longest lag is where this
+      fails first.
+
+  - id: no_unmeasured_state_confounding
+    category: untestable
+    statement: >
+      the recorded state at the start of a period accounts for the reasons that period's
+      treatment was given
+    note: >
+      Confounding by indication within the period. The treatment mechanism may use the
+      whole recorded history, but nothing unrecorded may drive both the decision and
+      the later outcome.
+
+  - id: lag_relevance
+    category: empirically_assessed
+    statement: >
+      at each lag, the residualised treatment retains enough variation for the moment to
+      be informative
+    evidence: >
+      J_kappa, the IPCW-weighted mean square of the residualised anchor treatment. It
+      is the denominator of the estimator, so a small J_kappa is division by almost
+      zero, exactly as a weak instrument is in an IV analysis. Blocking.
+
+  - id: linear_cate_projection
+    category: requires_justification
+    statement: >
+      the lag-kappa effect is approximately linear in the declared effect modifiers
+    applies_to: [lag_cate]
+    note: >
+      Only the projection is reported, so this is not a claim that the truth is linear.
+      It is a claim that a linear summary of it is worth reading, which the user has to
+      be willing to defend.
+
+estimator:
+  primary: dynamic_lag_dml     # the author's research code, ported; see references
+  recipe:
+    continuation_model: gradient_boosting
+    outcome_and_treatment_nuisances: linear
+    cross_fitting: by unit, not by row
+    stage1_weighting: ipcw
+  note_stage1_weighting: >
+    The Stage-1 nuisances are anchor-conditional, so they have to be fitted with the
+    IPCW weights. Fitting them unweighted targets the survivor-conditional mean
+    instead, which is a different function, and on the author's own design that error
+    is worth about +0.20 in the lag-1 and lag-2 effects. It once looked harmless
+    because a misspecified continuation model happened to contribute about -0.19 in
+    the other direction. Two large errors cancelling is not a correct estimator, and a
+    regression test pins the weighting so the cancellation cannot come back.
+  note_continuation_model: >
+    The moment is Neyman-orthogonal in the outcome and treatment nuisances but NOT in
+    the continuation probability, so an error there passes into the estimate at first
+    order and is then magnified by the weight product. Gradient boosting is the
+    default for that reason: on the author's high-dimensional design a linear logistic
+    continuation model leaves a bias that does not shrink with the sample size, while
+    the boosted one tracks the oracle. The orthogonal direction is the opposite story,
+    where linear nuisances are enough and a boosted one only adds variance.
+  lambda_floor_default: 0.05
+  note_lambda_floor: >
+    The fitted continuation probabilities are clipped below at a fixed constant before
+    inversion. It must be chosen without knowing the true positivity bound, so it is a
+    conservative constant, not something read off the data.
+
+inference:
+  primary: patient_bootstrap_percentile
+  bootstrap:
+    n_bootstrap_samples_default: 200
+    resampling_unit: unit          # the whole trajectory, refitting every stage
+    adequate_threshold: 100
+    parallel_param: bootstrap_n_jobs
+  secondary: recursive_influence_function
+  calibration: exploratory
+  note_calibration: >
+    The theory proves consistency of the whole profile. It does not give a limiting
+    distribution, so neither interval is calibrated and neither may be read as a
+    hypothesis test. The bootstrap is the primary one because rows within a trajectory
+    are dependent and every lag shares the lower-lag estimates it was peeled with, so
+    the trajectory is the only defensible resampling unit. The analytic interval from
+    the recursive influence function treats the fitted continuation model as fixed,
+    which omits its first-order contribution, and is reported only alongside the
+    bootstrap. The report says "exploratory" in both cases and the claim level is
+    capped, so the prose cannot call a lag significant.
+
+outputs:
+  - the effect at each lag, with its exploratory interval
+  - the analysis set at each lag: units, windows, treated share, events
+  - the continuation-weight summary at each lag: largest weight, share clipped
+  - J at each lag
+  - for lag_cate, the projection coefficients and the effect at requested states
+  - the profile without IPCW, as a declared sensitivity arm
+
+unsupported_questions:
+  - id: strategy_contrast
+    example: starting treatment early versus starting it late
+    reason: >
+      a contrast between two whole strategies over time, which needs the g-formula or
+      a marginal structural model. This family estimates what one period of treatment
+      does, not what following a rule for many periods does.
+  - id: cumulative_effect
+    example: the effect of staying on treatment for three days
+    reason: >
+      the sum of the profile is not that effect: it would need the treatment path to be
+      held fixed over the whole window, and the peeling identity does not deliver it.
+  - id: survival_endpoint
+    example: whether treatment reduces 28-day mortality
+    reason: >
+      termination is the end of the observation window here, not the outcome. A
+      mortality question needs a survival or competing-risks design.
+  - id: terminal_outcome
+    example: the effect on the SOFA score at discharge
+    reason: >
+      the outcome is per period. A single outcome measured once at the end of a
+      variable-length trajectory is a different estimand.

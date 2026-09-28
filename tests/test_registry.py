@@ -15,7 +15,7 @@ from causpec.core import registry
 
 def test_declared_families_reads_disk() -> None:
     """Core learns which families exist from family.yaml on disk, not a hard-coded import."""
-    assert registry.declared_families() == ["hte_backdoor", "hte_iv", "longitudinal_ipcw"]
+    assert registry.declared_families() == ["dynamic_lag_dml", "hte_backdoor", "hte_iv"]
 
 
 def test_unknown_family_names_the_known_ones() -> None:

@@ -5,5 +5,6 @@ own checks, an estimation adapter, figures, evals and tests.
 
 - ``hte_iv``             heterogeneous treatment effects under an IV design
 - ``hte_backdoor``       heterogeneous treatment effects under backdoor adjustment
-- ``longitudinal_ipcw``  longitudinal treatment effects via IPCW (not implemented)
+- ``dynamic_lag_dml``    the lag profile of one treatment period, with IPCW for an
+  informative horizon (not implemented)
 """

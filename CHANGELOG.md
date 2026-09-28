@@ -7,6 +7,20 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The `dynamic_lag_dml` family, declared** (design.md 7.3): the lag profile of one
+  treatment period on per-period outcomes, on panel data whose trajectories end at
+  state-dependent and treatment-dependent times. Two estimands, `lag_profile` and
+  `lag_cate`; the structural model the profile derives from; five assumptions with the
+  evidence named for the two that data can speak to; and the four neighbouring questions
+  the family refuses by name (a strategy contrast, a cumulative effect, a survival
+  endpoint, a terminal outcome). Not implemented: the declaration is what the estimator
+  and the checks will follow
+- **The claim-level decision gained a second axis**: `interval_calibration`. An estimator
+  proved consistent without a limiting distribution has intervals that indicate where an
+  effect sits and test nothing, so `significance_claims_allowed` goes false and the level
+  is capped, independently of data quality. A calibrated interval on a waived analysis
+  still cannot say "caused"; an exploratory interval on a spotless one still cannot say
+  "significant". An unknown calibration raises rather than defaulting to calibrated
 - **The skill form is usable**: a complete SKILL.md (eight key rules, eight workflow
   steps), eight references, a narrative template, `scripts/run.py` (importing straight
   out of the bundled wheel when causpec is not installed in the sandbox), and
@@ -82,6 +96,21 @@ the milestones in plan.md section 2.
 - ADR-0001 (literal numbers in reports), ADR-0002 (data-source boundaries)
 
 ### Changed
+
+- **`longitudinal_ipcw` became `dynamic_lag_dml`**, and its contents changed with its
+  name. The old declaration specified the seven components of a target trial plus
+  event_roles mapping death, discharge and transfer to outcome, competing, censoring or
+  terminal. That is the layout for a marginal structural model comparing two strategies
+  on a survival endpoint, which is not the method this project has: here termination ends
+  the observation window rather than being the outcome, and death and discharge are the
+  same event. The old name kept promising the wrong estimand, and nothing caught it
+  because nothing compared the declaration against the method. design.md 7.3 now says so
+  in as many words, and the skill's `longitudinal-ipcw.md` became `dynamic-lag-dml.md`,
+  which turns "CauSpec refuses longitudinal questions" into one question it will answer
+  and three it will not
+- **The skill asks one more question about a time-varying treatment**: whether a version
+  of the data exists with one row per unit per window. Previously the branch dead-ended,
+  telling the user a longitudinal design was needed and stopping there
 
 - **The project is now English-only**: code, docstrings, user-facing strings, YAML
   declarations, tests, docs, the skill and commit messages

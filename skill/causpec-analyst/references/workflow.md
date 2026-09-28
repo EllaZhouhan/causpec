@@ -61,15 +61,26 @@ Only two answers matter:
 - **Already on it at admission** (or at a fixed baseline), a static treatment, which is
   what CauSpec supports
 - **At any point during the stay**, a time-varying treatment. Say what hangs on it in
-  one sentence, then say CauSpec does not support this:
+  one sentence, then say a flattened comparison is not on offer:
 
   > "A patient who starts on day 5 counts as untreated for those four days, and anyone
   > who died early never had the chance to start, which would make dialysis look better
-  > than it is. That needs a longitudinal design, which this tool doesn't have. I won't
-  > force it into a comparison that would give you a number you can't rely on."
+  > than it is. I won't force it into a comparison that would give you a number you
+  > can't rely on."
 
-Do not go into fixed windows, landmark analysis or g-methods unless they ask. See
-`longitudinal-ipcw.md`.
+  Then ask the one question that decides what is possible:
+
+  > "Is there a version of this data with one row per patient per time window, say per
+  > twelve hours, with the state at the start of the window and whether they were on
+  > dialysis during it? That form supports a different question: what one window of
+  > dialysis does to that window's outcome and to the windows after it."
+
+  A panel opens `dynamic_lag_dml`, which is declared and not implemented: describe the
+  analysis, produce no number. One row per patient closes it.
+
+Do not go into fixed windows, landmark analysis or g-methods unless they ask. Read
+`dynamic-lag-dml.md` before describing the lag profile: it answers one question and
+three that sound like it are outside it.
 
 **A wide table does not settle this.** One row per patient can still be a flattened
 "ever treated during the stay". The schema lets you ask concretely; it does not answer

@@ -235,3 +235,65 @@ def test_custom_rules_file_is_honoured(tmp_path) -> None:
 def test_every_level_has_wording_guidance(level: ClaimLevel) -> None:
     """The skill writes its prose against this, so all four levels need an entry."""
     assert load_rules()["wording"][level.value]
+
+
+# ---- an uncalibrated interval is not a test ----
+
+
+def test_exploratory_intervals_forbid_significance_wording() -> None:
+    """dynamic_lag_dml's theory proves consistency and no limiting distribution.
+
+    The estimate is a result, the interval is an indication. Nothing about the data
+    quality changes that, which is why this is a separate axis from the level.
+    """
+    decision = determine(
+        make_spec([JUSTIFIED], approved=True),
+        PASSING,
+        gate_passed=True,
+        interval_calibration="exploratory",
+    )
+    assert decision.significance_claims_allowed is False
+    assert decision.interval_calibration == "exploratory"
+    assert decision.addresses()["claim:significance_claims"] == "forbidden"
+
+
+def test_exploratory_intervals_cap_the_level_below_causal() -> None:
+    """Everything else is in place, so without the cap this analysis would be causal."""
+    calibrated = determine(make_spec([JUSTIFIED], approved=True), PASSING, gate_passed=True)
+    exploratory = determine(
+        make_spec([JUSTIFIED], approved=True),
+        PASSING,
+        gate_passed=True,
+        interval_calibration="exploratory",
+    )
+    assert calibrated.level is ClaimLevel.CAUSAL
+    assert exploratory.level is ClaimLevel.SUGGESTIVE
+    assert any("capped at suggestive" in reason for reason in exploratory.reasons)
+
+
+def test_the_cap_never_raises_a_level() -> None:
+    """A failed gate is already below the ceiling; the cap must not pull it up."""
+    decision = determine(
+        make_spec([JUSTIFIED]),
+        PASSING,
+        gate_passed=False,
+        interval_calibration="exploratory",
+    )
+    assert decision.level is ClaimLevel.DESCRIPTIVE
+
+
+def test_calibrated_is_the_default_and_allows_significance() -> None:
+    decision = determine(make_spec([UNTESTABLE]), PASSING, gate_passed=True)
+    assert decision.interval_calibration == "calibrated"
+    assert decision.significance_claims_allowed is True
+
+
+def test_an_unknown_calibration_is_refused() -> None:
+    """Silently treating an unknown value as calibrated would be the dangerous default."""
+    with pytest.raises(ValueError, match="unknown interval_calibration"):
+        determine(
+            make_spec([UNTESTABLE]),
+            PASSING,
+            gate_passed=True,
+            interval_calibration="bootstrapped",
+        )

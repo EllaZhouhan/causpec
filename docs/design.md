@@ -94,7 +94,7 @@ MCP client (Claude Code / Desktop / claude.ai)
       |- gates        spec confirmation and quality gating
       `- -> causpec
              |- core        contracts, mapping, quality, runtime, reporting
-             `- families/   hte_iv, hte_backdoor, longitudinal_ipcw (plugins)
+             `- families/   hte_iv, hte_backdoor, dynamic_lag_dml (plugins)
 ```
 
 The layering rule: core imports no family, and families attach through a registry;
@@ -118,7 +118,7 @@ causpec/
  |    |- families/
  |    |    |- hte_iv/         the author's DMLIV
  |    |    |- hte_backdoor/   EconML CausalForestDML, as a baseline
- |    |    `- longitudinal_ipcw/  the author's IPCW
+ |    |    `- dynamic_lag_dml/    the author's lag profile with IPCW
  |    `- cli.py
  |- server/causpec_mcp/
  |- skill/causpec-analyst/
@@ -223,7 +223,8 @@ Rules:
 
 - The critical fields are: population, treatment, outcome, time_zero, estimand,
   variable_roles, key_non_edges, identification_strategy, adjustment_set, instrument,
-  plus event_roles for longitudinal analyses. The gate's requirements are in 11.2.
+  plus the panel fields of 7.3 for a lag-profile analysis. The gate's requirements are
+  in 11.2.
 - **`status: confirmed` requires `said`**: the words the user used when confirming,
   regardless of `source`. A value the model inferred and the user then accepted is also
   marked confirmed; `source` stays `model` while `said` records the user's words at
@@ -252,7 +253,7 @@ spec_version: 1
 meta: {question: ...}
 population: {filters: [...]}
 causal_design:
-  analysis_type: hte | longitudinal
+  analysis_type: hte | panel
   estimand: ...
   treatment / outcome / time_zero / instrument / adjustment_set / effect_modifiers
   variable_roles: {<variable or group>: confounder | instrument | mediator | effect_modifier | suspected_collider | post_treatment}
@@ -264,19 +265,51 @@ estimation: {family, params, seed}
 analysis_plan: {primary: ..., sensitivity: [...], exploratory: [...]}
 ```
 
-### 7.3 The longitudinal protocol
+### 7.3 The panel protocol
 
-The seven components of a target trial: eligibility, treatment strategies, assignment,
-follow-up (time zero and end), outcome, causal contrast, analysis plan; plus event_roles,
-which assigns death, discharge, transfer and similar events explicitly to outcome,
-competing, censoring or terminal.
+The second analysis type. Where the HTE families take one row per unit and ask what a
+treatment did, this one takes one row per unit and period and asks what **one period** of
+treatment did to that period's outcome and to the outcomes after it. The estimand is the
+lag profile theta_0 ... theta_K, and the family is dynamic_lag_dml.
 
-[reuse] The field layout follows StatsPAI's TargetTrialProtocol (MIT,
-src/statspai/target_trial/protocol.py), so the two can be compared against each other;
-**the structure only, the dependency is not taken**.
+**Why the earlier draft of this section was wrong.** It specified the seven components of
+a target trial plus event_roles, assigning death, discharge and transfer to outcome,
+competing, censoring or terminal. That is the field layout for a marginal structural
+model, where the question is a contrast between two strategies followed over time and the
+outcome is a survival endpoint. It is not the method this project has. Here termination
+is the end of the observation window, not an outcome, and death and discharge are the
+same event: both stop the trajectory. Keeping the old layout would have made the code
+answer a question the estimator cannot answer. The target-trial layout returns if a
+strategy contrast is ever implemented; it is not the layout for a lag profile.
 
-TODO: state how each event is handled under the IPCW method, and how the estimand should
-be read.
+**Fields.** unit_id, period_index, period_length, state, treatment, instant_outcome,
+max_lag, termination; plus effect_modifiers when the lag effect is allowed to vary with
+the state. period_length is what one period means in clock time, twelve hours in the
+author's application, and it exists so the report can say "at 24 hours" rather than "at
+lag 2".
+
+**The within-period order is part of the estimand**: active, then state, then treatment,
+then outcome, then the next period. Two consequences, and both are checks rather than
+prose. A state column measured after the period's treatment began is post-treatment and
+cannot be in X. And the lag index counts rows, not clock time, so a missing bucket in the
+middle of a trajectory turns a lag-2 window into a lag-3 window without any error; gaps
+block rather than get imputed.
+
+**How the profile is read.** theta_kappa is defined on the anchor risk set, meaning among
+trajectories still active at the treatment period. It says nothing about units that had
+already left, and it is not an effect on leaving. A clinician reads "no effect at lag 3"
+as "no effect on dying", so the report states the estimand in the same paragraph as the
+numbers rather than in a methods note.
+
+**What the intervals are.** The theory behind the estimator proves consistency of the
+whole profile and gives no limiting distribution. The intervals are therefore exploratory
+percentile intervals from a bootstrap that resamples whole trajectories, and no lag may
+be called significant. This is the first place in the project where the honest answer is
+"the point estimate is the result and the interval is an indication", so claim_levels.yaml
+carries an explicit rule for it rather than leaving it to the prose.
+
+The full declaration, including the structural model the profile derives from and the
+four questions this family refuses, is families/dynamic_lag_dml/family.yaml.
 
 ### 7.4 Changes after confirmation
 
@@ -322,7 +355,8 @@ Each family declares in family.yaml the estimands it can identify, for example:
   assumption that the effect does not vary by compliance type given covariates may it be
   read as a CATE. TODO: fill in according to the assumptions Project 1 actually adopts.
 - hte_backdoor: ATE, ATT, CATE.
-- longitudinal_ipcw: lag_effect, as defined in 7.3.
+- dynamic_lag_dml: lag_profile, and lag_cate when the effect is allowed to vary with
+  the state at the treatment period. Both as defined in 7.3.
 
 Validation compares spec.estimand with the chosen family's declaration. A mismatch has
 two resolutions: choose a different family, or have the user restate the estimand. For
@@ -594,7 +628,7 @@ boundaries, not features.
 skill/causpec-analyst/
  |- SKILL.md
  |- references/  workflow.md, spec-fields.md, variable-roles.md, quality-checks.md,
- |               hte-dmliv.md, longitudinal-ipcw.md, reporting.md, claim-levels.md
+ |               hte-dmliv.md, dynamic-lag-dml.md, reporting.md, claim-levels.md
  |- assets/      report-template.md, the causpec wheel
  `- scripts/run.py
 ```

@@ -92,10 +92,16 @@ narrative you write for the report.
 | `hte_backdoor` | Backdoor adjustment | You believe observed covariates control confounding |
 | `hte_iv` | Instrumental variable | Unmeasured confounding exists, but a credible instrument does too |
 
+**Declared, not implemented**: `dynamic_lag_dml`, for a treatment given period by
+period. It answers one question, what one period of treatment does to that period's
+outcome and to the outcomes after it, and refuses the neighbouring ones (start early
+versus start late, the cumulative effect of several periods, a survival endpoint). See
+`dynamic-lag-dml.md` before saying anything about it.
+
 **Not supported**: difference-in-differences, regression discontinuity, synthetic
-control, mediation analysis, longitudinal or time-varying treatment. When one of these
-is what the question needs, say it is unsupported and explain why the question calls
-for that design, do not force it into backdoor adjustment.
+control, mediation analysis, and any contrast between treatment strategies followed over
+time. When one of these is what the question needs, say it is unsupported and explain why
+the question calls for that design, do not force it into backdoor adjustment.
 
 ## How this runs
 
@@ -168,8 +174,13 @@ Two answers matter, and only two:
 - **At any point during the stay**, a time-varying treatment. Say what hangs on it in
   one sentence ("a patient who starts on day 5 counts as untreated for those four days,
   and anyone who died early never had the chance, which would make dialysis look better
-  than it is"), then say this needs a longitudinal design CauSpec does not have. Do not
-  go into fixed windows, landmark analysis or g-methods unless they ask.
+  than it is"), then say a flattened comparison is not available and ask one further
+  question: is there a row per patient per time window somewhere, or only this one row
+  per patient? A panel opens the lag profile of `dynamic_lag_dml`, which is declared but
+  not implemented, so say what the analysis would be and produce no number. Only one
+  row per patient closes it. Either way, do not go into fixed windows, landmark analysis
+  or g-methods unless they ask, and see `dynamic-lag-dml.md` before describing the lag
+  profile, because three nearby questions are not what it answers.
 
 **A wide table does not settle this.** One row per patient can still be a flattened
 "ever treated during the stay". The schema lets you ask concretely; it does not answer
@@ -285,4 +296,4 @@ Read as needed; do not read them all at once.
 | `hte-dmliv.md` | The IV setting: estimands, binary versus continuous instruments |
 | `reporting.md` | Report structure and placeholder syntax |
 | `claim-levels.md` | What decides each of the four levels, and how to word them |
-| `longitudinal-ipcw.md` | Longitudinal analysis (**not implemented**) |
+| `dynamic-lag-dml.md` | Treatment period by period: the lag profile, and the three questions near it that it does not answer |

@@ -24,6 +24,15 @@ hte = [
     "scipy>=1.11",
     "statsmodels>=0.14",
 ]
+# dynamic_lag_dml needs no econml: the estimator is written here, and what it uses is
+# gradient boosting for the continuation model, a linear model for the two orthogonal
+# nuisances, and joblib for the bootstrap. Its own extra so a user who wants the lag
+# profile does not install econml to get it.
+dynamic = [
+    "joblib>=1.3",
+    "scikit-learn>=1.4",
+    "scipy>=1.11",
+]
 
 [project.scripts]
 causpec = "causpec.cli:main"

@@ -35,6 +35,20 @@ causal_requires:
   # An analysis that waived anything cannot reach causal.
   no_waived_blocking_checks: true
 
+# Whether the estimator's intervals may be read as a test. An estimator whose theory
+# proves consistency but gives no limiting distribution (dynamic_lag_dml, design.md 7.3)
+# produces intervals that indicate where the effect sits and do not test anything. The
+# point estimate is the result. Nothing may be called significant, and the level cannot
+# reach causal, because "the diagnostics found nothing wrong" says nothing about an
+# uncertainty statement the theory does not support.
+interval_calibration:
+  calibrated:
+    significance_claims: allowed
+    maximum_level: causal
+  exploratory:
+    significance_claims: forbidden
+    maximum_level: suggestive
+
 # How each level may be phrased, for the skill to follow (design.md 10.2).
 wording:
   causal: >-

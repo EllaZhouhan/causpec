@@ -32,7 +32,7 @@ Four principles:
 |---|---|
 | `hte_iv` | Heterogeneous treatment effects under an IV design; binary and continuous instruments |
 | `hte_backdoor` | Heterogeneous treatment effects under backdoor adjustment |
-| `longitudinal_ipcw` | Longitudinal treatment effects via IPCW (not implemented) |
+| `dynamic_lag_dml` | The lag profile of one treatment period on per-period outcomes, with IPCW for an informative horizon (not implemented) |
 
 Designs outside that range (difference-in-differences, regression discontinuity,
 synthetic control) are refused explicitly, with a reason given for each excluded
@@ -83,7 +83,7 @@ packages/causpec/          the library; all computation lives here
     reporting/                 address resolution, placeholder rendering, claim level
     registry.py                the family registry: core's only interface to a family
   families/                  plugins; a new analysis is a directory and one registration
-    hte_iv/  hte_backdoor/  longitudinal_ipcw/
+    hte_iv/  hte_backdoor/  dynamic_lag_dml/
   cli.py                     causpec quality / estimate / report
 
 server/causpec_mcp/        the MCP server (primary form): holds credentials, runs the gates

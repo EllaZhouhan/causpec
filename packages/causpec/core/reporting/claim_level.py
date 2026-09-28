@@ -17,6 +17,14 @@ Two ideas carry this module:
    level at associational, and that analysis can never reach causal. Waiving lets the
    analysis run; it does not make the problem disappear.
 
+3. **An uncalibrated interval is not a test.** Some estimators are proved consistent
+   without a limiting distribution (dynamic_lag_dml, design.md 7.3). Their point
+   estimate is the result and their interval only indicates where the effect sits, so
+   the decision carries ``significance_claims_allowed = False`` and the level is capped.
+   This is a separate axis from the claim level: a calibrated interval on a waived
+   analysis still cannot say "caused", and an uncalibrated interval on a perfect
+   analysis still cannot say "significant".
+
 Both the rules and the thresholds live in claim_levels.yaml rather than in code:
 they decide how strongly a conclusion may be stated, so they must be fixed in
 advance, printed in the report, and recorded in the manifest.
@@ -84,6 +92,8 @@ class ClaimLevelDecision(BaseModel):
 
     level: ClaimLevel
     reasons: list[str] = Field(default_factory=list)
+    interval_calibration: str = "calibrated"
+    significance_claims_allowed: bool = True
     failed_blocking_checks: list[str] = Field(default_factory=list)
     waived_blocking_checks: list[str] = Field(default_factory=list)
     unjustified_assumptions: list[str] = Field(default_factory=list)
@@ -94,6 +104,10 @@ class ClaimLevelDecision(BaseModel):
         """Addresses the report renderer can substitute."""
         return {
             "claim:level": self.level.value,
+            "claim:interval_calibration": self.interval_calibration,
+            "claim:significance_claims": (
+                "allowed" if self.significance_claims_allowed else "forbidden"
+            ),
             "claim:n_failed_blocking_checks": len(self.failed_blocking_checks),
             "claim:n_waived_blocking_checks": len(self.waived_blocking_checks),
             "claim:n_unjustified_assumptions": len(self.unjustified_assumptions),
@@ -111,6 +125,7 @@ def determine(
     gate_passed: bool,
     waived: dict[str, str] | None = None,
     rules_path: Path | None = None,
+    interval_calibration: str = "calibrated",
 ) -> ClaimLevelDecision:
     """Decide how strongly this analysis's conclusion may be worded.
 
@@ -121,10 +136,49 @@ def determine(
             since the gate also inspects spec confirmation).
         waived: check_id -> waiver reason. A waived blocking check still lowers the level.
         rules_path: override the packaged claim_levels.yaml.
+        interval_calibration: what the family declares about its intervals, "calibrated"
+            or "exploratory". An exploratory interval forbids significance wording and
+            caps the level, independently of everything else here.
     """
     rules = load_rules(rules_path)
     waived = waived or {}
     reasons: list[str] = []
+
+    calibration_rules = rules["interval_calibration"]
+    if interval_calibration not in calibration_rules:
+        raise ValueError(
+            f"unknown interval_calibration {interval_calibration!r}; "
+            f"claim_levels.yaml declares {sorted(calibration_rules)}"
+        )
+    calibration = calibration_rules[interval_calibration]
+    significance_allowed = calibration["significance_claims"] == "allowed"
+    calibration_ceiling = ClaimLevel(calibration["maximum_level"])
+
+    def decide(level: ClaimLevel, **fields: object) -> ClaimLevelDecision:
+        """Apply the interval-calibration cap, then build the decision.
+
+        The cap only ever lowers: a failed gate is already below every ceiling, so this
+        never turns a downgrade into an upgrade.
+        """
+        if _ORDER[calibration_ceiling] < _ORDER[level]:
+            reasons.append(
+                f"The estimator's intervals are {interval_calibration}: they indicate "
+                f"where the effect sits and do not test anything, so the level is capped "
+                f"at {calibration_ceiling.value} and no result may be called significant."
+            )
+            level = calibration_ceiling
+        elif not significance_allowed:
+            reasons.append(
+                f"The estimator's intervals are {interval_calibration}: no result may be "
+                f"called significant."
+            )
+        return ClaimLevelDecision(
+            level=level,
+            reasons=reasons,
+            interval_calibration=interval_calibration,
+            significance_claims_allowed=significance_allowed,
+            **fields,  # type: ignore[arg-type]
+        )
 
     # QualityIssue invariant: a passing check is downgraded to INFO, so report.blocking
     # is exactly "declared blocking and actually failed". See the QualityIssue docstring.
@@ -143,18 +197,14 @@ def determine(
             "The gate did not pass: the spec is not fully confirmed, or a blocking "
             "quality issue stands unwaived."
         )
-        return ClaimLevelDecision(
-            level=ClaimLevel(rules["rules"]["gate_failed"]), reasons=reasons, **common
-        )
+        return decide(ClaimLevel(rules["rules"]["gate_failed"]), **common)
 
     if failed:
         for check_id in failed:
             issue = report.get(check_id)
             note = " (waived, but the diagnosis is unchanged)" if check_id in waived else ""
             reasons.append(f"Blocking check failed: {check_id}, {issue.summary}{note}")
-        return ClaimLevelDecision(
-            level=ClaimLevel(rules["rules"]["blocking_check_failed"]), reasons=reasons, **common
-        )
+        return decide(ClaimLevel(rules["rules"]["blocking_check_failed"]), **common)
 
     # Both blocking checks passed, so suggestive is the most code can grant.
     level = ClaimLevel(rules["rules"]["all_blocking_checks_passed"])
@@ -185,12 +235,10 @@ def determine(
     if blockers:
         reasons.extend(blockers)
         reasons.append(f"The ceiling for an automatic decision is {rules['code_maximum']}.")
-        return ClaimLevelDecision(
-            level=level, reasons=reasons, unjustified_assumptions=unjustified, **common
-        )
+        return decide(level, unjustified_assumptions=unjustified, **common)
 
     reasons.append(
         "Both blocking checks passed; every untestable assumption has been justified "
         "and approved by the user."
     )
-    return ClaimLevelDecision(level=ClaimLevel.CAUSAL, reasons=reasons, **common)
+    return decide(ClaimLevel.CAUSAL, **common)

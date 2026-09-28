@@ -118,17 +118,24 @@ replace the "AI Agent Integration" paragraph in the CV, and start applying.
 
 ### Phase 4 (W6-W7)
 
-1. Write longitudinal-ipcw.md first: event roles and the definition of the estimand (the
-   TODO in design.md 7.3)
-2. The longitudinal spec, with its field layout aligned to a target trial (aligned to
-   StatsPAI's TargetTrialProtocol, no dependency taken)
-3. Migrate the IPCW code and write numerical regression tests; add the longitudinal part
-   of dataset A (informative censoring, variable-length trajectories, ground truth)
-4. Longitudinal quality checks (the immortal-time check follows the shape of StatsPAI's
-   immortal_time_check, practice only)
-5. Longitudinal outputs: the effect at each lag, numbers at risk, weights and ESS,
-   sensitivity to clipping
-6. Expand the golden tasks past twenty (tag v0.4)
+1. Write dynamic-lag-dml.md and families/dynamic_lag_dml/family.yaml first: the
+   structural model, the estimand, the assumptions, and the four questions the family
+   refuses (design.md 7.3, which the reading of the author's paper rewrote)
+2. The panel spec: unit_id, period_index, period_length, state, treatment,
+   instant_outcome, max_lag, termination; the within-period order is what the checks
+   enforce
+3. Port the estimator: cross-fitted sequential peeling with IPCW, the constant profile
+   and the linear-in-state projection, patient-level bootstrap. Numerical regression
+   tests against the paper's own simulation design, including the ablation ordering
+4. A panel generator with known ground truth (theta_kappa = mu' B^(kappa-1) C),
+   informative exit and variable-length trajectories, the two presets from the paper
+5. Panel quality checks: period gaps and duplicates (blocking), post-treatment state
+   columns, continuation positivity and the weight product, lag relevance J (blocking),
+   the per-lag analysis set and attrition
+6. Reporting: the profile as a table and a figure, the exploratory-interval rule in
+   claim_levels.yaml, and the skill turning from "refuses longitudinal questions" to
+   "routes the lag-profile question here and still refuses the other three"
+7. Expand the golden tasks past twenty (tag v0.4)
 
 ### Phase 5 (W8)
 
