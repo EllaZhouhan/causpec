@@ -1,7 +1,7 @@
 # dynamic_lag_dml: the lag profile of one treatment period on per-period outcomes.
 # Mirrors design.md 7.3 (the panel protocol) and 7.6 (estimand reconciliation).
 id: dynamic_lag_dml
-status: planned              # planned | implemented
+status: implemented          # planned | implemented
 analysis_type: panel
 requires_extra: dynamic      # the registry uses this to name the install command
 
@@ -61,13 +61,24 @@ estimands:
       - no_unmeasured_state_confounding
       - lag_relevance
       - linear_cate_projection
+      - modifiers_unaffected_by_treatment
     interpretation: >
-      theta_kappa(x) is the lag-kappa effect for a period whose state at the start was
-      x, so the modifiers are read at the treatment period, not at the outcome period.
-      Structurally this is C(x) varying with the state: the same period of treatment
-      moves a sicker patient's trajectory differently. The projection is linear in the
-      declared effect_modifiers, so what is reported is the best linear approximation
-      to theta_kappa(x), not an arbitrary function of it.
+      theta_kappa(x) is the lag-kappa effect for a period whose modifiers were x, read at
+      the treatment period and not at the outcome period. Structurally this is the
+      propagation C varying with x: the same period of treatment moves one patient's
+      trajectory further than another's. The projection is linear in the declared
+      effect_modifiers, so what is reported is the best linear approximation to
+      theta_kappa(x), not an arbitrary function of it.
+    note_modifiers_are_baseline: >
+      The modifiers have to be variables the treatment does not move, which in practice
+      means baseline ones. This is not a preference. If the propagation varies with a state
+      the treatment moves, then the effect of the treatment at t on the outcome at t+2 runs
+      through two paths, and the second one is multiplied by the treatment at t+1: the
+      outcome stops decomposing into a sum of lag effects, and there is no profile left to
+      estimate. Fitting one anyway returns numbers that look plausible and are not any
+      effect. On the panel generator, before its heterogeneity was moved onto a baseline
+      covariate, the constant lag-2 estimate came out at +4.7 where the nominal truth was
+      +1.2.
     extends_paper: true
     note: >
       The paper states identification and consistency for the constant profile only.
@@ -153,6 +164,23 @@ assumptions:
       J_kappa, the IPCW-weighted mean square of the residualised anchor treatment. It
       is the denominator of the estimator, so a small J_kappa is division by almost
       zero, exactly as a weak instrument is in an IV analysis. Blocking.
+
+  - id: modifiers_unaffected_by_treatment
+    category: requires_justification
+    statement: >
+      the variables the lag effect is allowed to vary with are not themselves moved by the
+      treatment
+    applies_to: [lag_cate]
+    evidence: >
+      whether each modifier is constant within a unit, and if it is not, whether earlier
+      treatment predicts it. A modifier constant within a unit cannot be moved by anything
+      that happens during the trajectory, which settles it; a time-varying one has to be
+      argued for, because the data cannot separate "the treatment moved it" from "it moved
+      and the treatment happened to follow".
+    note: >
+      Without this the lag profile is not merely heterogeneous, it does not exist: the
+      contribution of one treatment period to a later outcome becomes a function of the
+      intervening treatment. See the note on lag_cate.
 
   - id: linear_cate_projection
     category: requires_justification
@@ -243,3 +271,99 @@ unsupported_questions:
     reason: >
       the outcome is per period. A single outcome measured once at the end of a
       variable-length trajectory is a different estimand.
+
+# Thresholds live here, not in the code: they decide how strongly a conclusion may be
+# worded, so they are fixed in advance, printed in the report and hashed into the manifest.
+checks:
+  panel_period_gaps:
+    layer: basic
+    severity: blocking
+    waivable: false
+    # The lag index counts rows. A missing period in the middle of a trajectory turns a
+    # lag-2 window into a lag-3 window with no error anywhere, so this cannot be waived
+    # and cannot be imputed: the fix is to build the buckets so that every period between
+    # the first and the last exists, treated or not.
+
+  panel_duplicate_periods:
+    layer: basic
+    severity: blocking
+    waivable: false
+    # Two rows for one unit and period means the state, the treatment or the outcome is
+    # ambiguous. Nothing downstream can choose between them.
+
+  panel_too_short_for_the_lag:
+    layer: feasibility
+    severity: blocking
+    waivable: true
+    # A lag-K window needs K+2 recorded periods: K+1 from the anchor to the outcome, and
+    # one more because observing the outcome of a period means the trajectory reached the
+    # next one. Below this many windows the lag is not estimated, it is invented.
+    min_windows_per_lag: 100
+    min_units_per_lag: 50
+
+  panel_post_treatment_state:
+    layer: temporal
+    severity: blocking
+    waivable: false
+    # A state column recorded after the period's treatment began is post-treatment, and
+    # adjusting on it blocks the path being estimated. In general the data cannot show
+    # this: a state column is *supposed* to predict the same period's treatment, since
+    # that is confounding by indication, and correlation alone cannot separate the two.
+    # What the data can show is the extreme case, a column that is nearly a copy of the
+    # treatment, such as a machine setting recorded during the period. That is blocking.
+    # Anything short of it is a warning saying the measurement window has to be confirmed
+    # with the user, which is the only way to settle it.
+    separation_blocking_above: 0.9
+    separation_warning_above: 0.7
+
+  continuation_positivity:
+    layer: identification
+    severity: blocking
+    waivable: true
+    # The weight of a lag-kappa window multiplies kappa+1 reciprocals, so a floor of c
+    # bounds it by c^-(kappa+1) and the longest lag fails first.
+    #
+    # The threshold is NOT on the largest weight. These weights are heavy-tailed by
+    # construction: on the author's own benchmark, where positivity holds by design and the
+    # estimator is consistent, a single lag-2 weight reaches several hundred. Blocking on
+    # the maximum would refuse the design the method was proved on.
+    #
+    # What decides whether a lag is estimated or invented is how many windows effectively
+    # carry it, so the threshold is on Kish's effective sample size of the weights. On that
+    # same benchmark the lag-2 effective size is about 110 windows at 2,000 units and about
+    # 8 at 800, and the estimate is usable in the first case and not in the second.
+    min_effective_windows: 50
+    # And separately: how often the floor had to bind. A floor that binds is the data
+    # saying continuation is near impossible somewhere, which caps the weight and biases
+    # the estimate towards the unweighted one.
+    max_clipped_share: 0.05
+
+  lag_relevance:
+    layer: identification
+    severity: blocking
+    waivable: true
+    # J is the denominator of the estimator, so this is the weak-instrument problem in
+    # another costume. The floor is on the IPCW-weighted mean square of the residualised
+    # anchor treatment, per unit.
+    min_j_statistic: 0.01
+
+  lag_cate_time_varying_modifier:
+    layer: identification
+    severity: blocking
+    waivable: true
+    # Only for lag_cate. A modifier the treatment moves destroys the additive lag
+    # decomposition, so this blocks rather than warns; it is waivable because an exogenous
+    # time-varying modifier (a calendar effect, say) is legitimate and only the user can
+    # say so. Constant within every unit is the case that needs no argument.
+    max_within_unit_variation_share: 0.0
+    flag_lagged_treatment_correlation: 0.2
+
+  lag_set_composition:
+    layer: feasibility
+    severity: warning
+    waivable: true
+    # Not a defect, a caveat that has to reach the reader. Longer trajectories contain
+    # more sustained treatment, so the treated share rises with the lag: in the author's
+    # application from 12.1% at lag 0 to 17.1% at lag 3. A profile whose last lag rests on
+    # a different population from its first has to be read that way.
+    flag_treated_share_drift: 0.03

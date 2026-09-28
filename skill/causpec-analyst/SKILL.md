@@ -91,12 +91,14 @@ narrative you write for the report.
 |---|---|---|
 | `hte_backdoor` | Backdoor adjustment | You believe observed covariates control confounding |
 | `hte_iv` | Instrumental variable | Unmeasured confounding exists, but a credible instrument does too |
+| `dynamic_lag_dml` | Sequential peeling with continuation weights | The treatment is given period by period, and the data has one row per unit per period |
 
-**Declared, not implemented**: `dynamic_lag_dml`, for a treatment given period by
-period. It answers one question, what one period of treatment does to that period's
-outcome and to the outcomes after it, and refuses the neighbouring ones (start early
-versus start late, the cumulative effect of several periods, a survival endpoint). See
-`dynamic-lag-dml.md` before saying anything about it.
+`dynamic_lag_dml` answers one question: what **one period** of treatment does to that
+period's outcome and to the outcomes after it. It refuses the neighbouring ones, which are
+different designs, not variations: start early versus start late, the cumulative effect of
+several periods, a survival endpoint, an outcome measured once at the end. Its intervals are
+exploratory, so **no lag may be called significant**. Read `dynamic-lag-dml.md` before
+describing it.
 
 **Not supported**: difference-in-differences, regression discontinuity, synthetic
 control, mediation analysis, and any contrast between treatment strategies followed over

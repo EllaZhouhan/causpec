@@ -4,10 +4,6 @@ Read this when the treatment is not a one-off. If the patient can be on it in on
 and off it in the next, a cross-sectional comparison cannot say what it did, and this
 family can, for one specific question.
 
-**Status: declared, not implemented.** family.yaml is written and the checks and the
-estimator follow it. Until then, say what the analysis would be and do not produce a
-number.
-
 ## The one question this answers
 
 What does **one period** of treatment do to the outcome of that period, and to the
@@ -20,6 +16,10 @@ The answer is a profile, one number per lag:
 | theta_0 | the effect on the outcome of the same period |
 | theta_1 | the effect of that same period of treatment, one period later |
 | theta_K | the same, K periods later |
+
+The profile can also be allowed to vary with the patient, which is the `lag_cate` estimand,
+but only with variables the treatment does not move. See the section on that below; getting
+it wrong does not make the answer imprecise, it makes there be no answer.
 
 In the author's ICU application a period is twelve hours, so the profile runs at 0, 12, 24
 and 36 hours, and the outcome is a per-period event rather than a final endpoint. The
@@ -89,21 +89,76 @@ this reason, and the report says "exploratory" next to every interval.
 If the user asks whether an effect is significant, that is the honest answer: this method
 can say where the effect appears to sit and cannot yet give you a test.
 
+## Letting the effect vary: `lag_cate`
+
+`theta_kappa(x)` is the lag-kappa effect for a period whose modifiers were x, read **at the
+treatment period**. What comes back is a linear projection: an intercept and one
+coefficient per modifier, per lag.
+
+**The modifiers must be variables the treatment does not move.** In practice that means
+baseline ones, recorded before the first period: severity at admission, age, comorbidity.
+This is not a style preference and it is not about precision.
+
+If the effect varies with something the treatment moves, then one period of treatment
+reaches a later outcome by two routes, and the second is multiplied by the treatment of the
+period in between. The outcome stops being a sum of lag effects, so there is no profile to
+estimate, and fitting one anyway returns numbers that look reasonable and are not any
+effect. On this project's own generator, before its heterogeneity was moved onto a baseline
+covariate, the lag-2 estimate came back at +4.7 where the truth was +1.2.
+
+A check blocks a modifier that varies within a unit. It is waivable, because a modifier can
+vary for reasons outside the treatment, calendar time or age being the obvious ones, and
+only the user can say that is the case.
+
+## Running it
+
+```bash
+python scripts/run.py quality  --spec spec.yaml --data <panel file>
+python scripts/run.py estimate --spec spec.yaml --data <panel file>
+```
+
+The spec fields this family needs: `unit_id`, `period_index`, `period_length`, `state`,
+`treatment`, `outcome`, `max_lag`, `estimand` (`lag_profile` or `lag_cate`), and
+`effect_modifiers` for `lag_cate`. Estimator settings live in `estimation.params`:
+`n_bootstrap_samples` (200 by default), `bootstrap_n_jobs`, `lambda_floor`, `max_lag`, and
+`use_ipcw` for the sensitivity arm.
+
+Installing: this family needs `causpec[dynamic]`, which is scikit-learn and joblib. It does
+not need econml.
+
 ## What gets reported at each lag
 
-The analysis set shrinks as the lag grows, and it also changes composition: longer
-trajectories contain more sustained treatment, so the treated share rises with the lag. The
-report therefore carries, per lag, the number of units, the number of windows, the treated
-share, the number of events, the largest continuation weight and the relevance quantity J.
-None of that is decoration. A profile whose last lag rests on a different population from
-its first lag has to be read differently, and only the table shows it.
+The analysis set shrinks as the lag grows, and its composition shifts with it, because the
+trajectories long enough to supply a long window are not a random subset. The report
+carries, per lag: the number of units, the number of windows, the treated share, the
+effective number of windows once the weights are counted, the largest weight, and J.
 
-## Two failure modes worth naming
+None of that is decoration. A profile whose last lag rests on a third of the units of its
+first, with a different treated share, has to be read that way, and only the table shows it.
 
-- **The weight product.** A weight over a lag-K window multiplies K+1 reciprocals, so a
-  continuation probability that gets close to zero anywhere in a window blows the window
-  up. The longest lag fails first. The check reports the largest weight and the share of
-  probabilities clipped at the floor.
-- **Relevance per lag.** J is the denominator of the estimator. When it is small, the
-  estimate is a ratio with almost nothing underneath, exactly as a weak instrument is in
-  an IV analysis. It blocks.
+## What blocks, and why those things
+
+- **A gap or a duplicate in the period index.** The lag index counts rows, so a missing
+  period silently relabels every later lag in that trajectory. Not waivable, and not
+  something to impute: a period nobody observed has no outcome to borrow.
+- **Too few effective windows at a lag.** The threshold is not on the largest weight, which
+  is heavy-tailed even when everything is right. It is on how many windows effectively carry
+  the lag once the weights are counted. At 800 units this project's benchmark has about
+  eight effective lag-2 windows out of five hundred, and the lag-2 estimate there is
+  genuinely unusable.
+- **A state column that is nearly a copy of the treatment.** A machine setting recorded
+  during the period, say. A confounder is meant to predict treatment, so only near-perfect
+  separation is evidence of a post-treatment measurement; anything less is a warning and a
+  question for the user.
+- **J too small at a lag.** J is the denominator of the estimator, so this is the
+  weak-instrument problem in another costume: the estimate becomes a ratio with almost
+  nothing underneath.
+
+## Two things to say out loud in the report
+
+1. **A trajectory ending is not the outcome here.** Leaving closes the observation window,
+   and death and discharge are treated identically. "No effect at 36 hours" is not "no
+   effect on dying", and a clinician will read it that way unless it is said.
+2. **The estimand is defined among patients still there.** Each lag speaks about
+   trajectories still active at the treatment period, so the profile says nothing about
+   those who had already left.

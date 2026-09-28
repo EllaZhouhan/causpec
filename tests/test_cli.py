@@ -396,9 +396,9 @@ def test_report_can_reference_all_three_namespaces(workspace, tmp_path, capsys) 
     in one piece of prose."""
     narrative = tmp_path / "three.yaml"
     narrative.write_text(
-        "primary_results: effect {{res:primary.ate|+.3f}}；"
-        "extreme-score share {{qc:backdoor_overlap.extreme_fraction|.1%}}；"
-        "level {{claim:level}}。\n",
+        "primary_results: effect {{res:primary.ate|+.3f}}; "
+        "extreme-score share {{qc:backdoor_overlap.extreme_fraction|.1%}}; "
+        "level {{claim:level}}.\n",
         encoding="utf-8",
     )
     code = run(
@@ -415,3 +415,19 @@ def test_report_can_reference_all_three_namespaces(workspace, tmp_path, capsys) 
     out = capsys.readouterr().out
     assert "{{" not in out
     assert "suggestive" in out
+
+
+def test_the_families_interval_calibration_reaches_the_claim_level() -> None:
+    """A family proved consistent without a limiting distribution cannot support a
+    significance claim, and the CLI has to carry that from family.yaml to the decision.
+
+    Without this wiring the panel family's report would print calibrated intervals it does
+    not have, which is the one thing the claim level exists to prevent. Read from the
+    declaration rather than from a run, because it is a property of the method.
+    """
+    from causpec.cli import _interval_calibration
+
+    assert _interval_calibration("dynamic_lag_dml") == "exploratory"
+    # The cross-sectional families say nothing, and the default is the ordinary case.
+    assert _interval_calibration("hte_iv") == "calibrated"
+    assert _interval_calibration("hte_backdoor") == "calibrated"

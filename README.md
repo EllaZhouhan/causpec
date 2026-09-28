@@ -32,7 +32,7 @@ Four principles:
 |---|---|
 | `hte_iv` | Heterogeneous treatment effects under an IV design; binary and continuous instruments |
 | `hte_backdoor` | Heterogeneous treatment effects under backdoor adjustment |
-| `dynamic_lag_dml` | The lag profile of one treatment period on per-period outcomes, with IPCW for an informative horizon (not implemented) |
+| `dynamic_lag_dml` | The lag profile of one treatment period on per-period outcomes, with continuation weighting for an informative horizon |
 
 Designs outside that range (difference-in-differences, regression discontinuity,
 synthetic control) are refused explicitly, with a reason given for each excluded

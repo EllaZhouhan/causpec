@@ -38,7 +38,7 @@ def reference_text() -> str:
 
 def test_the_family_is_declared(declaration: dict) -> None:
     assert declaration["id"] == FAMILY
-    assert declaration["status"] == "planned"
+    assert declaration["status"] == "implemented"
     assert declaration["analysis_type"] == "panel"
 
 
@@ -189,10 +189,11 @@ def test_the_reference_states_the_within_period_order(reference_text: str) -> No
     assert "gap" in reference_text.lower()
 
 
-def test_the_reference_does_not_promise_a_number(reference_text: str) -> None:
-    """Declared and not implemented: describing the analysis is allowed, producing a
-    number is not."""
-    assert "not implemented" in reference_text.lower()
+def test_the_reference_says_what_the_data_must_look_like(reference_text: str) -> None:
+    """The panel shape is the first thing that decides whether this family applies at all,
+    so the model has to be able to describe it before asking for a file."""
+    for token in ("one row per unit and period", "period length", "consecutive"):
+        assert token in reference_text.lower()
 
 
 def test_yaml_is_not_accidentally_typed(declaration: dict) -> None:

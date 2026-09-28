@@ -79,6 +79,17 @@ def _resolve_family(spec: Spec):
         raise SystemExit(4) from error
 
 
+def _interval_calibration(family_id: str) -> str:
+    """What the family says about its own intervals, from its declaration.
+
+    A property of the method rather than of a run, so it is read from family.yaml. Families
+    that say nothing are calibrated, which is the ordinary case; the exception is an
+    estimator proved consistent with no limiting distribution.
+    """
+    declaration = registry.load_declaration(family_id)
+    return str(declaration.get("inference", {}).get("calibration", "calibrated"))
+
+
 def _persist_run(
     args: argparse.Namespace,
     spec: Spec,
@@ -164,8 +175,17 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     result = family.estimate(data, spec, seed=args.seed)
     elapsed_ms = (time.perf_counter() - started) * 1000
 
-    # The claim level is decided by code; the model may not upgrade it (principle 5).
-    decision = determine(spec, report, gate_passed=True, waived=waivers)
+    # The claim level is decided by code; the model may not upgrade it (principle 5). How
+    # the family's intervals are calibrated is part of that decision and comes from the
+    # family's own declaration: an estimator proved consistent without a limiting
+    # distribution cannot support a significance claim, however clean the data is.
+    decision = determine(
+        spec,
+        report,
+        gate_passed=True,
+        waived=waivers,
+        interval_calibration=_interval_calibration(spec.family),
+    )
     addresses: dict[str, float | int | str] = {
         **result.values,
         **report.addresses(),

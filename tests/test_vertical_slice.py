@@ -33,7 +33,7 @@ def result() -> Result:
     This file pins the gate, the renderer and the spec contract, none of which should
     depend on any family being runnable, or pay the cost of fitting a forest to find
     out. For the estimators themselves see test_hte_iv.py and
-    test_hte_backdoor.py。
+    test_hte_backdoor.py.
     """
     return Result(
         family="hte_backdoor",
@@ -132,8 +132,8 @@ def test_hte_backdoor_declares_backdoor_estimands() -> None:
 
 def test_render_substitutes_addresses(result: Result) -> None:
     assert (
-        render("effect {{res:primary.estimate}}。", result.values)
-        == f"effect {result.values['res:primary.estimate']}。"
+        render("effect {{res:primary.estimate}}.", result.values)
+        == f"effect {result.values['res:primary.estimate']}."
     )
 
 
@@ -154,7 +154,7 @@ def test_render_allows_literal_in_terminology(result: Result) -> None:
 def test_render_rejects_result_smuggled_as_literal(result: Result) -> None:
     estimate = result.values["res:primary.estimate"]
     with pytest.raises(RenderError, match="equals the computed result"):
-        render(f"difference {{{{lit:{estimate}}}}}。", result.values)
+        render(f"difference {{{{lit:{estimate}}}}}.", result.values)
 
 
 # ---- format specs ----
@@ -165,7 +165,7 @@ def test_format_spec_controls_precision(result: Result) -> None:
     response is to round it to -0.018 itself, which defeats G4. Letting it declare
     precision is safer than letting it do the maths."""
     addresses = {"res:primary.ate": -0.017936448014042473}
-    assert render("effect {{res:primary.ate|+.3f}}。", addresses) == "effect -0.018。"
+    assert render("effect {{res:primary.ate|+.3f}}.", addresses) == "effect -0.018."
 
 
 def test_percent_format(result: Result) -> None:
@@ -215,7 +215,7 @@ def test_bare_number_error_points_at_a_matching_address(result: Result) -> None:
     vaguely."""
     estimate = result.values["res:primary.estimate"]
     with pytest.raises(RenderError) as excinfo:
-        render(f"the effect is {estimate}。", result.values)
+        render(f"the effect is {estimate}.", result.values)
     assert "{{res:primary.estimate}}" in str(excinfo.value)
 
 

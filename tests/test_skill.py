@@ -84,7 +84,7 @@ def test_skill_lists_exactly_the_implemented_families(skill_text: str) -> None:
         for name in registry.declared_families()
         if registry.load_declaration(name).get("status") == "implemented"
     }
-    assert implemented == {"hte_backdoor", "hte_iv"}
+    assert implemented == {"dynamic_lag_dml", "hte_backdoor", "hte_iv"}
     for name in implemented:
         assert f"`{name}`" in skill_text
 

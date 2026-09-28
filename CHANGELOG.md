@@ -7,14 +7,36 @@ the milestones in plan.md section 2.
 
 ### Added
 
-- **The `dynamic_lag_dml` family, declared** (design.md 7.3): the lag profile of one
-  treatment period on per-period outcomes, on panel data whose trajectories end at
-  state-dependent and treatment-dependent times. Two estimands, `lag_profile` and
-  `lag_cate`; the structural model the profile derives from; five assumptions with the
-  evidence named for the two that data can speak to; and the four neighbouring questions
-  the family refuses by name (a strategy contrast, a cumulative effect, a survival
-  endpoint, a terminal outcome). Not implemented: the declaration is what the estimator
-  and the checks will follow
+- **The `dynamic_lag_dml` family** (design.md 7.3): the lag profile of one treatment
+  period on per-period outcomes, on panel data whose trajectories end at state-dependent
+  and treatment-dependent times. Two estimands, `lag_profile` and `lag_cate`; the
+  structural model the profile derives from; six assumptions with the evidence named for
+  the three that data can speak to; and the four neighbouring questions the family refuses
+  by name (a strategy contrast, a cumulative effect, a survival endpoint, a terminal
+  outcome). Ported from the author's paper: cross-fitted sequential peeling, one
+  partially linear problem per lag, and inverse-probability-of-continuation weighting for
+  the informative horizon. Needs `causpec[dynamic]`, which is scikit-learn and joblib, not
+  econml
+- **`lag_cate`, and the restriction that makes it meaningful**: the lag effect may vary
+  only with variables the treatment does not move. Otherwise one treatment period reaches a
+  later outcome by two routes, the second multiplied by the treatment in between, and the
+  outcome stops decomposing into lag effects: there is no profile, and fitting one returns
+  plausible numbers that are not any effect. Found by testing rather than by reading, when
+  the generator's first heterogeneity design put the lag-2 estimate at +4.7 where its
+  nominal truth was +1.2. A blocking, waivable check now refuses a modifier that varies
+  within a unit
+- **Seven panel quality checks**: period gaps and duplicates (blocking, not waivable,
+  because the lag index counts rows and a gap silently relabels every later lag), a state
+  column that is nearly a copy of the same period's treatment, too few complete windows per
+  lag, continuation positivity, lag relevance J, and the per-lag composition of the
+  analysis set. The positivity threshold is on the effective number of windows, not on the
+  largest weight: these weights are heavy-tailed even on the design the method was proved
+  on, and an earlier version thresholding the maximum refused that design at 800 units
+- **The panel part of dataset A**: an episodic trajectory generator with the lag profile
+  known in closed form, reproducing both of the paper's designs, their true profiles
+  (-0.5, 4.0, 1.2) and (-0.5, 3.6, 1.08), and their descriptives (about 54% of periods
+  treated, a mean of 2.9 periods). Continuation positivity holds by construction, so the
+  strength of the selection can be turned up without breaking the assumption
 - **The claim-level decision gained a second axis**: `interval_calibration`. An estimator
   proved consistent without a limiting distribution has intervals that indicate where an
   effect sits and test nothing, so `significance_claims_allowed` goes false and the level
