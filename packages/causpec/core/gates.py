@@ -66,10 +66,17 @@ def check_no_blocking_issues(
             unresolved.append(issue)
 
     if unresolved:
+        # The diagnosis, not just the check id. The caller has already computed the
+        # summary and the repair, so withholding them means the user has to run the
+        # quality command again to learn what went wrong.
+        diagnosis = "\n".join(
+            f"  {issue.check_id}: {issue.summary}"
+            + (f"\n    Suggested: {issue.recommended_repair}" if issue.recommended_repair else "")
+            for issue in unresolved
+        )
         raise GateError(
             code="BLOCKING_QUALITY_ISSUES",
-            reason="Unresolved blocking quality issues: "
-            + ", ".join(i.check_id for i in unresolved),
+            reason="Unresolved blocking quality issues:\n" + diagnosis,
             remediation=(
                 "Fix the data or change the design. To proceed anyway, record a waiver "
                 "with a reason for each waivable check."

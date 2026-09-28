@@ -266,6 +266,35 @@ inference:
     bootstrap. The report says "exploratory" in both cases and the claim level is
     capped, so the prose cannot call a lag significant.
 
+# What the report prints as a table rather than leaving to prose. The finding of this
+# estimand is the shape across lags, so the reader has to see every lag with the numbers
+# that say how much to trust it, not the lags a sentence happened to mention. Core renders
+# this from the addresses and knows nothing about lags.
+report_tables:
+  - id: lag_profile
+    title: The lag profile
+    rows:
+      variable: lag
+      from: 0
+      through_address: res:profile.max_lag
+    columns:
+      - {header: Lag, template: index}
+      - {header: Hours, address: "res:profile.lag{lag}.hours", format: ".0f"}
+      - {header: Effect, address: "res:profile.lag{lag}.theta", format: "+.4f"}
+      - {header: 95% lower, address: "res:profile.lag{lag}.ci_lo", format: "+.4f"}
+      - {header: 95% upper, address: "res:profile.lag{lag}.ci_hi", format: "+.4f"}
+      - {header: Units, address: "res:profile.lag{lag}.n_units", format: ",d"}
+      - {header: Windows, address: "res:profile.lag{lag}.n_windows", format: ",d"}
+      - {header: Effective windows, address: "res:profile.lag{lag}.effective_windows", format: ",.0f"}
+      - {header: Largest weight, address: "res:profile.lag{lag}.weight_max", format: ",.1f"}
+      - {header: J, address: "res:profile.lag{lag}.j_statistic", format: ".3f"}
+    note: >
+      Intervals are exploratory percentile intervals from resampling whole units: they
+      indicate where each effect sits and no lag may be called significant. The analysis set
+      shrinks and shifts along the profile, so the units and windows columns say which
+      population each lag describes. Effective windows counts what is left once the
+      continuation weights are taken into account, and J is the denominator of the estimator.
+
 outputs:
   - the effect at each lag, with its exploratory interval
   - the analysis set at each lag: units, windows, treated share, events

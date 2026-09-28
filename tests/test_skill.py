@@ -280,3 +280,47 @@ def test_mcp_is_not_claimed_to_exist(skill_text: str) -> None:
     """The MCP server does not exist yet. Directing a model at tools that are not there
     is worse than having no skill."""
     assert "the MCP server is not implemented yet" in skill_text
+
+
+# ---- both paths are described, not just the one the skill grew up with ----
+
+
+def test_the_panel_path_is_visible_in_the_step_list(skill_text: str) -> None:
+    """The eight steps were written for one row per unit. A model on the panel path that
+    followed step 3 literally would confirm an adjustment_set that family does not have."""
+    assert "Two paths run through these steps" in skill_text
+    for step in ("### 3.", "### 4.", "### 5."):
+        index = skill_text.index(step)
+        section = skill_text[index : index + 700]
+        assert "panel" in section.lower(), f"{step} does not say which path it describes"
+
+
+def test_the_panel_fields_are_documented_where_a_spec_gets_written() -> None:
+    """spec-fields.md is what the model reads to write a spec. Fields missing from it are
+    fields the model invents."""
+    text = (REFERENCES / "spec-fields.md").read_text(encoding="utf-8")
+    for field in ("unit_id", "period_index", "period_length", "state", "max_lag", "horizon"):
+        assert f"`{field}`" in text or f"  {field}:" in text, field
+    assert "dynamic_lag_dml" in text
+
+
+def test_the_exploratory_interval_rule_reaches_the_claim_level_reference() -> None:
+    """The decision carries claim:significance_claims. A model that never read about it
+    would describe an interval excluding zero as a finding."""
+    text = (REFERENCES / "claim-levels.md").read_text(encoding="utf-8")
+    assert "significance_claims" in text
+    assert "exploratory" in text
+
+
+def test_the_reporting_reference_names_the_panel_addresses() -> None:
+    """Otherwise the model guesses res:primary.ate, which does not exist for a profile."""
+    text = (REFERENCES / "reporting.md").read_text(encoding="utf-8")
+    assert "res:profile.lag1.theta" in text
+    assert "res:profile.period_hours" in text
+
+
+def test_no_reference_claims_only_two_designs_are_supported(skill_text: str) -> None:
+    """There are three. This sentence was left behind by the third one arriving."""
+    assert "Only two identification strategies" not in skill_text
+    for path in REFERENCES.glob("*.md"):
+        assert "Only two identification strategies" not in path.read_text(encoding="utf-8")

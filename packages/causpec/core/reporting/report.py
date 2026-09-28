@@ -30,7 +30,7 @@ and that prose always goes through placeholder rendering.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Any
 
@@ -211,6 +211,76 @@ def _claim_level_section(decision: ClaimLevelDecision) -> str:
     return "\n".join(lines)
 
 
+def _tables_section(
+    tables: Sequence[Mapping[str, Any]], addresses: Mapping[str, float | int | str]
+) -> str:
+    """Render the result tables a family declares, from the merged address table.
+
+    Core stays family-agnostic: a family declares what its table looks like in
+    ``family.yaml`` and this renders it from addresses, the same way the renderer
+    substitutes a placeholder. Nothing here knows what a lag is.
+
+    A table exists because some results do not fit in prose. A lag profile is the case
+    that forced it: its finding is the shape across lags, and leaving that to the model's
+    sentences means the reader sees the lags the model chose to mention. The declaration
+    promised the per-lag counts; this is what keeps that promise.
+    """
+    chunks: list[str] = []
+    for table in tables:
+        rows = table.get("rows", {})
+        variable = str(rows.get("variable", "i"))
+        start = int(rows.get("from", 0))
+        through = rows.get("through_address")
+        last = _as_int(addresses.get(str(through))) if through is not None else None
+        if last is None:
+            last = int(rows.get("through", start))
+        columns = list(table.get("columns", []))
+        if not columns or last < start:
+            continue
+        headers = [str(column.get("header", "")) for column in columns]
+        lines = [f"**{table.get('title', 'Results')}**", ""]
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+        for index in range(start, last + 1):
+            cells: list[str] = []
+            for column in columns:
+                cells.append(_table_cell(column, variable, index, addresses))
+            lines.append("| " + " | ".join(cells) + " |")
+        if table.get("note"):
+            lines += ["", str(table["note"]).strip()]
+        chunks.append("\n".join(lines))
+    return "\n\n".join(chunks)
+
+
+def _table_cell(
+    column: Mapping[str, Any],
+    variable: str,
+    index: int,
+    addresses: Mapping[str, float | int | str],
+) -> str:
+    """One cell: either the row's own index, or a formatted value at an address."""
+    if "address" not in column:
+        return str(index)
+    address = str(column["address"]).replace("{" + variable + "}", str(index))
+    if address not in addresses:
+        return "n/a"
+    value = addresses[address]
+    spec = column.get("format")
+    if spec is None or isinstance(value, str):
+        return _escape(value)
+    try:
+        return format(value, str(spec))
+    except (TypeError, ValueError):
+        return _escape(value)
+
+
+def _as_int(value: object) -> int | None:
+    try:
+        return int(float(str(value)))
+    except (TypeError, ValueError):
+        return None
+
+
 def _not_implemented(what: str, where: str) -> str:
     """Say so rather than silently omitting, the reader needs to know what is missing."""
     return (
@@ -226,6 +296,7 @@ def build(
     addresses: Mapping[str, float | int | str],
     *,
     narrative: Mapping[Any, str] | None = None,
+    tables: Sequence[Mapping[str, Any]] | None = None,
     execution_mode: ExecutionMode = ExecutionMode.CLI,
     title: str | None = None,
 ) -> str:
@@ -235,6 +306,9 @@ def build(
         narrative: interpretation written by the model, keyed by section. Only
             sections in ``MODEL_AUTHORED_SECTIONS`` are accepted, and the prose always
             goes through placeholder rendering, a bare number fails the render.
+        tables: result-table declarations from the family, rendered into the primary
+            results section ahead of the model's prose. Declared rather than coded, so
+            core needs to know nothing about any family.
 
     Raises:
         ReportError: the model tried to author a purely factual section.
@@ -264,6 +338,10 @@ def build(
             "Sensitivity and refutation testing", "plan.md Phase 1 task 9"
         ),
     }
+    if tables:
+        rendered_tables = _tables_section(tables, addresses)
+        if rendered_tables:
+            facts[Section.PRIMARY_RESULTS] = rendered_tables
 
     chunks = [f"# {title or spec.question}", ""]
     for section in SECTION_ORDER:

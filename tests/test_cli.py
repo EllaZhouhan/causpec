@@ -431,3 +431,24 @@ def test_the_families_interval_calibration_reaches_the_claim_level() -> None:
     # The cross-sectional families say nothing, and the default is the ordinary case.
     assert _interval_calibration("hte_iv") == "calibrated"
     assert _interval_calibration("hte_backdoor") == "calibrated"
+
+
+def test_a_blocking_gate_reports_the_diagnosis_it_already_computed(workspace, capsys) -> None:
+    """The estimate command runs the checks before the gate, so it knows what failed and
+    what to do about it. Printing only the check id sends the user to run the quality
+    command again to learn what their own error message meant.
+    """
+    code = run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["broken.csv"]),
+    )
+    assert code != 0
+    captured = capsys.readouterr()
+    message = captured.out + captured.err
+    assert "backdoor_overlap" in message
+    # The summary, and the repair, not just the id.
+    assert "falls outside" in message or "%" in message
+    assert "Suggested:" in message

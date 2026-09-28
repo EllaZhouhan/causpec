@@ -1,6 +1,6 @@
 ---
 name: causpec-analyst
-description: A controlled workflow for causal analysis on observational data. Turns a question in plain language into an analysis spec confirmed field by field, checks whether the data can support that question at all, runs heterogeneous treatment effect estimation in deterministic code, and produces a report whose every number traces back to a computation. Use for estimating treatment effects from observational data, heterogeneous effects (who benefits more), instrumental-variable analysis, assessing data quality and identifiability for a causal question, or judging whether a causal question can be answered with the data at hand.
+description: A controlled workflow for causal analysis on observational data. Turns a question in plain language into an analysis spec confirmed field by field, checks whether the data can support that question at all, runs the estimation in code, and produces a report whose every number traces back to a computation. Use for estimating treatment effects from observational data, heterogeneous effects (who benefits more), instrumental-variable analysis, treatments given period by period on panel data (what one period of treatment does now and in later periods, a lag profile, with informative dropout), assessing data quality and identifiability for a causal question, or judging whether a causal question can be answered with the data at hand.
 ---
 
 # CauSpec Analyst
@@ -60,7 +60,8 @@ narrative you write for the report.
 
 1. **One question per turn.** Start from the most important unconfirmed field; do not
    fire off five questions at once.
-2. **Numbers only through placeholders**, e.g. `{{res:primary.ate|+.3f}}`. Do not
+2. **Numbers only through placeholders**, e.g. `{{res:primary.ate|+.3f}}` on the
+   cross-sectional path, `{{res:profile.lag1.theta|+.3f}}` on the panel one. Do not
    compute anything yourself, and do not copy a tool's output into the prose, the
    renderer will refuse it.
 3. **Follow the claim level the code decides** (causal / suggestive / associational /
@@ -82,8 +83,8 @@ narrative you write for the report.
    after treatment can never enter the adjustment set. Being pre-treatment is
    necessary, not sufficient.
 8. **When the design the question needs is unsupported, say so and say why.** Do not
-   substitute another design to produce a number. Only two identification strategies
-   are supported; see below.
+   substitute another design to produce a number. Three designs are supported and the
+   list below says which; everything else is refused.
 
 ## What is supported
 
@@ -128,6 +129,13 @@ every time"), without words like "deterministic".
 ## The eight steps
 
 Strictly in order. Steps 1-5 confirm fields; estimation is not touched until step 6.
+
+**Two paths run through these steps.** Step 1 decides which. The cross-sectional path,
+one row per unit, is what steps 3 to 5 below describe. The panel path, one row per unit
+per period, uses the same eight steps with different fields at 3, 4 and 5, and
+`dynamic-lag-dml.md` is where those are written out. Do not improvise the panel fields
+from the cross-sectional ones: `state` is not `adjustment_set`, and the modifiers are
+restricted in a way that has no counterpart here.
 
 ### 1. Ask what they want to know, then read the schema
 
@@ -207,6 +215,10 @@ concepts onto specific columns and confirm each one: "By 'dialysis', do you mean
 
 ### 3. Variable roles: draft them yourself, then confirm
 
+**Cross-sectional path.** On the panel path the roles are different and the defaults
+below do not apply: the conditioning set is `state`, and the modifiers must be variables
+the treatment cannot move, which usually means baseline ones. See `dynamic-lag-dml.md`.
+
 `effect_modifiers` (X) are the variables the effect is allowed to vary over;
 `adjustment_set` (W) removes confounding without entering the CATE. Putting a variable
 in the wrong one raises no error. It quietly changes the estimand.
@@ -232,8 +244,10 @@ is expressed along.
 
 ### 4. Identification strategy and assumptions
 
-Whether to use backdoor or IV depends on the user's judgement about whether observed
-covariates control confounding, so ask them. Record the assumptions in `assumptions`,
+**Cross-sectional path**: whether to use backdoor or IV depends on the user's judgement
+about whether observed covariates control confounding, so ask them. **Panel path**: the
+strategy is fixed by the family, and what to ask instead is the horizon pair from step 1
+plus whether the recorded state accounts for why treatment was given in that period. Record the assumptions in `assumptions`,
 by category:
 
 | category | Meaning |
@@ -249,7 +263,7 @@ conclusion may be worded.
 ### 5. Choose a family and reconcile the estimand
 
 Compare the estimand the user wants against what the family declares it can identify
-(see `references/hte-dmliv.md`). **Stop here** on a mismatch: either choose a different
+(see `hte-dmliv.md` for the IV setting, `dynamic-lag-dml.md` for the panel one). **Stop here** on a mismatch: either choose a different
 family or ask the user to restate the estimand.
 
 The classic conflict: the user asks "which patients benefit" (a CATE) while the
@@ -309,4 +323,4 @@ Read as needed; do not read them all at once.
 | `hte-dmliv.md` | The IV setting: estimands, binary versus continuous instruments |
 | `reporting.md` | Report structure and placeholder syntax |
 | `claim-levels.md` | What decides each of the four levels, and how to word them |
-| `dynamic-lag-dml.md` | Treatment period by period: the lag profile, and the three questions near it that it does not answer |
+| `dynamic-lag-dml.md` | Treatment period by period: the lag profile, the panel fields it needs, and the four questions near it that it does not answer |

@@ -134,13 +134,25 @@ def _check_literals_are_not_results(
         written = _as_float(literal)
         if written is None:
             continue
-        for address, number in numeric_results.items():
-            if abs(written - number) <= _LITERAL_MATCH_RTOL * max(abs(number), 1e-9):
-                raise RenderError(
-                    f"lit:{literal} equals the computed result {address} ({number}).\n"
-                    f"Computed results must be cited by address, as {{{{{address}}}}};\n"
-                    f"lit is only for numbers inside a term, e.g. {{{{lit:28}}}}-day mortality."
-                )
+        # Every matching address, not the first one found. A number can coincide with
+        # several results, and then naming only one sends the model to an address that is
+        # numerically right and semantically wrong: "a 12-hour period" is the period
+        # length, which happens to equal the lag-1 effect's 12 hours.
+        matches = sorted(
+            address
+            for address, number in numeric_results.items()
+            if abs(written - number) <= _LITERAL_MATCH_RTOL * max(abs(number), 1e-9)
+        )
+        if not matches:
+            continue
+        shown = ", ".join(f"{{{{{address}}}}}" for address in matches)
+        raise RenderError(
+            f"lit:{literal} equals a computed result. Cite it by address instead.\n"
+            f"Addresses with this value: {shown}\n"
+            f"Pick the one that means what the sentence says; if none of them does, the "
+            f"number is not this result and the sentence needs rewording.\n"
+            f"lit is only for numbers inside a term, e.g. {{{{lit:28}}}}-day mortality."
+        )
 
 
 def render(template: str, addresses: Mapping[str, float | int | str]) -> str:

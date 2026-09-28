@@ -1,5 +1,10 @@
 # Variable roles
 
+**This page is the cross-sectional path.** `dynamic_lag_dml` has no separate W: the
+conditioning set is `state`, recorded at the start of each period, and the modifiers of
+`lag_cate` are restricted to variables the treatment cannot move. See `dynamic-lag-dml.md`
+before applying anything here to a panel.
+
 ## `effect_modifiers` (X) and `adjustment_set` (W) are separate
 
 This is the easiest place in the spec to get wrong, and getting it wrong **raises no

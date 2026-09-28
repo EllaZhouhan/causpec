@@ -147,6 +147,22 @@ the milestones in plan.md section 2.
 
 ### Changed
 
+- **The report prints a family's result tables, declared rather than coded.** A family lists
+  `report_tables` in its declaration and core renders them from the address table, knowing
+  nothing about what a lag is. `dynamic_lag_dml` uses it for the profile: every lag with its
+  effect, its exploratory interval, and the units, windows, effective windows and J behind it.
+  Prose is the wrong container for a result with one row per lag, and the reader was seeing
+  only the lags a sentence happened to mention
+- **A refused `lit:` now names every address matching that number**, not the first one found.
+  One number can coincide with several results, and naming one sends the model to an address
+  that is numerically right and semantically wrong: "a 12-hour period" is the period length,
+  which happens to equal the lag-1 effect's 12 hours. `res:profile.period_hours` was added so
+  that sentence has something correct to cite
+- **A blocking gate prints the diagnosis it already computed**, the summary and the suggested
+  repair, not just the check id. The estimate command runs the checks before the gate, so
+  withholding them sent the user to run the quality command again to find out what their own
+  error message meant
+
 - **The continuation model no longer treats the end of every trajectory as an exit.** It
   used to, which asks the model to predict "is this the last period" from the state and the
   treatment, and the period index is not among them. On an eight-period balanced panel that

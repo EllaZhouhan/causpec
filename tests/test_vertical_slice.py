@@ -153,8 +153,12 @@ def test_render_allows_literal_in_terminology(result: Result) -> None:
 
 def test_render_rejects_result_smuggled_as_literal(result: Result) -> None:
     estimate = result.values["res:primary.estimate"]
-    with pytest.raises(RenderError, match="equals the computed result"):
+    with pytest.raises(RenderError, match="equals a computed result") as raised:
         render(f"difference {{{{lit:{estimate}}}}}.", result.values)
+    # The message names the address to use instead, and every address that matches, since
+    # one number can coincide with several results and only one of them may be the one the
+    # sentence means.
+    assert "res:primary.estimate" in str(raised.value)
 
 
 # ---- format specs ----

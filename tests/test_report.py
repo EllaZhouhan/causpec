@@ -280,3 +280,84 @@ def test_narrative_can_reference_quality_addresses() -> None:
         },
     )
     assert "outside the threshold: 0.2%." in markdown
+
+
+# ---- result tables a family declares ----
+
+PROFILE_TABLE = {
+    "id": "lag_profile",
+    "title": "The lag profile",
+    "rows": {"variable": "lag", "from": 0, "through_address": "res:profile.max_lag"},
+    "columns": [
+        {"header": "Lag", "template": "index"},
+        {"header": "Hours", "address": "res:profile.lag{lag}.hours", "format": ".0f"},
+        {"header": "Effect", "address": "res:profile.lag{lag}.theta", "format": "+.3f"},
+        {"header": "Units", "address": "res:profile.lag{lag}.n_units", "format": ",d"},
+    ],
+    "note": "Intervals are exploratory.",
+}
+
+PROFILE_ADDRESSES: dict[str, float | int | str] = {
+    "res:profile.max_lag": 2,
+    "res:profile.lag0.hours": 0.0,
+    "res:profile.lag0.theta": -0.5,
+    "res:profile.lag0.n_units": 3755,
+    "res:profile.lag1.hours": 12.0,
+    "res:profile.lag1.theta": 3.861,
+    "res:profile.lag1.n_units": 2300,
+    "res:profile.lag2.hours": 24.0,
+    "res:profile.lag2.theta": 1.509,
+    "res:profile.lag2.n_units": 1447,
+}
+
+
+def _profile_report(**kwargs) -> str:
+    return build(SPEC, QUALITY, DECISION, PROFILE_ADDRESSES, tables=[PROFILE_TABLE], **kwargs)
+
+
+def test_a_declared_table_is_rendered_into_the_primary_results() -> None:
+    """Some results do not fit in prose. A profile's finding is its shape across lags, and
+    leaving that to sentences means the reader sees the lags a sentence mentioned."""
+    text = _profile_report()
+    assert "**The lag profile**" in text
+    assert "| Lag | Hours | Effect | Units |" in text
+    assert "| 0 | 0 | -0.500 | 3,755 |" in text
+    assert "| 2 | 24 | +1.509 | 1,447 |" in text
+    assert "Intervals are exploratory." in text
+
+
+def test_the_table_comes_before_the_model_prose() -> None:
+    """Facts first, interpretation after, as in the data-quality section."""
+    text = _profile_report(narrative={"primary_results": "The profile is not flat."})
+    assert text.index("**The lag profile**") < text.index("The profile is not flat.")
+
+
+def test_core_needs_no_knowledge_of_what_a_lag_is() -> None:
+    """The table is declared by the family and rendered from addresses. Nothing in core
+    names a lag, which is what keeps the layering intact."""
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[1] / "packages" / "causpec" / "core" / "reporting"
+    text = (source / "report.py").read_text(encoding="utf-8").lower()
+    # "flag" and "flagged" contain the letters; what must not appear is the concept.
+    assert "lag_" not in text
+    assert "per lag" not in text
+
+
+def test_a_missing_address_shows_as_not_available_rather_than_failing() -> None:
+    """A family may declare a column its estimator does not always produce."""
+    table = {
+        **PROFILE_TABLE,
+        "columns": [
+            *PROFILE_TABLE["columns"],
+            {"header": "J", "address": "res:profile.lag{lag}.j"},
+        ],
+    }
+    text = build(SPEC, QUALITY, DECISION, PROFILE_ADDRESSES, tables=[table])
+    assert "n/a" in text
+
+
+def test_no_tables_declared_changes_nothing() -> None:
+    """The cross-sectional families declare none, and their reports are unaffected."""
+    without = build(SPEC, QUALITY, DECISION, PROFILE_ADDRESSES)
+    assert "The lag profile" not in without

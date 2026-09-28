@@ -56,6 +56,38 @@ python scripts/run.py estimate --spec spec.yaml --data <data> \
     --report --narrative narrative.yaml --run-dir runs/
 ```
 
+## On the panel path, the profile table is code-generated
+
+For `dynamic_lag_dml` the primary-results section opens with a table the code writes: every
+lag, its effect, its exploratory interval, and the units, windows, effective windows and J
+behind it. You do not write that table and cannot suppress it.
+
+So your `primary_results` prose is interpretation, not transcription. Say what the shape of
+the profile means, where it peaks, which lag rests on too little to lean on. Repeating the
+table in sentences wastes the section.
+
+The addresses, for the prose you do write:
+
+```
+{{res:profile.lag1.theta|+.3f}}      the lag-1 effect
+{{res:profile.lag1.ci_lo|+.3f}}      its exploratory interval
+{{res:profile.lag1.hours|.0f}}       that lag in clock time
+{{res:profile.period_hours|.0f}}     one period in clock time
+{{res:profile.lag1.n_units}}         units behind that lag
+{{res:profile.lag1.effective_windows|,.0f}}   windows left once the weights are counted
+{{res:profile.max_lag}}              the longest lag
+{{res:profile.horizon}}              fixed or variable
+{{res:sample.n_units}}               units in the panel
+```
+
+**Do not write `res:primary.ate` here**: there is no single average effect in a profile, and
+the renderer will refuse an address that does not exist.
+
+One trap specific to this family. "A 12-hour period" looks like a term, so `{{lit:12}}` is
+the instinct, and it is refused, because 12 is also the lag-1 effect's 12 hours. Cite
+`{{res:profile.period_hours|.0f}}` instead. The error message lists every address that
+matches the number, so pick the one that means what the sentence says.
+
 ## Placeholder syntax
 
 ```

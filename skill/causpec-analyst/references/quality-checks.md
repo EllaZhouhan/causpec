@@ -72,3 +72,21 @@ Three rules:
 
 The reason is persisted into the run directory, where it is the first thing an audit
 of this analysis would read.
+
+## The panel family's checks
+
+`dynamic_lag_dml` brings its own, and two of them refuse rather than warn for reasons that
+are not about statistics:
+
+| Check | Why it blocks |
+|---|---|
+| `panel_period_gaps`, `panel_duplicate_periods` | The lag index counts rows, so a missing period silently relabels every later lag in that trajectory. Not waivable, and a gap is not something to impute |
+| `panel_missing_values` | The state, the treatment and the outcome of a period are the period. A guess at one is a guess at the effect |
+| `horizon_declaration` | The declared horizon contradicts the data. The dangerous case is a panel where every unit has the same number of periods while the user said units leave: that is the shape of a cohort truncated to the units that lasted, which is conditioned on surviving and cannot be repaired by weighting |
+| `continuation_positivity` | Too few effective windows at a lag once the weights are counted. The threshold is not on the largest weight, which is heavy-tailed even when everything is right |
+| `lag_relevance` | J, the denominator of the estimator, is near zero at some lag: the weak-instrument problem in another costume |
+
+`lag_set_composition` warns and never blocks. It is not a defect: the analysis set shrinks
+and shifts along the profile, and the reader has to be told rather than protected from it.
+
+Full explanations, and what to say to the user, are in `dynamic-lag-dml.md`.

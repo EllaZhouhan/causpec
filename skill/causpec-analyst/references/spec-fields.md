@@ -5,7 +5,7 @@
 ```yaml
 spec_version: 1
 question: What is the average effect of dialysis on ICU mortality?
-family: hte_backdoor              # hte_backdoor | hte_iv
+family: hte_backdoor              # hte_backdoor | hte_iv | dynamic_lag_dml
 
 estimation:
   params:                          # estimator hyper-parameters; enter spec_hash and the manifest
@@ -34,6 +34,39 @@ fields:
   instrument:       {value: [col4], ...}          # hte_iv only
   causal_claim_approved: {value: true, ...}       # only once the user agrees to causal wording
 ```
+
+## The panel family's own fields
+
+`dynamic_lag_dml` reads one row per unit per period, so it needs a different set. Every one
+of them is confirmed the same way, with the user's words.
+
+```yaml
+family: dynamic_lag_dml
+
+fields:
+  unit_id:         {value: patient_id, ...}     # the patient: the independent unit
+  period_index:    {value: bucket, ...}         # consecutive integers from 0, no gaps
+  period_length:   {value: 12, ...}             # clock time per period, for the report
+  treatment:       {value: on_rrt, ...}         # the exposure over the period
+  outcome:         {value: instability, ...}    # realised after that period's treatment
+  state:           {value: [creatinine, ...]}   # recorded at the START of the period
+  max_lag:         {value: 2, ...}              # the profile is theta_0 ... theta_K
+  estimand:        {value: lag_profile, ...}    # lag_profile | lag_cate
+  horizon:         {value: variable, ...}       # fixed | variable
+  termination:     {value: exit_reason, ...}    # only when variable; see below
+  effect_modifiers: {value: [aki_stage_admission], ...}   # only for lag_cate
+```
+
+Four of these have no counterpart on the cross-sectional path and are easy to get wrong:
+
+| Field | What it is, and what goes wrong |
+|---|---|
+| `state` | The conditioning set, **not** `adjustment_set`. Recorded at the start of the period, before that period's treatment. There is no separate W channel here |
+| `horizon` | `fixed` if every unit is observed for the same number of periods, `variable` otherwise. Required, and the data cannot settle it: see `dynamic-lag-dml.md` |
+| `termination` | Only when variable. Either the column that marks the period a unit left, or the literal `last_recorded_period` when the rows simply stop there |
+| `effect_modifiers` | Only for `lag_cate`, and only variables the treatment cannot move, which in practice means baseline ones. This is a restriction, not a preference |
+
+`adjustment_set` and `instrument` have no meaning for this family.
 
 ## Every field records its provenance
 
@@ -70,6 +103,7 @@ Each family needs more:
 |---|---|
 | `hte_backdoor` | `effect_modifiers` |
 | `hte_iv` | `effect_modifiers`, `instrument` |
+| `dynamic_lag_dml` | `unit_id`, `period_index`, `state`, `horizon`, and `termination` when the horizon is variable; `effect_modifiers` when the estimand is `lag_cate` |
 
 ## The three assumption categories
 

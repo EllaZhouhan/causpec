@@ -648,3 +648,24 @@ def test_missing_values_on_final_periods_get_their_own_explanation() -> None:
         to_trajectories(
             broken, UNIT_COLUMN, PERIOD_COLUMN, columns, TREATMENT_COLUMN, OUTCOME_COLUMN
         )
+
+
+def test_the_period_length_has_an_address_of_its_own(estimated) -> None:
+    """Without it, "a 12-hour period" has nothing to cite: lit:12 is refused because 12 is
+    also the lag-1 effect's 12 hours, and the natural phrase for this family becomes
+    unwritable."""
+    _, result = estimated
+    assert result.values["res:profile.period_hours"] == 12.0
+
+
+def test_the_family_declares_the_table_its_report_needs() -> None:
+    """A profile's finding is its shape across lags, so the report prints every lag rather
+    than the ones a sentence mentioned. The addresses the table cites have to exist."""
+    declaration = registry.load_declaration(FAMILY)
+    tables = declaration["report_tables"]
+    assert tables, "the family declares no result table"
+    table = tables[0]
+    assert table["rows"]["through_address"] == "res:profile.max_lag"
+    for column in table["columns"]:
+        if "address" in column:
+            assert "{lag}" in column["address"], column["header"]

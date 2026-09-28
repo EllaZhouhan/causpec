@@ -202,6 +202,10 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                 decision,
                 addresses,
                 narrative=_load_narrative(args.narrative),
+                # Result tables the family declares. Prose is the wrong container for a
+                # result with one row per lag: the reader would see the lags a sentence
+                # happened to mention.
+                tables=registry.load_declaration(spec.family).get("report_tables", []),
                 execution_mode=ExecutionMode.CLI,
             )
         except (RenderError, ReportError) as error:

@@ -43,6 +43,34 @@ limitations: >
 post_hoc: ""
 ```
 
+## The panel path looks different
+
+For `dynamic_lag_dml` the primary-results section opens with a code-generated table of the
+whole profile, so the prose interprets rather than transcribes. The addresses are per lag,
+and there is no `res:primary.ate`.
+
+```yaml
+estimand: >
+  This estimates what one {{res:profile.period_hours|.0f}}-hour period of dialysis does to
+  instability in that period and in the periods after it, among patients still in the ICU
+  when the decision was made. A stay ending closes the observation window here, so this says
+  nothing about the effect on dying or on being discharged.
+
+primary_results: >
+  The profile is not flat. In the same period the effect is
+  {{res:profile.lag0.theta|+.3f}}; it rises to {{res:profile.lag1.theta|+.3f}} at
+  {{res:profile.lag1.hours|.0f}} hours and falls back by
+  {{res:profile.lag2.hours|.0f}} hours. The far end of the profile rests on
+  {{res:profile.lag2.effective_windows|,.0f}} effective windows from
+  {{res:profile.lag2.n_units}} patients, against
+  {{res:profile.lag0.n_units}} at the near end, so the two ends describe different groups
+  of patients.
+
+limitations: >
+  The intervals are exploratory: they indicate where each effect sits and none of the lags
+  can be called significant. The profile also assumes ... , which cannot be verified.
+```
+
 ## The trap that catches everyone: numbers inside a term
 
 ```

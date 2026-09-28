@@ -64,13 +64,36 @@ A waiver lets the analysis run; it does not make the problem disappear.
 
 | Level | You may say | You may not say |
 |---|---|---|
-| `causal` | "dialysis reduced 28-day mortality by X" |, |
+| `causal` | "dialysis reduced 28-day mortality by X" | (nothing further is withheld at this level) |
 | `suggestive` | "the data suggests dialysis may be associated with lower mortality, effect size X" | "reduced" |
 | `associational` | "treated patients had mortality lower by X; this analysis does not support a causal reading" | anything implying direction, like "is associated with" |
 | `descriptive` | "mortality was X in the treated group and Y in the control group" | any between-group inference |
 
 At `descriptive`, report the numbers and **do not even say how much lower**, the gate
 failing means the comparison itself is unreliable.
+
+## A second axis: whether the interval is a test
+
+The level says how strongly a **causal** claim may be worded. Separately, some estimators
+are proved to converge to the truth without a known limiting distribution, so their
+intervals indicate where an effect sits and test nothing. `dynamic_lag_dml` is one.
+
+For those, `claim:significance_claims` comes back as `forbidden`, the level is capped at
+`suggestive`, and the reasoning in the report says so. What it means for your prose:
+
+| You may say | You may not say |
+|---|---|
+| "the effect appears to peak at 12 hours, at X" | "the effect at 12 hours is significant" |
+| "the interval is exploratory and includes zero" | "the interval excludes zero, so the effect is real" |
+| "the point estimate is X, with an exploratory interval of [A, B]" | "p < 0.05", or any test language |
+
+The two axes are independent. A calibrated interval on a waived analysis still cannot say
+"caused"; an exploratory interval on a spotless analysis still cannot say "significant".
+
+If the user asks whether an effect is significant, the honest answer is that this method can
+say where the effect appears to sit and cannot yet give them a test. Do not dress that up,
+and do not work around it by describing an interval that excludes zero as though it were
+one.
 
 ## The rules are inspectable
 

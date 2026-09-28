@@ -915,6 +915,10 @@ class DynamicLagDml:
             values[f"{prefix}.se_influence"] = float(fit.standard_error_[lag])
             if period_hours is not None:
                 values[f"{prefix}.hours"] = float(lag) * float(period_hours)
+                # The period length in its own right. Without it, a sentence about "a
+                # 12-hour period" has no address to cite and lit: is refused, because 12
+                # also happens to be the lag-1 effect's 12 hours.
+                values["res:profile.period_hours"] = float(period_hours)
             lag_fit = by_lag.get(lag)
             if lag_fit is None:
                 values[f"{prefix}.n_windows"] = 0

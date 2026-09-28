@@ -26,7 +26,7 @@ and 36 hours, and the outcome is a per-period event rather than a final endpoint
 shape of the profile is the finding: an effect can be absent immediately, appear a period
 later and fade again, and a single summary number would hide that.
 
-## Three questions that look the same and are not
+## Four questions that look the same and are not
 
 Say so plainly when the user is asking one of these. None of them is a lag profile, and
 producing a profile for them would answer a question they did not ask.
@@ -57,6 +57,22 @@ active  ->  state  ->  treatment  ->  outcome  ->  next period
 
 Ask the user for the **period length** in clock time. It changes nothing in the
 estimation and everything in the report, which should say "at 24 hours", not "at lag 2".
+
+## How far out to look: choosing `max_lag`
+
+Ask how far out they care about, in their own units:
+
+> "How long after a session would you still expect it to matter? Twelve hours, a day, two
+> days?"
+
+Then convert to periods and set `max_lag`. Say what the cost is, in one sentence, because
+it is not obvious: **every extra lag is estimated from fewer patients**, since a lag-K
+window needs K+2 recorded periods, and the weights grow along the profile. In the author's
+application the longest lag rests on about three quarters of the patients of the shortest;
+on a smaller cohort the far end can fall away entirely.
+
+If a long lag then fails the checks, that is the answer to report, not a reason to force it:
+shorten the profile and say that the data supported the near lags and not the far ones.
 
 ## Why three ingredients, not one
 

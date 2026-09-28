@@ -91,8 +91,15 @@ Only two answers matter:
   counts as evidence that a trajectory could have continued. See `dynamic-lag-dml.md`.
 
 Do not go into fixed windows, landmark analysis or g-methods unless they ask. Read
-`dynamic-lag-dml.md` before describing the lag profile: it answers one question and
-three that sound like it are outside it.
+`dynamic-lag-dml.md` before describing the lag profile: it answers one question and four
+that sound like it are outside it.
+
+**Once the panel path is chosen, steps 3 to 5 below change.** They describe the
+cross-sectional path. The panel equivalents are in `dynamic-lag-dml.md` and
+`spec-fields.md`: the conditioning set is `state` and there is no separate W; the
+identification strategy is fixed by the family rather than chosen; and the estimand is
+`lag_profile` or `lag_cate`, with modifiers restricted to variables the treatment cannot
+move. Steps 1, 2, 6, 7 and 8 are the same on both paths.
 
 **A wide table does not settle this.** One row per patient can still be a flattened
 "ever treated during the stay". The schema lets you ask concretely; it does not answer
@@ -115,6 +122,9 @@ When a column name is ambiguous, ask. Do not guess.
 
 ## 3. Variable roles
 
+**Cross-sectional path.** For the panel path see `dynamic-lag-dml.md`: there is one
+conditioning set, `state`, and the modifiers must be variables the treatment cannot move.
+
 Confirm `effect_modifiers` (X) and `adjustment_set` (W) **separately**. See
 `variable-roles.md`, this is the easiest place to go wrong without any error.
 
@@ -127,6 +137,10 @@ adjustment set.
 ---
 
 ## 4. Identification strategy and assumptions
+
+**Cross-sectional path.** On the panel path the strategy comes with the family, and what
+to ask instead is the horizon pair from step 1, plus whether the state recorded at the
+start of a period accounts for why treatment was given in it.
 
 The key question:
 
