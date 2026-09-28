@@ -14,6 +14,12 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+          # Pinned to the version the lock file and the development venv use. Without it the
+          # runner picks the newest Python, resolves a different numpy, and typechecks
+          # against different stubs: pyright then fails on code that passes locally, which
+          # is a failure about the runner rather than about the code. Testing across
+          # versions is worth doing, but as a declared matrix, not as a side effect.
+          python-version: "3.11"
 
       - name: Install dependencies (with the hte extra; family tests need econml)
         run: uv sync --all-extras --dev

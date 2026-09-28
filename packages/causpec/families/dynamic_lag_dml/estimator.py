@@ -248,15 +248,18 @@ class DynamicLagDmlFit:
                 for t in trajectories
             ]
 
-        features, labels, owner = [], [], []
+        features: list[np.ndarray] = []
+        labels: list[float] = []
+        owner: list[int] = []
         for index, trajectory in enumerate(trajectories):
             for period in range(trajectory.length):
                 features.append(np.append(trajectory.state[period], trajectory.treatment[period]))
                 labels.append(1.0 if period + 1 < trajectory.length else 0.0)
                 owner.append(index)
-        design = np.asarray(features)
-        label = np.asarray(labels)
-        unit_of_row = np.asarray(owner)
+        design = np.asarray(features, dtype=float)
+        label = np.asarray(labels, dtype=float)
+        # Explicitly integer: it indexes the fold array, and a float index is not indexing.
+        unit_of_row = np.asarray(owner, dtype=int)
 
         fitted = np.ones(len(label))
         for fold in range(self.n_folds):
@@ -366,7 +369,11 @@ class DynamicLagDmlFit:
         uses: the outcome of period t is realised before period t+1, so observing it means
         surviving that step, and the weight includes it.
         """
-        unit_index, weights, peeled, anchors, treatments = [], [], [], [], []
+        unit_index: list[int] = []
+        weights: list[float] = []
+        peeled: list[float] = []
+        anchors: list[np.ndarray] = []
+        treatments: list[list[float]] = []
         for index, trajectory in enumerate(trajectories):
             last_usable = trajectory.length - 1  # t <= length - 2
             for outcome_period in range(lag, last_usable):
@@ -395,11 +402,11 @@ class DynamicLagDmlFit:
         if not unit_index:
             return None
         return {
-            "unit_index": np.asarray(unit_index),
-            "weight": np.asarray(weights),
-            "peeled": np.asarray(peeled),
-            "anchor": np.asarray(anchors),
-            "treatment": np.asarray(treatments),
+            "unit_index": np.asarray(unit_index, dtype=int),
+            "weight": np.asarray(weights, dtype=float),
+            "peeled": np.asarray(peeled, dtype=float),
+            "anchor": np.asarray(anchors, dtype=float),
+            "treatment": np.asarray(treatments, dtype=float),
         }
 
     def _theta_at(self, lag: int, state: np.ndarray) -> float:
