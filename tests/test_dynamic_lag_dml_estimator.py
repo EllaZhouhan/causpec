@@ -81,6 +81,9 @@ def panel_spec(columns: list[str], **overrides: object) -> Spec:
         "state": confirmed(columns),
         "max_lag": confirmed(2),
         "estimand": confirmed("lag_profile"),
+        # The generator's trajectories end where the unit leaves, and exit_reason marks it.
+        "horizon": confirmed("variable"),
+        "termination": confirmed("exit_reason"),
     }
     fields.update({name: confirmed(value) for name, value in overrides.items()})
     return Spec(
@@ -408,7 +411,7 @@ def test_a_fixed_horizon_applies_no_weights_at_all() -> None:
     """
     config, _, _, trajectories = balanced_panel()
     assert len({t.length for t in trajectories}) == 1, "the panel should be balanced"
-    fit = DynamicLagDmlFit(max_lag=2, seed=1).fit(trajectories)
+    fit = DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed").fit(trajectories)
     assert fit.horizon_ == "fixed"
     assert fit.ipcw_applied_ is False
     for lag_fit in fit.fits_:
@@ -421,7 +424,7 @@ def test_a_fixed_horizon_applies_no_weights_at_all() -> None:
 def test_a_fixed_horizon_gives_the_same_answer_as_switching_weighting_off() -> None:
     """Not approximately: the two paths must be the same computation."""
     _, _, _, trajectories = balanced_panel()
-    default = DynamicLagDmlFit(max_lag=2, seed=1).fit(trajectories).theta_
+    default = DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed").fit(trajectories).theta_
     unweighted = DynamicLagDmlFit(max_lag=2, seed=1, use_weights=False).fit(trajectories).theta_
     assert np.allclose(default, unweighted, equal_nan=True)
 
@@ -429,16 +432,16 @@ def test_a_fixed_horizon_gives_the_same_answer_as_switching_weighting_off() -> N
 def test_a_fixed_horizon_still_recovers_the_profile() -> None:
     config, _, _, trajectories = balanced_panel(periods=8, n_units=600)
     truth = config.constant_profile()
-    fit = DynamicLagDmlFit(max_lag=2, seed=1).fit(trajectories)
+    fit = DynamicLagDmlFit(max_lag=2, seed=1, horizon="fixed").fit(trajectories)
     assert fit.theta_[0] == pytest.approx(truth[0], abs=0.02)
     assert fit.theta_[1] == pytest.approx(truth[1], abs=0.5)
     assert fit.theta_[2] == pytest.approx(truth[2], abs=0.5)
 
 
-def test_a_random_horizon_is_recognised_as_one(benchmark) -> None:
+def test_a_variable_horizon_applies_the_weighting(benchmark) -> None:
     _, _, _, trajectories = benchmark
     fit = DynamicLagDmlFit(max_lag=1, seed=1).fit(trajectories)
-    assert fit.horizon_ == "random"
+    assert fit.horizon_ == "variable"
     assert fit.ipcw_applied_ is True
     assert any(lag_fit.weight.max() > 1.0 for lag_fit in fit.fits_)
 
@@ -454,16 +457,105 @@ def test_reaching_the_end_of_the_window_is_not_treated_as_leaving(benchmark) -> 
     fit = DynamicLagDmlFit(max_lag=1, seed=1).fit(trajectories)
     # Its final period keeps a continuation probability of 1, because no window's weight
     # ever reaches a unit's final period: the outcome period is at most the second to last.
-    assert fit.horizon_ == "random"
+    assert fit.horizon_ == "variable"
 
 
 def test_the_result_says_whether_the_weighting_applied() -> None:
     """A report that shows weights of exactly 1 without saying why invites the reader to
     think the weighting was forgotten."""
     _, frame, columns, _ = balanced_panel(n_units=300)
-    spec = panel_spec(columns).model_copy(
+    spec = panel_spec(columns, horizon="fixed").model_copy(
         update={"estimation": {"family": FAMILY, "params": {"n_bootstrap_samples": 4}}}
     )
     result = registry.get(FAMILY).estimate(frame, spec, seed=1)
     assert result.values["res:profile.horizon"] == "fixed"
     assert result.values["res:profile.ipcw_applied"] == "False"
+
+
+def test_the_horizon_must_be_declared(benchmark) -> None:
+    """The estimator refuses too, not only the checks: a spec that skipped the question
+    cannot reach a number by going straight to estimation."""
+    _, frame, columns, _ = benchmark
+    spec = panel_spec(columns)
+    spec = spec.model_copy(
+        update={"fields": {k: v for k, v in spec.fields.items() if k != "horizon"}}
+    )
+    with pytest.raises(ValueError, match="requires spec.horizon"):
+        registry.get(FAMILY).estimate(frame, spec, seed=1)
+
+
+def test_a_variable_horizon_must_say_how_leaving_is_identified(benchmark) -> None:
+    _, frame, columns, _ = benchmark
+    spec = panel_spec(columns)
+    spec = spec.model_copy(
+        update={"fields": {k: v for k, v in spec.fields.items() if k != "termination"}}
+    )
+    with pytest.raises(ValueError, match="requires spec.termination"):
+        registry.get(FAMILY).estimate(frame, spec, seed=1)
+
+
+def test_a_termination_column_that_does_not_exist_is_named(benchmark) -> None:
+    _, frame, columns, _ = benchmark
+    spec = panel_spec(columns, termination="discharge_flag")
+    with pytest.raises(ValueError, match="not a column in the data"):
+        registry.get(FAMILY).estimate(frame, spec, seed=1)
+
+
+def test_the_rows_may_simply_stop_where_the_unit_left(benchmark) -> None:
+    """The other of the two answers: no column marks the exit, the trajectory just ends."""
+    _, frame, columns, _ = benchmark
+    spec = panel_spec(columns, termination="last_recorded_period").model_copy(
+        update={"estimation": {"family": FAMILY, "params": {"n_bootstrap_samples": 4}}}
+    )
+    result = registry.get(FAMILY).estimate(frame, spec, seed=1)
+    assert result.values["res:estimation.termination"] == "last_recorded_period"
+    assert result.values["res:profile.ipcw_applied"] == "True"
+
+
+def test_an_exit_column_decides_which_trajectories_ended_by_leaving(benchmark) -> None:
+    """With a column, whether a trajectory left is read from it rather than from where its
+    rows stop. The two differ for the longest trajectories, which reach the end of the
+    observation window: those are cut off unless the column says they left."""
+    _, frame, columns, _ = benchmark
+    marked = to_trajectories(
+        frame,
+        UNIT_COLUMN,
+        PERIOD_COLUMN,
+        columns,
+        TREATMENT_COLUMN,
+        OUTCOME_COLUMN,
+        termination="exit_reason",
+    )
+    unmarked = to_trajectories(
+        frame, UNIT_COLUMN, PERIOD_COLUMN, columns, TREATMENT_COLUMN, OUTCOME_COLUMN
+    )
+    assert all(t.exited is not None for t in marked)
+    assert all(t.exited is None for t in unmarked)
+    # The generator's units leave, so nearly all of them are marked as having exited.
+    assert sum(bool(t.exited) for t in marked) > 0.9 * len(marked)
+
+
+def test_rows_recorded_after_a_unit_left_are_refused(benchmark) -> None:
+    """A padded or carried-forward panel: the unit left at period 2 and the file still has
+    rows for 3 and 4. Those are not observations of an active trajectory, and averaging over
+    them would put made-up periods into the moment."""
+    import pandas as pd
+
+    _, frame, columns, _ = benchmark
+    first_unit = frame[UNIT_COLUMN].iloc[0]
+    rows = frame[frame[UNIT_COLUMN] == first_unit].copy()
+    assert len(rows) >= 2
+    padded = rows.copy()
+    padded[PERIOD_COLUMN] = padded[PERIOD_COLUMN] + len(rows)
+    padded["exit_reason"] = ""
+    broken = pd.concat([rows, padded], ignore_index=True)
+    with pytest.raises(ValueError, match="rows recorded after it left"):
+        to_trajectories(
+            broken,
+            UNIT_COLUMN,
+            PERIOD_COLUMN,
+            columns,
+            TREATMENT_COLUMN,
+            OUTCOME_COLUMN,
+            termination="exit_reason",
+        )

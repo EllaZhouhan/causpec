@@ -178,11 +178,22 @@ Two answers matter, and only two:
   and anyone who died early never had the chance, which would make dialysis look better
   than it is"), then say a flattened comparison is not available and ask one further
   question: is there a row per patient per time window somewhere, or only this one row
-  per patient? A panel opens the lag profile of `dynamic_lag_dml`, which is declared but
-  not implemented, so say what the analysis would be and produce no number. Only one
-  row per patient closes it. Either way, do not go into fixed windows, landmark analysis
-  or g-methods unless they ask, and see `dynamic-lag-dml.md` before describing the lag
-  profile, because three nearby questions are not what it answers.
+  per patient? A panel opens the lag profile of `dynamic_lag_dml`; only one row per patient
+  closes it. Either way, do not go into fixed windows, landmark analysis or g-methods
+  unless they ask, and read `dynamic-lag-dml.md` before describing the lag profile, because
+  three nearby questions are not what it answers.
+
+**On the panel path, two questions about the horizon are required.** Neither can be read
+off the file, and the analysis refuses to run without both.
+
+1. **Is every unit followed for the same number of windows, or do the records end at
+   different times because units leave?** Fixed means no weighting is applied at all. You
+   cannot infer this: a panel where every unit has eight periods is either a fixed horizon
+   or a cohort truncated to the units that lasted eight periods, and the second is
+   conditioned on surviving, which no weighting repairs.
+2. **If they end at different times, how is leaving identified?** Either the rows stop
+   where the unit left, or a column records it. Only a real exit is evidence that a
+   trajectory could have continued and did not.
 
 **A wide table does not settle this.** One row per patient can still be a flattened
 "ever treated during the stay". The schema lets you ask concretely; it does not answer

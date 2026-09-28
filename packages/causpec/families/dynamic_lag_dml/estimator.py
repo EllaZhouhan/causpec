@@ -81,6 +81,11 @@ DEFAULT_N_FOLDS = 2
 # than anything read off the data. The author's application uses the same value.
 DEFAULT_LAMBDA_FLOOR = 0.05
 ESTIMANDS = ("lag_profile", "lag_cate")
+HORIZONS = ("fixed", "variable")
+# The value of spec.termination when a trajectory simply stops: the rows end where the unit
+# left, with no column marking it. A real column of this name wins, which is resolved against
+# the data rather than assumed.
+ROWS_END_AT_EXIT = "last_recorded_period"
 
 _Model = TypeVar("_Model")
 
@@ -104,6 +109,10 @@ class Trajectory:
     treatment: np.ndarray
     outcome: np.ndarray
     continuation: np.ndarray | None = None  # true lambda, for the oracle arm in tests
+    # Whether this trajectory ended because the unit left, as opposed to because the
+    # observation window ran out. None means the caller did not say, and the fit then
+    # reads it from the declared horizon. Only an exit is evidence about continuing.
+    exited: bool | None = None
 
     @property
     def length(self) -> int:
@@ -140,6 +149,7 @@ def to_trajectories(
     treatment: str,
     outcome: str,
     continuation: str | None = None,
+    termination: str | None = None,
 ) -> list[Trajectory]:
     """Split a long panel into trajectories, refusing a shape the estimand cannot carry.
 
@@ -147,8 +157,16 @@ def to_trajectories(
     into a lag-3 one. That is not something to impute; it is something to refuse. The
     quality checks report the same problems with a repair suggestion, and this is the
     backstop for a caller that skipped them.
+
+    ``termination`` names a column that marks the period a unit left, if the data has one.
+    Then whether a trajectory ended by leaving is read from that column instead of being
+    guessed from where its rows stop, and rows recorded after a unit left are refused: they
+    are not observations of an active trajectory.
     """
-    missing = [c for c in [unit, period, treatment, outcome, *state] if c not in data.columns]
+    wanted = [unit, period, treatment, outcome, *state]
+    if termination is not None:
+        wanted.append(termination)
+    missing = [c for c in wanted if c not in data.columns]
     if missing:
         raise ValueError(f"columns not in the data: {missing}")
 
@@ -164,6 +182,20 @@ def to_trajectories(
                 f"unit {key!r} has periods {periods.tolist()[:6]}...; they must be "
                 f"consecutive integers from 0, because the lag index counts rows"
             )
+        exited: bool | None = None
+        if termination is not None:
+            marked = _exit_marks(np.asarray(group[termination]))
+            if marked.any():
+                where = int(np.flatnonzero(marked)[-1])
+                if where != len(marked) - 1:
+                    raise ValueError(
+                        f"unit {key!r} has {len(marked) - 1 - where} rows recorded after it "
+                        f"left (period {where}); rows after a unit leaves are not "
+                        f"observations of an active trajectory"
+                    )
+                exited = True
+            else:
+                exited = False
         trajectories.append(
             Trajectory(
                 unit=key,
@@ -171,9 +203,34 @@ def to_trajectories(
                 treatment=group[treatment].to_numpy(dtype=float),
                 outcome=group[outcome].to_numpy(dtype=float),
                 continuation=(group[continuation].to_numpy(dtype=float) if continuation else None),
+                exited=exited,
             )
         )
     return trajectories
+
+
+def _exit_marks(values: np.ndarray) -> np.ndarray:
+    """Which periods the termination column marks as the unit leaving.
+
+    Left deliberately permissive about how a dataset says "left here": a flag of 1, a
+    non-empty reason, a date. What all of them share is that the marked period is the one
+    the unit left in, and everything else is blank, zero or missing.
+    """
+    marked = np.zeros(len(values), dtype=bool)
+    for index, value in enumerate(values):
+        if value is None:
+            continue
+        if isinstance(value, float) and np.isnan(value):
+            continue
+        if isinstance(value, str):
+            marked[index] = value.strip() != ""
+        elif isinstance(value, (bool, np.bool_)):
+            marked[index] = bool(value)
+        elif isinstance(value, (int, float, np.integer, np.floating)):
+            marked[index] = float(value) != 0.0
+        else:
+            marked[index] = True
+    return marked
 
 
 @dataclass
@@ -215,6 +272,7 @@ class DynamicLagDmlFit:
         use_weights: bool = True,
         weight_stage1: bool = True,
         oracle_continuation: bool = False,
+        horizon: str = "variable",
         continuation_model: Any = None,
         nuisance_model: Any = None,
         modifier_index: np.ndarray | None = None,
@@ -230,6 +288,13 @@ class DynamicLagDmlFit:
         self.use_weights = use_weights
         self.weight_stage1 = weight_stage1
         self.oracle_continuation = oracle_continuation
+        # What the user confirmed about the horizon, not what the data looks like. The two
+        # are cross-checked by the quality checks, because the shape of the data cannot tell
+        # a fixed horizon from a cohort that was truncated to a fixed length: see
+        # _continuation.
+        if horizon not in HORIZONS:
+            raise ValueError(f"horizon must be one of {', '.join(HORIZONS)}; got {horizon!r}")
+        self.horizon = horizon
         self.continuation_model: Any = continuation_model or HistGradientBoostingClassifier(
             max_depth=3, max_iter=200, learning_rate=0.05
         )
@@ -241,31 +306,36 @@ class DynamicLagDmlFit:
     def _continuation(self, trajectories: list[Trajectory], folds: np.ndarray) -> list[np.ndarray]:
         """Cross-fitted one-step continuation probability per unit and period.
 
-        **A fixed horizon needs no weights, and that is settled here rather than left to a
-        setting.** Reaching the end of the observation window is not leaving: nothing is
-        known about whether such a trajectory would have continued, so its final period
-        contributes no record to the continuation model. When every trajectory ends that way,
-        which is what a balanced panel is, there are no exits to model, no model is fitted,
-        and every weight is exactly one. ``horizon_`` records which case it was and the
-        Result carries it, so a reader can see that the weighting was skipped and why.
+        **A fixed horizon needs no weights, and the user says which it is.** With
+        ``horizon="fixed"`` nobody left early, there is nothing to correct, no model is
+        fitted, and every weight is exactly one.
 
-        Getting this wrong is not harmless. Labelling the end of every trajectory as an exit
-        asks the model to predict "is this the last period", which in a balanced panel is a
-        function of the period index, and the period index is not among the features. On an
-        eight-period balanced panel it fitted continuation probabilities as low as 0.40 and
-        weights up to 4.3, all of which should have been 1. The ratio moment is nearly
-        immune, because a roughly constant weight cancels, but the variance is not, and the
-        report would have told the reader there was censoring to correct when there was
-        none.
+        This is not inferred from the data, and the reason is a specific trap. A panel whose
+        units all have eight periods can be either of two worlds: a genuinely fixed horizon,
+        or a variable horizon whose data pull kept the first eight buckets of the units that
+        lasted that long. The second is a cohort conditioned on surviving, which no weighting
+        repairs, and the two are indistinguishable by shape. On the benchmark design,
+        truncating to the 3.5% of units that reach eight periods moves the lag-1 estimate
+        from 4.22 to 2.87 against a truth of 4.0, and a tool that guessed "fixed" would report
+        that as a clean analysis. So the horizon is a confirmed spec field, and a quality
+        check compares it with the data and refuses a contradiction.
+
+        Within a variable horizon, reaching the end of the observation window is not leaving:
+        nothing is known about whether such a trajectory would have continued, so its final
+        period contributes no record. Where the data marks exits with a column, that column
+        decides; otherwise a trajectory that stops before the window is read as having left.
+
+        The labelling matters. Treating the end of every trajectory as an exit asks the model
+        to predict "is this the last period", which the state and the treatment cannot say,
+        and on an eight-period balanced panel it fitted continuation probabilities as low as
+        0.40 and weights up to 4.3 where all of them were 1.
         """
         self.continuation_min_ = float("nan")
         self.continuation_clipped_share_ = float("nan")
         lengths = [trajectory.length for trajectory in trajectories]
         window_end = max(lengths)
-        # Fixed horizon: every trajectory runs to the end of the observation window, so none
-        # of them left early and there is nothing for the weights to correct.
-        self.horizon_ = "fixed" if min(lengths) == window_end else "random"
-        self.ipcw_applied_ = self.use_weights and self.horizon_ == "random"
+        self.horizon_ = self.horizon
+        self.ipcw_applied_ = self.use_weights and self.horizon_ == "variable"
         if not self.ipcw_applied_:
             return [np.ones(length) for length in lengths]
         if self.oracle_continuation:
@@ -279,7 +349,14 @@ class DynamicLagDmlFit:
         owner: list[int] = []
         at_period: list[int] = []
         for index, trajectory in enumerate(trajectories):
-            censored = trajectory.length == window_end
+            # An explicit termination column wins; without one, a trajectory that stops
+            # before the window is read as having left, and one that reaches the window as
+            # having been cut off.
+            censored = (
+                trajectory.length == window_end
+                if trajectory.exited is None
+                else not trajectory.exited
+            )
             for period in range(trajectory.length):
                 continued = period + 1 < trajectory.length
                 if not continued and censored:
@@ -583,6 +660,7 @@ class DynamicLagDmlFit:
                 use_weights=self.use_weights,
                 weight_stage1=self.weight_stage1,
                 oracle_continuation=self.oracle_continuation,
+                horizon=self.horizon,
                 continuation_model=_clone(self.continuation_model),
                 nuisance_model=_clone(self.nuisance_model),
                 modifier_index=self.modifier_index,
@@ -639,6 +717,16 @@ class DynamicLagDml:
                 f"effect_modifiers must be part of the state: {unknown} are not in spec.state"
             )
 
+        horizon = str(_field_value(spec, "horizon", "")).strip()
+        if horizon not in HORIZONS:
+            raise ValueError(
+                f"dynamic_lag_dml requires spec.horizon, one of {', '.join(HORIZONS)}. The "
+                f"data cannot settle it: a panel where every unit has the same number of "
+                f"periods is either a fixed horizon or a cohort truncated to a fixed length, "
+                f"and the second is conditioned on surviving. Ask the user."
+            )
+        termination = self._termination_column(spec, data, horizon)
+
         max_lag = int(_field_value(spec, "max_lag", spec.param("max_lag", DEFAULT_MAX_LAG)))
         period_hours = _field_value(spec, "period_length", None)
         replicates = int(spec.param("n_bootstrap_samples", DEFAULT_BOOTSTRAP_SAMPLES))
@@ -647,7 +735,9 @@ class DynamicLagDml:
         n_folds = int(spec.param("n_folds", DEFAULT_N_FOLDS))
         use_weights = bool(spec.param("use_ipcw", True))
 
-        trajectories = to_trajectories(data, unit, period, state, treatment, outcome)
+        trajectories = to_trajectories(
+            data, unit, period, state, treatment, outcome, termination=termination
+        )
         modifier_index = (
             np.array([state.index(name) for name in modifiers], dtype=int) if modifiers else None
         )
@@ -659,6 +749,7 @@ class DynamicLagDml:
             lambda_floor=lambda_floor,
             seed=seed,
             use_weights=use_weights,
+            horizon=horizon,
             modifier_index=modifier_index,
         ).fit(trajectories)
         interval = fit.bootstrap(trajectories, replicates=replicates, seed=seed + 1, n_jobs=n_jobs)
@@ -677,6 +768,7 @@ class DynamicLagDml:
                 "res:design.n_state_columns": len(state),
                 "res:design.n_effect_modifiers": len(modifiers),
                 "res:estimation.estimand": estimand,
+                "res:estimation.termination": termination or ROWS_END_AT_EXIT,
                 "res:estimation.max_lag": max_lag,
                 "res:estimation.continuation_model": type(fit.continuation_model).__name__,
                 "res:estimation.nuisance_model": type(fit.nuisance_model).__name__,
@@ -689,6 +781,35 @@ class DynamicLagDml:
             }
         )
         return Result(family=self.id, seed=seed, values=values)
+
+    @staticmethod
+    def _termination_column(spec: Spec, data: pd.DataFrame, horizon: str) -> str | None:
+        """Which column marks a unit leaving, if any.
+
+        A variable horizon has to say how an exit is identified, and there are only two
+        answers: the rows stop where the unit left, or a column marks it. The sentinel for
+        the first is ``last_recorded_period``; a real column of that name wins, which is why
+        this resolves against the data rather than against the string alone.
+        """
+        declared = _field_value(spec, "termination", None)
+        if horizon == "fixed":
+            return None
+        if declared is None or not str(declared).strip():
+            raise ValueError(
+                f"a variable horizon requires spec.termination: either the name of the "
+                f"column that marks the period a unit left, or {ROWS_END_AT_EXIT!r} when the "
+                f"rows simply stop there. Which it is decides what counts as evidence that a "
+                f"trajectory could have continued."
+            )
+        name = str(declared).strip()
+        if name in data.columns:
+            return name
+        if name == ROWS_END_AT_EXIT:
+            return None
+        raise ValueError(
+            f"spec.termination names {name!r}, which is not a column in the data. Use "
+            f"{ROWS_END_AT_EXIT!r} if the rows simply stop where the unit left."
+        )
 
     @staticmethod
     def _profile_addresses(

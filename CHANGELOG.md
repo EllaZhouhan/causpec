@@ -25,13 +25,23 @@ the milestones in plan.md section 2.
   the generator's first heterogeneity design put the lag-2 estimate at +4.7 where its
   nominal truth was +1.2. A blocking, waivable check now refuses a modifier that varies
   within a unit
-- **A fixed horizon is detected, and then no weighting is applied**: when every unit is
-  observed for the same number of periods, no trajectory left early, so no continuation
+- **The horizon is a confirmed field, and a fixed one applies no weighting**: `horizon`
+  (fixed or variable) and, when variable, `termination` (how leaving is identified) are both
+  required, and the estimator refuses without them. Under a fixed horizon no continuation
   model is fitted and every weight is exactly one, with `res:profile.horizon` and
-  `res:profile.ipcw_applied` on the result so the report can say the weighting was skipped
-  rather than leaving a reader to infer it from weights of one. The same rule handles the
-  mixed case: reaching the end of the observation window is not leaving, so a trajectory
-  ending there contributes no record to the continuation model while earlier endings do
+  `res:profile.ipcw_applied` on the result so the report says the weighting was skipped
+  rather than leaving a reader to infer it from weights of one.
+  It is confirmed rather than inferred because one pair of worlds is indistinguishable by
+  shape: a panel where every unit has eight periods is either a fixed horizon or a cohort
+  truncated to the units that lasted eight periods, and the second is conditioned on
+  surviving, which no weighting repairs. Measured on the benchmark, keeping the 3.5% of units
+  that reach eight periods moves the lag-1 estimate from 4.22 to 2.87 against a truth of 4.0.
+  The `horizon_declaration` check compares the declaration with the data and refuses both
+  contradictions, and rows recorded after a unit left are refused outright
+- **Reaching the end of the observation window is not leaving**: only a real exit is evidence
+  that a trajectory could have continued and did not, so a trajectory cut off by the window
+  contributes no record to the continuation model. Where a column marks exits, the column
+  decides; otherwise a trajectory that stops before the window is read as having left
 - **Seven panel quality checks**: period gaps and duplicates (blocking, not waivable,
   because the lag index counts rows and a gap silently relabels every later lag), a state
   column that is nearly a copy of the same period's treatment, too few complete windows per

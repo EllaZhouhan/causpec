@@ -16,6 +16,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -53,6 +54,9 @@ def panel_spec(columns: list[str], **overrides: object) -> Spec:
         "state": confirmed(columns),
         "max_lag": confirmed(2),
         "estimand": confirmed("lag_profile"),
+        # The generator's trajectories end where the unit leaves, and exit_reason marks it.
+        "horizon": confirmed("variable"),
+        "termination": confirmed("exit_reason"),
     }
     fields.update({name: confirmed(value) for name, value in overrides.items()})
     return Spec(question="q", family=FAMILY, fields=fields, estimation={"family": FAMILY})
@@ -266,7 +270,7 @@ def test_a_fixed_horizon_is_reported_as_needing_no_weighting() -> None:
     explanation cannot tell that from a weighting step that was forgotten.
     """
     _, frame, columns = make_panel(n_units=400, seed=3, exit_ceiling=1e-9, max_periods=8)
-    report = run_checks(frame, panel_spec(columns))
+    report = run_checks(frame, panel_spec(columns, horizon="fixed"))
     issue = report.get("continuation_positivity")
     assert issue.severity is Severity.INFO
     assert issue.evidence["horizon"] == "fixed"
@@ -274,8 +278,66 @@ def test_a_fixed_horizon_is_reported_as_needing_no_weighting() -> None:
     assert "no continuation weighting was applied" in issue.summary
 
 
-def test_a_random_horizon_still_reports_its_weight_diagnostics(clean_report) -> None:
+def test_a_variable_horizon_still_reports_its_weight_diagnostics(clean_report) -> None:
     issue = clean_report.get("continuation_positivity")
-    assert issue.evidence["horizon"] == "random"
+    assert issue.evidence["horizon"] == "variable"
     assert issue.evidence["ipcw_applied"] is True
     assert "lag2_effective_windows" in issue.evidence
+
+
+# ---- the horizon is declared, not inferred ----
+
+
+def test_a_missing_horizon_blocks() -> None:
+    """Not a default, because neither default is safe: assuming variable weights a panel
+    that needs no weighting, and assuming fixed drops the correction a panel does need."""
+    _, frame, columns = make_panel(n_units=400, seed=3)
+    spec = panel_spec(columns)
+    spec = spec.model_copy(
+        update={"fields": {k: v for k, v in spec.fields.items() if k != "horizon"}}
+    )
+    report = run_checks(frame, spec)
+    issue = report.get("horizon_declaration")
+    assert issue.severity is Severity.BLOCKING
+    assert issue.waivable is False
+    assert "spec.horizon is missing" in issue.summary
+    # Nothing that depends on the horizon was attempted.
+    assert "continuation_positivity" not in {i.check_id for i in report.issues}
+
+
+def test_declaring_fixed_when_trajectories_end_at_different_times_blocks() -> None:
+    _, frame, columns = make_panel(n_units=400, seed=3)
+    report = run_checks(frame, panel_spec(columns, horizon="fixed"))
+    issue = report.get("horizon_declaration")
+    assert issue.severity is Severity.BLOCKING
+    assert "declared a fixed horizon" in issue.summary
+
+
+def test_declaring_variable_on_a_cohort_truncated_to_a_fixed_length_blocks() -> None:
+    """The trap the confirmed field exists for, and the reason the data cannot settle it.
+
+    Keep only the units that lasted eight periods, and keep only their first eight. Every
+    unit then has eight periods, exactly like a fixed horizon, but the cohort is conditioned
+    on surviving that long and the evidence of anyone leaving was dropped with the rows. On
+    the benchmark design that is 3.5% of units, and the lag-1 estimate moves from 4.22 to
+    2.87 against a truth of 4.0. No weighting repairs it, so the check refuses rather than
+    correcting.
+    """
+    _, frame, columns = make_panel(n_units=3000, seed=5)
+    period = np.asarray(frame[PERIOD_COLUMN], dtype=int)
+    last_period = np.asarray(frame.groupby(UNIT_COLUMN)[PERIOD_COLUMN].transform("max"), dtype=int)
+    truncated = frame.loc[(last_period >= 7) & (period < 8)]
+    kept = np.asarray(truncated.groupby(UNIT_COLUMN)[PERIOD_COLUMN].transform("max"), dtype=int)
+    assert set(kept.tolist()) == {7}, "every kept unit should have exactly eight periods"
+
+    report = run_checks(truncated, panel_spec(columns, horizon="variable"))
+    issue = report.get("horizon_declaration")
+    assert issue.severity is Severity.BLOCKING
+    assert "truncated" in issue.impact_on_analysis
+    assert "untruncated" in issue.recommended_repair
+
+
+def test_a_matching_declaration_passes(clean_report) -> None:
+    issue = clean_report.get("horizon_declaration")
+    assert issue.severity is Severity.INFO
+    assert issue.evidence["declared_horizon"] == "variable"

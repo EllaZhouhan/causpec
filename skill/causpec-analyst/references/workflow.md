@@ -75,8 +75,20 @@ Only two answers matter:
   > dialysis during it? That form supports a different question: what one window of
   > dialysis does to that window's outcome and to the windows after it."
 
-  A panel opens `dynamic_lag_dml`, which is declared and not implemented: describe the
-  analysis, produce no number. One row per patient closes it.
+  A panel opens `dynamic_lag_dml`. One row per patient closes it.
+
+  On that path, two further questions are required and the data cannot answer either:
+
+  > "Is every patient followed for the same number of windows, or do the records end at
+  > different times because patients leave?"
+
+  > "And when a patient's rows stop, is that because they left? Or is there a column that
+  > records the discharge?"
+
+  The first decides whether any censoring correction applies. A panel where everyone has
+  eight windows is either a fixed horizon or a cohort truncated to the patients who lasted
+  that long, and the second is conditioned on surviving. The second question decides what
+  counts as evidence that a trajectory could have continued. See `dynamic-lag-dml.md`.
 
 Do not go into fixed windows, landmark analysis or g-methods unless they ask. Read
 `dynamic-lag-dml.md` before describing the lag profile: it answers one question and

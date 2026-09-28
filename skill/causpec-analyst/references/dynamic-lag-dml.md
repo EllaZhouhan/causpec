@@ -78,15 +78,45 @@ wrong quantity.
 
 At lag 0 no weighting is needed, and the estimator does not apply any.
 
-**If every unit is observed for the same number of periods, no weighting is needed at all**,
-and the estimator applies none: nobody left early, so there is nothing to correct. It detects
-this from the data rather than taking it as a setting, and the report says
-`horizon: fixed`. The same rule covers a panel where some units end early and others simply
-reach the end of the observation window: ending at the window is not leaving, so those
-trajectories say nothing about continuing, while the ones that ended earlier do.
+## Two questions you have to ask about the horizon
 
-So when a user asks whether the censoring correction is needed for their fixed-length panel,
-the answer is that it is not, and that the tool will not apply one.
+These are not optional and the data cannot answer them. Both fields are required, and the
+analysis refuses to run without them.
+
+### 1. Fixed or variable?
+
+> "Is every patient followed for the same number of windows, or do the records end at
+> different times because patients leave?"
+
+**Fixed** means no weighting is needed and none is applied: nobody left early, so there is
+nothing to correct.
+
+**Why you cannot read this off the file.** A panel where every unit has eight periods is
+either a fixed horizon, or a variable one whose data pull kept the first eight buckets of the
+patients who lasted that long. The second is a cohort conditioned on surviving, which no
+weighting repairs, and the two look identical. On this project's own benchmark, keeping the
+3.5% of units that reach eight periods moves the lag-1 effect from 4.22 to 2.87 against a
+truth of 4.0. A check compares the answer against the data and refuses a contradiction, so a
+wrong answer here is caught rather than quietly used.
+
+### 2. If variable: how is leaving identified?
+
+> "When a patient's rows stop, is that because they left the ICU? Or is there a column that
+> records the discharge, with rows carrying on after it?"
+
+Two answers, and they lead to different handling:
+
+| Answer | What to write in the spec |
+|---|---|
+| The rows stop where the patient left | `termination: last_recorded_period` |
+| A column marks it (a discharge flag, a reason, a date) | `termination: <that column>` |
+
+**What hangs on it.** Only a real exit is evidence that a trajectory could have continued and
+did not. A trajectory that simply reached the end of the observation window says nothing, so
+it contributes no record to the continuation model. With a column, the column decides; without
+one, a trajectory that stops before the window is read as having left. And rows recorded after
+a patient left are refused outright, because they are not observations of an active
+trajectory.
 
 ## What to tell the user about the interval
 

@@ -114,6 +114,7 @@ def check_panel(data: pd.DataFrame, spec: Spec, declaration: dict[str, Any]) -> 
     lambda_floor = float(spec.param("lambda_floor", DEFAULT_LAMBDA_FLOOR))
 
     issues = [
+        _horizon_declaration(data, config, spec, unit, period),
         _duplicate_periods(data, config, unit, period),
         _period_gaps(data, config, unit, period),
         _post_treatment_state(data, config, state, treatment),
@@ -126,24 +127,155 @@ def check_panel(data: pd.DataFrame, spec: Spec, declaration: dict[str, Any]) -> 
             )
         )
 
-    shape_is_usable = all(
+    prerequisites = {"horizon_declaration", "panel_duplicate_periods", "panel_period_gaps"}
+    ready = all(
         issue.severity is not Severity.BLOCKING
         for issue in issues
-        if issue.check_id in {"panel_duplicate_periods", "panel_period_gaps"}
+        if issue.check_id in prerequisites
     )
-    if not shape_is_usable:
-        # Everything below needs trajectories, and building them on a broken index would
-        # either raise or, worse, quietly mis-align the lags. Stop with what is known.
+    if not ready:
+        # Everything below needs trajectories built on the declared horizon. A broken index
+        # would mis-align the lags, and a wrong horizon would produce weight diagnostics for
+        # a correction that does not apply. Stop with what is known; G3 still delivers it.
         return QualityReport(issues=issues)
 
-    trajectories = to_trajectories(data, unit, period, state, treatment, outcome)
-    fit = DynamicLagDmlFit(max_lag=max_lag, lambda_floor=lambda_floor, seed=0).fit(trajectories)
+    horizon_field = spec.fields.get("horizon")
+    horizon = str(horizon_field.value).strip() if horizon_field is not None else "variable"
+    termination = spec.fields.get("termination")
+    termination_column = None
+    if horizon == "variable" and termination is not None and termination.value is not None:
+        name = str(termination.value).strip()
+        termination_column = name if name in data.columns else None
+    trajectories = to_trajectories(
+        data, unit, period, state, treatment, outcome, termination=termination_column
+    )
+    fit = DynamicLagDmlFit(max_lag=max_lag, lambda_floor=lambda_floor, seed=0, horizon=horizon).fit(
+        trajectories
+    )
 
     issues.append(_window_counts(fit, config, max_lag))
     issues.append(_continuation_positivity(fit, config, lambda_floor))
     issues.append(_lag_relevance(fit, config))
     issues.append(_set_composition(fit, config, trajectories))
     return QualityReport(issues=issues)
+
+
+# ---- temporal layer: the horizon the user declared, against the data ----
+
+
+def _horizon_declaration(
+    data: pd.DataFrame, config: dict[str, Any], spec: Spec, unit: str, period: str
+) -> QualityIssue:
+    """Does the declared horizon survive contact with the data?
+
+    The horizon is a confirmed field rather than something inferred, because one pair of
+    worlds is indistinguishable by shape: a panel where every unit has eight periods is
+    either a genuinely fixed horizon, or a variable horizon whose data pull kept the first
+    eight buckets of the units that lasted that long. The second is a cohort conditioned on
+    surviving, which no weighting repairs. On the benchmark design, keeping the 3.5% of units
+    that reach eight periods moves the lag-1 estimate from 4.22 to 2.87 against a truth of
+    4.0, and a tool that guessed "fixed" would report that as a clean analysis.
+
+    So this does not decide the horizon. It checks the declaration against the data and
+    refuses the two combinations that cannot both be true.
+    """
+    check_id = "horizon_declaration"
+    max_at_window = _threshold(config, check_id, "max_share_at_window_when_variable", 0.9)
+    entry = spec.fields.get("horizon")
+    declared = str(entry.value).strip() if entry is not None and entry.value is not None else ""
+    lengths = np.asarray(data.groupby(unit)[period].max(), dtype=int) + 1
+    window_end = int(lengths.max()) if len(lengths) else 0
+    share_at_window = float(np.mean(lengths == window_end)) if len(lengths) else 0.0
+    evidence: dict[str, float | int | str | bool] = {
+        "declared_horizon": declared or "(missing)",
+        "window_end": window_end,
+        "shortest_trajectory": int(lengths.min()) if len(lengths) else 0,
+        "share_reaching_the_window": round(share_at_window, 4),
+        "max_share_at_window_when_variable": max_at_window,
+    }
+
+    if declared not in {"fixed", "variable"}:
+        return _issue(
+            config,
+            check_id,
+            passed=False,
+            summary=(
+                "spec.horizon is missing: say whether every unit is observed for the same "
+                "number of periods (fixed) or trajectories end at different times (variable)"
+            ),
+            evidence=evidence,
+            impact=(
+                "The horizon decides whether the continuation weighting applies at all, and "
+                "the data cannot settle it. Guessing is how a cohort truncated to a fixed "
+                "length gets analysed as though nobody had ever left."
+            ),
+            repair=(
+                "Ask the user. Fixed means the study observed every unit for the same number "
+                "of periods. Variable means units left at different times, in which case also "
+                "ask how leaving is identified in the data."
+            ),
+        )
+
+    if declared == "fixed" and share_at_window < 1.0:
+        return _issue(
+            config,
+            check_id,
+            passed=False,
+            summary=(
+                f"declared a fixed horizon, but trajectories run from "
+                f"{int(lengths.min())} to {window_end} periods"
+            ),
+            evidence=evidence,
+            impact=(
+                "Under a fixed horizon no weighting is applied, because nobody left early. If "
+                "units do end at different times, those endings are unexplained and the "
+                "windows that survive to a long lag are a selected sample."
+            ),
+            repair=(
+                "Either the horizon is variable, in which case say how leaving is identified, "
+                "or the short trajectories end for a reason that has nothing to do with "
+                "leaving, such as missing rows, which is a different problem to fix first."
+            ),
+        )
+
+    if declared == "variable" and share_at_window > max_at_window:
+        return _issue(
+            config,
+            check_id,
+            passed=False,
+            summary=(
+                f"declared a variable horizon, but {share_at_window:.0%} of units run exactly "
+                f"to period {window_end - 1}, so almost nothing ended early"
+            ),
+            evidence=evidence,
+            impact=(
+                "This is the shape of a cohort truncated to a fixed length: the units kept are "
+                "the ones that lasted, so the population is conditioned on surviving and the "
+                "weights have nothing to correct because the evidence of leaving was dropped "
+                "with the rows. No weighting repairs it."
+            ),
+            repair=(
+                "If the data was cut at a fixed number of periods, go back to the untruncated "
+                "panel. If every unit really was followed for the same length, the horizon is "
+                "fixed. If leaving is recorded in a column rather than by the rows stopping, "
+                "name that column in spec.termination."
+            ),
+        )
+
+    return _issue(
+        config,
+        check_id,
+        passed=True,
+        summary=(
+            f"the declared {declared} horizon matches the data"
+            + (
+                f": {share_at_window:.0%} of units reach the end of the window"
+                if declared == "variable"
+                else ""
+            )
+        ),
+        evidence=evidence,
+    )
 
 
 # ---- basic layer: the shape of the index ----

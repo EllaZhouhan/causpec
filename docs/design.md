@@ -283,10 +283,27 @@ answer a question the estimator cannot answer. The target-trial layout returns i
 strategy contrast is ever implemented; it is not the layout for a lag profile.
 
 **Fields.** unit_id, period_index, period_length, state, treatment, instant_outcome,
-max_lag, termination; plus effect_modifiers when the lag effect is allowed to vary with
-the state. period_length is what one period means in clock time, twelve hours in the
-author's application, and it exists so the report can say "at 24 hours" rather than "at
-lag 2".
+max_lag, horizon, termination; plus effect_modifiers when the lag effect is allowed to vary.
+period_length is what one period means in clock time, twelve hours in the author's
+application, and it exists so the report can say "at 24 hours" rather than "at lag 2".
+
+**Why the horizon is a confirmed field and not an inference.** Whether trajectories end at
+different times decides whether the continuation weighting applies at all, and the shape of
+the data cannot settle it. A panel where every unit has eight periods is either a genuinely
+fixed horizon, in which case no weighting is needed, or a variable horizon whose data pull
+kept the first eight buckets of the units that lasted that long, in which case the cohort is
+conditioned on surviving and no weighting repairs it. The two are indistinguishable by shape.
+Measured on the panel generator: keeping the 3.5% of units that reach eight periods moves the
+lag-1 estimate from 4.22 to 2.87 against a truth of 4.0, and a tool that guessed "fixed"
+would report that as a clean analysis with weights of one.
+
+So the user confirms it, a check compares the answer against the data and refuses a
+contradiction, and the estimator refuses to run without it. When the horizon is variable a
+second field is required: how leaving is identified, either because the rows stop there or
+because a column marks it. Only a real exit is evidence that a trajectory could have
+continued and did not; reaching the end of the observation window is not. This is the same
+principle as 7.1, that a field which changes the estimand is confirmed rather than guessed,
+applied to the one property of a panel that the panel cannot report about itself.
 
 **The within-period order is part of the estimand**: active, then state, then treatment,
 then outcome, then the next period. Two consequences, and both are checks rather than

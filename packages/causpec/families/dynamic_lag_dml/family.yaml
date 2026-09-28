@@ -95,11 +95,13 @@ requires:
     - unit_id            # the patient; the independent unit and the resampling unit
     - period_index       # consecutive integers from 0 within each unit, no gaps
     - period_length      # what one period means in clock time, e.g. 12 hours
+    - horizon            # fixed | variable; the data cannot settle it, see checks below
     - state              # X, recorded at the START of the period, before that period's treatment
     - treatment          # A, the exposure over the period
     - instant_outcome    # Y, realised after that period's treatment and before the next state
     - max_lag            # K; the profile is theta_0 ... theta_K
-    - termination        # what ends a trajectory, and that it is absorbing
+    - termination        # only when variable: the column marking the period a unit left,
+                         # or last_recorded_period when the rows simply stop there
     - effect_modifiers   # only for lag_cate; read at the treatment period
   note_period_alignment: >
     The within-period order is fixed and the whole estimand depends on it: active,
@@ -216,17 +218,20 @@ estimator:
     the boosted one tracks the oracle. The orthogonal direction is the opposite story,
     where linear nuisances are enough and a boosted one only adds variance.
   note_fixed_horizon: >
-    A fixed horizon is detected, not configured. When every unit is observed for the same
-    number of periods, no trajectory left early, there is nothing for the weights to
-    correct, no continuation model is fitted, and every weight is exactly one; the result
-    carries res:profile.horizon = fixed and res:profile.ipcw_applied = False so the report
-    can say the weighting was skipped rather than leaving a reader to infer it from weights
-    of one. The same rule handles the mixed case: reaching the end of the observation window
-    is not leaving, so a trajectory that ends there contributes no record to the continuation
-    model, while the ones that ended earlier do. Treating every trajectory's end as an exit
-    asks the model to predict "is this the last period", which the state and the treatment
-    cannot say; on an eight-period balanced panel that produced fitted continuation
-    probabilities as low as 0.40 and weights up to 4.3 in a world where all of them were 1.
+    With horizon = fixed nobody left early, so no continuation model is fitted and every
+    weight is exactly one; the result carries res:profile.horizon and
+    res:profile.ipcw_applied so the report says the weighting was skipped rather than leaving
+    a reader to infer it from weights of one.
+    The horizon is confirmed by the user and never inferred, because the shape of the data
+    cannot separate a fixed horizon from a cohort truncated to a fixed length, and the second
+    is conditioned on surviving; the horizon_declaration check compares the two and refuses a
+    contradiction.
+    Within a variable horizon, reaching the end of the observation window is not leaving, so
+    such a trajectory contributes no record to the continuation model while the ones that
+    ended earlier do. Treating every trajectory's end as an exit asks the model to predict "is
+    this the last period", which the state and the treatment cannot say; on an eight-period
+    balanced panel that produced fitted continuation probabilities as low as 0.40 and weights
+    up to 4.3 in a world where all of them were 1.
   lambda_floor_default: 0.05
   note_lambda_floor: >
     The fitted continuation probabilities are clipped below at a fixed constant before
@@ -295,6 +300,24 @@ checks:
     # lag-2 window into a lag-3 window with no error anywhere, so this cannot be waived
     # and cannot be imputed: the fix is to build the buckets so that every period between
     # the first and the last exists, treated or not.
+
+  horizon_declaration:
+    layer: temporal
+    severity: blocking
+    waivable: false
+    # The declared horizon against what the data looks like. Not waivable, because the two
+    # failures it catches are both cases where the analysis answers a question nobody asked.
+    #
+    # Declared fixed while the lengths vary: either the declaration is wrong or some units
+    # end early for a reason nobody has named.
+    #
+    # Declared variable while every unit has the same number of periods: this is the one the
+    # data cannot settle on its own, which is why the horizon is a confirmed field rather than
+    # something inferred. Such a panel is either a fixed horizon or a cohort truncated to a
+    # fixed length, and the second is conditioned on surviving that long, which no weighting
+    # repairs. On the benchmark design, keeping the 3.5% of units that reach eight periods
+    # moves the lag-1 estimate from 4.22 to 2.87 against a truth of 4.0.
+    max_share_at_window_when_variable: 0.9
 
   panel_duplicate_periods:
     layer: basic
