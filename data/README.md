@@ -11,5 +11,8 @@ The synthetic datasets (design.md section 15):
 - **A**: generated from a structural causal model with known ground truth, with
   heterogeneous effects, an instrument, informative censoring, variable-length trajectories
 - **B**: dataset A in two shapes (wide table, long event table)
-- **C**: dataset A with problems injected, each mapped to an expected `check_id`
+- **C**: dataset A with one problem injected at a time, each declaring the `check_id` and
+  severity it expects, asserted in CI (`generators/dataset_c.py`). Every defect is a mistake
+  that happens to real extracts rather than a random perturbation: a sentinel for "not
+  measured", a join that duplicates rows, a cohort anchored on its own exposure
 - **D**: a commercial setting (an A/B test with non-compliance, user retention)

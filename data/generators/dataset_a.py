@@ -80,6 +80,14 @@ class DatasetAConfig:
 
     instrument_kind: str = "continuous"  # continuous | binary
 
+    # Timestamps, off by default. Four columns in hours from an arbitrary epoch: admission,
+    # the treatment decision, the event, and the end of follow-up. Off by default because
+    # the estimators take no timestamps; they exist for the temporal checks, and for
+    # dataset C to break one ordering at a time.
+    emit_timestamps: bool = False
+    treatment_window_hours: float = 24.0
+    horizon_hours: float = 28 * 24.0
+
     # ---- target marginals (the generator calibrates close to these) ----
     target_treatment_rate: float = 0.095
     target_death_rate: float = 0.041
@@ -313,8 +321,41 @@ def generate(config: DatasetAConfig | None = None) -> pd.DataFrame:
     df["death"] = np.where(df["isDialysisICU"] == 1, y1, y0)
 
     df["u_true"] = u  # the confounder's true value: for diagnostics only, never an estimator
+    if cfg.emit_timestamps:
+        _add_timestamps(df, rng, cfg)
     df.insert(0, "unit_id", np.arange(1, n + 1))
     return df
+
+
+def _add_timestamps(df: pd.DataFrame, rng: np.random.Generator, cfg: DatasetAConfig) -> None:
+    """Four time columns, in hours from an arbitrary epoch, consistent by construction.
+
+    Consistent is the point: the temporal checks exist to catch tables where these orderings
+    fail, so the generator has to produce a table where they hold. Dataset C then breaks one
+    ordering at a time and the checks are measured against what was broken.
+
+    The ordering built here: admission, then the treatment decision somewhere in the first
+    day for the treated, then the outcome for those who had one, then the end of follow-up at
+    the horizon or at the event.
+    """
+    n = len(df)
+    admission = np.round(rng.uniform(0, 24 * 365, n), 2)
+    treated = df["isDialysisICU"].to_numpy() == 1
+    # Treated patients start within the first day, which is why time zero is admission and
+    # not the treatment: anchoring on the treatment is what creates immortal time.
+    offset = rng.uniform(1.0, cfg.treatment_window_hours, n)
+    treatment_time = np.where(treated, admission + offset, np.nan)
+    died = df["death"].to_numpy() == 1
+    # An event lands somewhere inside the horizon, after any treatment the patient had.
+    earliest = np.where(treated, admission + offset, admission)
+    event_offset = rng.uniform(0.0, 1.0, n) * (admission + cfg.horizon_hours - earliest)
+    outcome_time = np.where(died, earliest + event_offset, np.nan)
+    followup_end = np.where(died, outcome_time, admission + cfg.horizon_hours)
+
+    df["admission_time"] = admission
+    df["rrt_start_time"] = treatment_time
+    df["death_time"] = outcome_time
+    df["followup_end_time"] = followup_end
 
 
 def truth(df: pd.DataFrame) -> dict[str, float]:

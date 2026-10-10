@@ -74,3 +74,49 @@ basic_constant_column:
   # A column with one value carries no information. It is not an error, but a covariate set
   # built by a script often collects a few, and they are worth naming: some learners will
   # also divide by their zero variance.
+
+# ---- the temporal layer (design.md 8.1) ----
+# All of these read optional spec fields: time_zero, treatment_time, outcome_time,
+# followup_end, and outcome_horizon for the last one. A study with no timestamps is a
+# legitimate thing to analyse, so a missing field makes the check report that it did not run
+# rather than pass. Times may be timestamps or numbers; only the horizon needs a unit, and it
+# is taken in whatever unit the columns already use.
+
+temporal_time_columns_parse:
+  layer: temporal
+  severity: blocking
+  waivable: false
+  # A column that is neither a timestamp nor a number cannot be ordered, so every check
+  # below it would skip silently.
+
+temporal_treatment_before_time_zero:
+  layer: temporal
+  severity: blocking
+  waivable: true
+  # Immortal time, and the reason this layer exists. Waivable because a handful of rows can
+  # be a time-zone artefact the user knows about, while the pattern is a design error.
+
+temporal_outcome_before_treatment:
+  layer: temporal
+  severity: blocking
+  waivable: false
+  # An event before the exposure cannot have been caused by it. Not waivable: there is no
+  # reading of the data under which these rows belong in the estimate.
+
+temporal_inversion:
+  layer: temporal
+  severity: blocking
+  waivable: false
+  # Follow-up ending before it starts, or an outcome dated after it closed.
+
+temporal_insufficient_followup:
+  layer: temporal
+  severity: blocking
+  waivable: true
+  # Units with no event and less follow-up than the outcome window asks for. Their outcome is
+  # unknown, not negative.
+  #
+  # The threshold is zero rather than a small share: any unit counted as surviving a window it
+  # was not observed through is a wrong row, and the right response is to say how many and
+  # decide, not to tolerate a quota. Waivable for the design that handles it deliberately.
+  max_short_share: 0.0

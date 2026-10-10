@@ -4,8 +4,8 @@ Mirrors the four layers of design.md section 8:
 
 | Layer          | Checks                                                                |
 |----------------|-----------------------------------------------------------------------|
-| basic          | types, uniqueness, missingness, NULL-encoding variants (``basic.py``) |
-| temporal       | treatment before time zero, outcome before treatment, short follow-up |
+| basic          | types, uniqueness, missingness, NULL-encoding variants, zero spikes |
+| temporal       | treatment before time zero, outcome before it, inversion, short follow-up |
 | identification | prevalence, overlap, SMD, suspected post-treatment, instrument relevance |
 | feasibility    | per-arm sample sizes, event counts, minimum subgroup n, extreme weights and ESS |
 
@@ -18,10 +18,14 @@ blocks**: overlap, instrument relevance and continuation weights are all compute
 numbers in these columns, so assessing identification on a table whose creatinine column
 contains -999 gives a confident answer about an export convention.
 
-Implemented: the basic layer. The temporal layer is still open (plan.md Phase 1 task 5); the
-other two live in the families.
+Implemented: the basic and temporal layers. The other two live in the families.
+
+The temporal layer reads optional spec fields, and **says when it could not run**. A study
+with no timestamps is a legitimate thing to analyse, but a check that reports nothing when it
+had nothing to read is worse than no check: the report then reads as a clean bill of health.
 """
 
 from causpec.core.quality.basic import analysis_columns, check_basic, config_hash, load_config
+from causpec.core.quality.temporal import check_temporal
 
-__all__ = ["analysis_columns", "check_basic", "config_hash", "load_config"]
+__all__ = ["analysis_columns", "check_basic", "check_temporal", "config_hash", "load_config"]

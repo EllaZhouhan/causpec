@@ -96,6 +96,24 @@ every later check passes and the answer is about the placeholder. When it fires,
 offer to drop those rows: ask what the value means first, because "not measured" and "really
 -999" lead to different analyses.
 
+## The temporal layer, when the spec declares time columns
+
+| Check | What to say to the user |
+|---|---|
+| `temporal_treatment_before_time_zero` | "245 patients are recorded as dialysed before their own time zero. That usually means time zero is set to the dialysis itself, and then being in the treated group requires having survived to it" |
+| `temporal_outcome_before_treatment` | "30 patients died before the dialysis they are credited to. Usually a join on the wrong key" |
+| `temporal_inversion` | "70 patients have follow-up ending before they were admitted" |
+| `temporal_insufficient_followup` | "231 patients had no event and were followed for less than 28 days, so we do not know their outcome rather than knowing it was no" |
+
+**If the spec declares no time columns, these report that they did not run.** Say so when
+summarising: "the timing checks could not run, because the data has no timestamps" is a real
+limitation and belongs in the report. Do not describe it as the timing being fine.
+
+The first one is the one to understand. Immortal time leaves no trace in any estimate: the
+intervals are the right width, the overlap is fine, the covariates balance. The number is
+simply wrong, in the direction that favours treatment, by an amount that grows with the
+window. It is the most common error in this literature, which is why it blocks.
+
 ## The panel family's checks
 
 `dynamic_lag_dml` brings its own, and two of them refuse rather than warn for reasons that

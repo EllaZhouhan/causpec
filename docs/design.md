@@ -256,6 +256,10 @@ causal_design:
   analysis_type: hte | panel
   estimand: ...
   treatment / outcome / time_zero / instrument / adjustment_set / effect_modifiers
+  # optional, and read only by the temporal layer (8.1). Times may be timestamps or numbers;
+  # outcome_horizon is in whatever unit the columns already use, because converting it on the
+  # user's behalf is how a 28-day horizon becomes 28 hours.
+  treatment_time / outcome_time / followup_end / outcome_horizon / time_unit
   variable_roles: {<variable or group>: confounder | instrument | mediator | effect_modifier | suspected_collider | post_treatment}
   key_non_edges: [...]        # e.g. no path from instrument to outcome except through treatment
   identification_strategy: backdoor_adjustment | instrumental_variable
@@ -403,7 +407,7 @@ desk (ideas only).
 | Layer | Checks | Implementation |
 |---|---|---|
 | basic | types, uniqueness, missingness, NULL-encoding variants, zero spikes | Written here (ADR-0003: pandera would carry the easy third of the layer in a format that has to be rewritten). Thresholds in `core/quality/basic_checks.yaml` |
-| temporal | treatment before time zero, outcome before treatment, time inversion, insufficient follow-up | Written here; [reuse] the immortal-time check follows the shape of StatsPAI's immortal_time_check (MIT, practice only) |
+| temporal | treatment before time zero (immortal time), outcome before treatment, time inversion, insufficient follow-up | Written here. Reads optional spec fields and **says when it could not run**: a check reporting nothing on a table it could not read turns the report into a clean bill of health |
 | identification | treatment prevalence, overlap, SMD, suspected post-treatment, instrument relevance, censoring against state | Overlap and SMD written here (the logic is simple); instrument relevance in 8.2 |
 | feasibility | per-arm sample sizes, event counts, minimum subgroup n, extreme weights and ESS | Written here |
 

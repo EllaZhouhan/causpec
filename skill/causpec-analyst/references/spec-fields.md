@@ -35,6 +35,37 @@ fields:
   causal_claim_approved: {value: true, ...}       # only once the user agrees to causal wording
 ```
 
+## Optional time fields, which turn the timing checks on
+
+None of the estimators read these. They exist so the timing checks can run, and **while they
+are absent those checks report that they did not run** rather than passing. If the data has
+timestamps, declaring them is close to free and catches the one error that leaves no trace in
+any estimate.
+
+```yaml
+fields:
+  time_zero:        {value: admission_time, ...}      # the anchor every unit reaches
+  treatment_time:   {value: rrt_start_time, ...}
+  outcome_time:     {value: death_time, ...}          # empty for units with no event
+  followup_end:     {value: followup_end_time, ...}
+  outcome_horizon:  {value: 672, ...}                 # in the same unit as the columns
+  time_unit:        {value: hours, ...}               # a label, for the report's wording
+```
+
+Times may be timestamps or numbers of hours or days since the anchor; the checks only need to
+order them. **`outcome_horizon` is in whatever unit the columns already use**, and is not
+converted for you: that is how a 28-day horizon becomes 28 hours.
+
+What to ask the user, when the data has these columns:
+
+> "What should time zero be, the point every patient reaches before any treatment decision?
+> Admission, or the moment they first met the criteria?"
+
+The answer matters more than it sounds. Anchoring on the treatment instead of on admission is
+how immortal time arises: membership in the treated group then requires surviving until the
+treatment, so the comparison group carries a risk the treated group was selected out of. The
+estimate looks completely ordinary and favours treatment in proportion to the window.
+
 ## The panel family's own fields
 
 `dynamic_lag_dml` reads one row per unit per period, so it needs a different set. Every one

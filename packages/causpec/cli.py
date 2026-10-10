@@ -25,7 +25,7 @@ from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
-from causpec.core.quality import check_basic
+from causpec.core.quality import check_basic, check_temporal
 from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
@@ -148,7 +148,7 @@ def _persist_run(
 
 
 def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
-    """The basic layer first, then the family's own, unless the basic layer blocked.
+    """The core layers first, then the family's own, unless a core layer blocked.
 
     Overlap, instrument relevance and continuation weights are all computed from the numbers
     in these columns, so a design-level verdict on a table whose creatinine column holds -999
@@ -156,11 +156,13 @@ def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
     table, the honest report says that and stops there (design.md 8.1, and G3: it is still a
     deliverable).
     """
-    basic = check_basic(data, spec)
-    if basic.blocking:
-        return basic
+    core = QualityReport(
+        issues=[*check_basic(data, spec).issues, *check_temporal(data, spec).issues]
+    )
+    if core.blocking:
+        return core
     family = _resolve_family(spec).check(data, spec)
-    return QualityReport(issues=[*basic.issues, *family.issues])
+    return QualityReport(issues=[*core.issues, *family.issues])
 
 
 def cmd_quality(args: argparse.Namespace) -> int:

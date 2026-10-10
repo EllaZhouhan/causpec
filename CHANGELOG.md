@@ -7,6 +7,27 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The temporal check layer** (design.md 8.1): immortal time, an outcome dated before the
+  treatment it is credited to, inverted follow-up intervals, and follow-up shorter than the
+  outcome window. It reads optional spec fields (`time_zero`, `treatment_time`,
+  `outcome_time`, `followup_end`, `outcome_horizon`) and **reports when it could not run**,
+  because a check that says nothing about a table it could not read turns the report into a
+  clean bill of health. Times may be timestamps or numbers; the horizon is taken in whatever
+  unit the columns already use, since converting it is how a 28-day window becomes 28 hours
+- **Immortal time is the check the layer exists for.** It leaves no trace in any estimate:
+  the intervals are the right width, the overlap is fine, the covariates balance, and the
+  number is wrong in the direction that favours treatment by an amount that grows with the
+  window. A cohort anchored on its own exposure can only be joined by surviving to it
+- **Dataset C**: ten defects, one at a time, each declaring the `check_id` and severity it
+  expects, asserted in CI. Every one is a mistake that happens to real extracts rather than a
+  random perturbation: a sentinel for "not measured", a spreadsheet that spells NA, an empty
+  field becoming zero on export, a join that duplicates rows, a cohort anchored on its own
+  exposure, an extraction with a fixed end date. The test checks both directions, because a
+  defect caught by the wrong check is worse than one caught by none: the report would send
+  the user to repair something that is not broken
+- **Timestamps in dataset A**, off by default: admission, treatment, event and follow-up end,
+  internally consistent by construction, which is what makes the temporal checks testable
+
 - **The basic check layer** (design.md 8.1, ADR-0003), the first of the four to be
   implemented in core and the only one that runs for every family: column types, a duplicated
   row key, missing values, NULL-encoding variants, zero spikes and constant columns. It runs

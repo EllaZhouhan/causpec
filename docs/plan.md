@@ -78,11 +78,14 @@ so longitudinal IPCW can be delivered complete, with estimation.
 4. Basic-layer quality checks, written here rather than with pandera (ADR-0003): types,
    uniqueness, missingness, NULL-encoding variants and zero spikes, run before the
    design-level checks for every family
-5. Temporal-consistency and identifiability checks; instrument relevance (effective F
-   written here, with a regression test against the original paper's numerical example;
-   the AR test goes to the backlog)
-6. A generator for dataset C, a mapping from each injected problem to a check_id, wired
-   into CI
+5. Temporal-consistency checks: immortal time, outcome before treatment, interval
+   inversion, follow-up shorter than the outcome window. Each reads optional spec fields and
+   reports when it could not run. Still open: instrument relevance's effective F, written
+   here with a regression test against the original paper's numerical example (the AR test
+   goes to the backlog)
+6. Dataset C: ten defects, each one a mistake that happens to real extracts, each declaring
+   the check_id and severity it expects, asserted in CI. A defect caught by the wrong check
+   is worse than one caught by none, so the test checks both directions
 7. The hte_backdoor family ([reuse] EconML CausalForestDML)
 8. HTE calibration (hte_backdoor: [reuse] EconML DRTester; hte_iv: an IV-appropriate
    score written here) and rank stability
