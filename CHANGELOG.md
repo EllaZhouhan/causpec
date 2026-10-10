@@ -7,6 +7,27 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The basic check layer** (design.md 8.1, ADR-0003), the first of the four to be
+  implemented in core and the only one that runs for every family: column types, a duplicated
+  row key, missing values, NULL-encoding variants, zero spikes and constant columns. It runs
+  **before** the design-level checks, and while it blocks they are not attempted: overlap and
+  instrument relevance are computed from the numbers in these columns, so a verdict on a
+  table whose creatinine column holds -999 is a confident statement about an export
+  convention
+- **NULL-encoding detection**, which is why this layer earns its place. A missing value
+  eventually reaches a nuisance regression and complains; a placeholder that is a number does
+  not fail anywhere. It averages, it fits and it predicts, so every other check passes and a
+  creatinine of -999 teaches the model that patients with impossibly low creatinine are never
+  treated. Out-of-band sentinels that repeat, and text meaning "missing" in a column that
+  should be numeric. Blocking and waivable, because only the user knows whether a value is
+  real in their data
+- **A zero-spike check**, for the zeros an export produces from an empty field. The obvious
+  statistic cannot do this: measuring how far the column's bulk starts from zero gives 0.28
+  for a creatinine column with 10% of values zeroed and 0.27 for a urine output whose 10%
+  zeros are real. What separates them is whether anything sits just above zero, so the
+  statistic is the smallest non-zero value over the interquartile range: 0.19 against 0.00 on
+  the same data. A warning, since whether a zero is possible is clinical knowledge
+
 - **The `dynamic_lag_dml` family** (design.md 7.3): the lag profile of one treatment
   period on per-period outcomes, on panel data whose trajectories end at state-dependent
   and treatment-dependent times. Two estimands, `lag_profile` and `lag_cate`; the
@@ -146,6 +167,18 @@ the milestones in plan.md section 2.
 - ADR-0001 (literal numbers in reports), ADR-0002 (data-source boundaries)
 
 ### Changed
+
+- **`dynamic_lag_dml` handed two checks back to core.** `panel_missing_values` and
+  `panel_duplicate_periods` were declared there because core had no basic layer, which meant a
+  NaN outcome on the cross-sectional path reached sklearn and surfaced as a bare complaint
+  about NaN. Both now run for every family. The panel-specific part, missing values sitting
+  only on final periods, is kept: core reads the period column from the spec, so the hint
+  about the outcome's measurement window running past the end of data collection still
+  reaches the report
+- **The manifest records `basic_checks_hash`**, for the same reason it records the
+  claim-level rules hash: change what counts as a placeholder value and the same data can pass
+  or block
+- **A missing spec or data file says so** instead of printing a stack trace
 
 - **The report prints a family's result tables, declared rather than coded.** A family lists
   `report_tables` in its declaration and core renders them from the address table, knowing

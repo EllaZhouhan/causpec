@@ -129,6 +129,7 @@ class RunContext:
         seed: int,
         snapshot_fingerprint: str | None = None,
         claim_rules_hash: str = "",
+        basic_checks_hash: str = "",
     ) -> Manifest:
         """Write the manifest. Must be called last: it checksums every artefact."""
         checksums = {
@@ -148,6 +149,7 @@ class RunContext:
             snapshot_fingerprint=snapshot_fingerprint,
             seed=seed,
             claim_rules_hash=claim_rules_hash,
+            basic_checks_hash=basic_checks_hash,
             artifacts=checksums,
         )
         # The manifest is not itself an artefact, it records everyone else's checksums.

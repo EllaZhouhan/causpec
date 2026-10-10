@@ -25,6 +25,8 @@ from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
+from causpec.core.quality import check_basic
+from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
 from causpec.core.reporting.render import RenderError
@@ -34,10 +36,15 @@ from causpec.core.runtime.context import RunContext
 
 
 def _load_spec(path: Path) -> Spec:
+    if not path.exists():
+        raise SystemExit(f"No spec file at {path}")
     return Spec.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
 def _load_data(path: Path) -> pd.DataFrame:
+    # A path that does not exist is a typo, not a bug, and a stack trace says neither.
+    if not path.exists():
+        raise SystemExit(f"No data file at {path}")
     if path.suffix.lower() == ".parquet":
         return pd.read_parquet(path)
     return pd.read_csv(path)
@@ -134,9 +141,26 @@ def _persist_run(
             spec_hash=spec.spec_hash(),
             seed=args.seed,
             claim_rules_hash=decision.rules_hash,
+            basic_checks_hash=basic_config_hash(),
         )
     print(f"run directory: {run.directory}", file=sys.stderr)
     return run.directory
+
+
+def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
+    """The basic layer first, then the family's own, unless the basic layer blocked.
+
+    Overlap, instrument relevance and continuation weights are all computed from the numbers
+    in these columns, so a design-level verdict on a table whose creatinine column holds -999
+    is a confident statement about an export convention. When the table is not usable as a
+    table, the honest report says that and stops there (design.md 8.1, and G3: it is still a
+    deliverable).
+    """
+    basic = check_basic(data, spec)
+    if basic.blocking:
+        return basic
+    family = _resolve_family(spec).check(data, spec)
+    return QualityReport(issues=[*basic.issues, *family.issues])
 
 
 def cmd_quality(args: argparse.Namespace) -> int:
@@ -146,7 +170,7 @@ def cmd_quality(args: argparse.Namespace) -> int:
     is why this subcommand stands alone and does not require a confirmed spec.
     """
     spec = _load_spec(args.spec)
-    report = _resolve_family(spec).check(_load_data(args.data), spec)
+    report = _run_checks(_load_data(args.data), spec)
     for issue in report.issues:
         mark = {"blocking": "✗", "warning": "!", "info": "·"}[issue.severity.value]
         print(f"{mark} [{issue.severity.value:8}] {issue.check_id}: {issue.summary}")
@@ -164,7 +188,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     # code, not a rule in a prompt. Condition 1 checks spec confirmation, condition 2
     # checks for unwaived blocking quality issues.
     waivers = _parse_waivers(args.waive)
-    report = family.check(data, spec)
+    report = _run_checks(data, spec)
     try:
         check_all(spec, report, waivers)
     except GateError as error:

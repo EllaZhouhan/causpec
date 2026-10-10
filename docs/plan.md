@@ -44,7 +44,7 @@ so longitudinal IPCW can be delivered complete, with estimation.
 - From day one, pre-commit blocks csv, parquet, xlsx, duckdb and similar data files from
   entering a commit.
 - Enable "show private contributions" in the GitHub profile settings.
-- List external sources and licences in the README draft: EconML, pandera, DoWhy and
+- List external sources and licences in the README draft: EconML, DoWhy and
   Baygent are MIT, DoubleML is BSD-3; StatsPAI (MIT) is not taken as a dependency and
   only its field layout and practice are borrowed; Causal desk declares no licence, so
   only ideas are borrowed and no code is copied.
@@ -75,7 +75,9 @@ so longitudinal IPCW can be delivered complete, with estimation.
 2. Lightweight mapping and the variable catalogue
 3. Estimand declarations in family.yaml, route_family and estimand reconciliation;
    rendering the variable-role diagram (optionally cross-checked with DoWhy)
-4. Basic-layer quality checks ([reuse] pandera) and NULL-encoding detection
+4. Basic-layer quality checks, written here rather than with pandera (ADR-0003): types,
+   uniqueness, missingness, NULL-encoding variants and zero spikes, run before the
+   design-level checks for every family
 5. Temporal-consistency and identifiability checks; instrument relevance (effective F
    written here, with a regression test against the original paper's numerical example;
    the AR test goes to the backlog)

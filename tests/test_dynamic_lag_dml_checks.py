@@ -138,14 +138,6 @@ def test_a_gap_blocks_and_stops_the_run(clean) -> None:
     assert "continuation_positivity" not in {issue.check_id for issue in report.issues}
 
 
-def test_a_duplicated_period_blocks(clean) -> None:
-    _, frame, columns = clean
-    doubled = pd.concat([frame, frame.iloc[[0]]], ignore_index=True)
-    report = run_checks(doubled, panel_spec(columns))
-    assert severity_of(report, "panel_duplicate_periods") is Severity.BLOCKING
-    assert report.get("panel_duplicate_periods").evidence["n_duplicate_rows"] == 1
-
-
 def test_the_gap_repair_does_not_suggest_imputing(clean) -> None:
     """An imputed period would put a fabricated outcome into the moment."""
     _, frame, columns = clean
@@ -343,25 +335,28 @@ def test_a_matching_declaration_passes(clean_report) -> None:
     assert issue.evidence["declared_horizon"] == "variable"
 
 
-# ---- a missing value is refused, not imputed ----
+# ---- what this family no longer carries ----
 
 
-def test_missing_values_block(clean) -> None:
-    _, frame, columns = clean
-    broken = frame.copy()
-    broken.loc[broken.index[3], columns[1]] = np.nan
-    report = run_checks(broken, panel_spec(columns))
-    issue = report.get("panel_missing_values")
-    assert issue.severity is Severity.BLOCKING
-    assert issue.waivable is False
-    assert columns[1] in issue.affected_columns
-    # Nothing downstream ran: a NaN would otherwise reach a nuisance regression.
-    assert "continuation_positivity" not in {i.check_id for i in report.issues}
+def test_missingness_and_the_row_key_belong_to_the_basic_layer() -> None:
+    """They used to be declared here, because core had none, which meant a NaN outcome
+    reached sklearn on the cross-sectional path and surfaced as a bare complaint about NaN.
+    They now run for every family, and declaring them twice would report them twice."""
+    declared = set(registry.load_declaration(FAMILY)["checks"])
+    assert "panel_missing_values" not in declared
+    assert "panel_duplicate_periods" not in declared
+    # What is genuinely panel-specific stays: the lag index counts rows, so the periods have
+    # to be consecutive, which no cross-sectional family can ask about.
+    assert "panel_period_gaps" in declared
 
 
-def test_missing_values_only_on_final_periods_are_reported_as_such(clean) -> None:
-    """Its own cause and its own fix: the outcome's measurement window runs past the end of
-    data collection, so record one period fewer rather than leaving the last one blank."""
+def test_a_panel_still_gets_its_missing_values_caught(clean) -> None:
+    """Through core, and with the final-period hint intact, because the spec names the
+    period column."""
+    import numpy as np
+
+    from causpec.core.quality import check_basic
+
     _, frame, columns = clean
     broken = frame.copy()
     final = np.asarray(
@@ -369,14 +364,8 @@ def test_missing_values_only_on_final_periods_are_reported_as_such(clean) -> Non
         dtype=bool,
     )
     broken.loc[final, OUTCOME_COLUMN] = np.nan
-    report = run_checks(broken, panel_spec(columns))
-    issue = report.get("panel_missing_values")
+    report = check_basic(broken, panel_spec(columns))
+    issue = report.get("basic_missing_values")
     assert issue.severity is Severity.BLOCKING
-    assert "all on final periods" in issue.summary
+    assert issue.evidence["all_on_final_periods"] is True
     assert "one period fewer" in issue.recommended_repair
-
-
-def test_a_clean_panel_reports_no_missing_values(clean_report) -> None:
-    issue = clean_report.get("panel_missing_values")
-    assert issue.severity is Severity.INFO
-    assert issue.evidence["n_missing"] == 0

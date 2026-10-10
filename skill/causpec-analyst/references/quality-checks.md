@@ -73,6 +73,29 @@ Three rules:
 The reason is persisted into the run directory, where it is the first thing an audit
 of this analysis would read.
 
+## The basic layer, which runs first for every family
+
+These ask whether the table says what it appears to say. They run before anything about
+identification, because overlap and instrument relevance are computed from the numbers in
+these columns: a verdict on a table whose creatinine column holds -999 is a confident
+statement about an export convention. **While the basic layer blocks, the design-level checks
+are not attempted**, and the report says so rather than leaving a gap.
+
+| Check | What to say to the user |
+|---|---|
+| `basic_null_encoding` | "Creatinine is exactly -999 in 400 rows. Is that a real value, or does it mean the test was not done?" This one blocks and is waivable, because only they know |
+| `basic_column_types` | "The potassium column is being read as text, not numbers. Usually one cell says NA" |
+| `basic_missing_values` | "30 patients have no urea recorded." Not waivable: a guess at a covariate is a guess at the effect |
+| `basic_duplicate_rows` | "120 patients appear twice, so they would be counted twice." Not waivable |
+| `basic_zero_spike` | "Creatinine is exactly zero for 300 patients, and the next smallest value is 30. Does zero mean zero here?" A warning: whether zero is possible is their knowledge, not yours |
+| `basic_constant_column` | "Potassium is the same value for everyone, so it cannot explain anything." A warning |
+
+`basic_null_encoding` is the one to understand. The others eventually fail somewhere if
+ignored; a placeholder that is a number does not. It averages, it fits and it predicts, so
+every later check passes and the answer is about the placeholder. When it fires, do not
+offer to drop those rows: ask what the value means first, because "not measured" and "really
+-999" lead to different analyses.
+
 ## The panel family's checks
 
 `dynamic_lag_dml` brings its own, and two of them refuse rather than warn for reasons that

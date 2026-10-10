@@ -356,22 +356,11 @@ checks:
     # moves the lag-1 estimate from 4.22 to 2.87 against a truth of 4.0.
     max_share_at_window_when_variable: 0.9
 
-  panel_missing_values:
-    layer: basic
-    severity: blocking
-    waivable: false
-    # In the columns the estimation uses. Not waivable and not imputable: the state, the
-    # treatment and the outcome of a period are the period, so a guess at one of them is a
-    # guess at the effect. Reported separately when the missing values sit only on final
-    # periods, which has its own cause, the outcome's measurement window running past the end
-    # of data collection, and its own fix, recording one period fewer per unit.
-
-  panel_duplicate_periods:
-    layer: basic
-    severity: blocking
-    waivable: false
-    # Two rows for one unit and period means the state, the treatment or the outcome is
-    # ambiguous. Nothing downstream can choose between them.
+  # Missing values and a duplicated row key are checked by the basic layer in core, for every
+  # family (design.md 8.1). They used to live here because core had none, which meant a NaN
+  # outcome reached sklearn on the cross-sectional path and surfaced as a bare complaint
+  # about NaN. The panel-specific part of that, missing values sitting only on final periods,
+  # is in the note on the final period above.
 
   panel_too_short_for_the_lag:
     layer: feasibility

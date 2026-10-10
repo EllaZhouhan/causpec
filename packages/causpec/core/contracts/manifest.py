@@ -56,6 +56,9 @@ class Manifest(BaseModel):
     # different wording level, so it belongs with the dependency versions as something
     # that changes conclusions.
     claim_rules_hash: str = ""
+    # Hash of the basic-layer thresholds. Change what counts as a placeholder value and the
+    # same data can pass or block, so it belongs here for the same reason.
+    basic_checks_hash: str = ""
 
     # ---- artefacts ----
     # Relative path -> sha256, so a run directory edited after the fact is detectable.

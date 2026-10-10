@@ -10,7 +10,6 @@ file header.
 |---|---|---|
 | EconML | MIT | `CausalForestDML` and `CausalIVForest`, `NonParamDMLIV`, `econml.validate.DRTester` |
 | DoWhy | MIT | `CausalModel` identification cross-check; refuters (placebo, random common cause, data subset) |
-| pandera | MIT | Basic-layer DataFrame schema checks |
 | DoubleML | BSD-3-Clause | `sensitivity_analysis` for unmeasured confounding |
 
 ## Adapted code (original copyright retained)

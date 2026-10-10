@@ -1,0 +1,76 @@
+# Thresholds for the basic layer (design.md 8.1). Outside the code for the same reason the
+# claim-level rules are: they decide whether an analysis proceeds, so they are fixed in
+# advance, printed in the report and reproducible later.
+version: 1
+
+basic_column_types:
+  layer: basic
+  severity: blocking
+  waivable: false
+  # A column the estimation uses has to be numeric. A column of numbers with one "NA" in it
+  # reads as text, and then every value in it is text.
+
+basic_missing_values:
+  layer: basic
+  severity: blocking
+  waivable: false
+  # Not waivable and not imputable: the treatment, the outcome and the covariates of a row
+  # are the row, so a guess at one of them is a guess at the effect. Left alone this reaches
+  # a nuisance regression and surfaces as a bare complaint about NaN.
+
+basic_duplicate_rows:
+  layer: basic
+  severity: blocking
+  waivable: false
+  # The row key is the unit, plus the period when the data is a panel. A unit appearing
+  # twice is counted twice, which silently reweights the sample towards whoever was
+  # duplicated.
+
+basic_null_encoding:
+  layer: basic
+  severity: blocking
+  waivable: true
+  # Values that are placeholders rather than measurements. Waivable because only the user
+  # knows whether a value is real in their data.
+  #
+  # The list is deliberately out of band. -1 and 0 are not on it: a negative fluid balance
+  # and a urine output of zero are both real, and a check that cries wolf is a check that
+  # gets turned off. What is left are values no instrument produces.
+  numeric_sentinels: [-99999, -9999, -999, -99, 99, 999, 9999, 99999, -888, 888]
+  # A placeholder repeats. One -999 in forty thousand rows is more likely a typo, and the
+  # repair for a typo is not the repair for an encoding.
+  min_occurrences: 3
+  # Text that means "missing" in a column that is otherwise numeric. Matched case-insensitively
+  # after stripping whitespace.
+  string_nulls:
+    ["na", "n/a", "nan", "null", "none", "nil", "missing", "unknown", ".", "-", "?", ""]
+
+basic_zero_spike:
+  layer: basic
+  severity: warning
+  waivable: true
+  # Zeros that look like a different population from the rest of the column: a pile of exact
+  # zeros sitting well away from where the real values start. In ICU extracts this is how a
+  # missing lab often arrives, since zero is what an empty field becomes on export.
+  #
+  # Only a warning, and only for columns with no negative values. Whether a zero creatinine
+  # is impossible is clinical knowledge, so the check reports the shape and asks.
+  min_zero_share: 0.01
+  # The statistic is the smallest non-zero value, divided by the interquartile range of the
+  # non-zero values. It asks whether anything sits just above zero.
+  #
+  # The obvious statistic does not work. Measuring how far the bulk starts from zero, say the
+  # fifth percentile over the standard deviation, gives 0.28 for a creatinine column with 10%
+  # of values zeroed on export and 0.27 for a urine output whose 10% zeros are real: the two
+  # are indistinguishable, because a column with many real zeros also has its bulk away from
+  # zero. What differs is the gap. Creatinine resumes at 30, a fifth of its spread above zero,
+  # while urine output has values at 1 and 2 ml: 0.19 against 0.00, measured on the same data.
+  min_gap_to_iqr: 0.05
+
+basic_constant_column:
+  layer: basic
+  severity: warning
+  waivable: true
+  # A column with one value carries no information. It is not an error, but a covariate set
+  # built by a script often collects a few, and they are worth naming: some learners will
+  # also divide by their zero variance.

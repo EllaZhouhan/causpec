@@ -402,7 +402,7 @@ desk (ideas only).
 
 | Layer | Checks | Implementation |
 |---|---|---|
-| basic | types, ranges, uniqueness, missingness, NULL-encoding variants | [reuse] pandera (MIT) DataFrame schema declarations; NULL-variant detection written here |
+| basic | types, uniqueness, missingness, NULL-encoding variants, zero spikes | Written here (ADR-0003: pandera would carry the easy third of the layer in a format that has to be rewritten). Thresholds in `core/quality/basic_checks.yaml` |
 | temporal | treatment before time zero, outcome before treatment, time inversion, insufficient follow-up | Written here; [reuse] the immortal-time check follows the shape of StatsPAI's immortal_time_check (MIT, practice only) |
 | identification | treatment prevalence, overlap, SMD, suspected post-treatment, instrument relevance, censoring against state | Overlap and SMD written here (the logic is simple); instrument relevance in 8.2 |
 | feasibility | per-arm sample sizes, event counts, minimum subgroup n, extreme weights and ESS | Written here |
@@ -446,7 +446,7 @@ Repairs act on the derived snapshot only.
 | Refutation: placebo treatment, random common cause, data subset | [reuse] DoWhy (MIT) refuters |
 | Longitudinal IPCW | The author's code; correctness verified by ground-truth coverage on synthetic dataset A |
 
-Dependency policy: only four direct dependencies (EconML, DoWhy, pandera and DoubleML),
+Dependency policy: only three direct dependencies (EconML, DoWhy and DoubleML),
 all mature with stable interfaces. Closed-form diagnostics (E-value, effective F) are
 written here with numerical regression tests: writing them costs a few dozen lines,
 while each additional heavy dependency adds version drift and correctness risk. StatsPAI
