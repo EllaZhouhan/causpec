@@ -92,6 +92,15 @@ def analysis_columns(spec: Spec, data: pd.DataFrame) -> list[str]:
     return found
 
 
+def _threshold(config: dict[str, Any], check_id: str, key: str, default: float) -> float:
+    """One threshold from the config, with the code's default as a fallback.
+
+    The default exists so a check still runs against a config written before it, and the
+    config is the authority whenever it has an opinion.
+    """
+    return float(config.get(check_id, {}).get(key, default))
+
+
 def _issue(
     config: dict[str, Any],
     check_id: str,
@@ -101,9 +110,16 @@ def _issue(
     columns: list[str] | None = None,
     impact: str = "",
     repair: str = "",
+    severity: Severity | None = None,
 ) -> QualityIssue:
+    """Build one issue, honouring the invariant that a passing check is downgraded to INFO.
+
+    ``severity`` overrides the declared one, for a check whose sub-cases differ in how serious
+    they are. It is still read from the config by the caller rather than hard-coded, so where
+    the line falls stays outside the code.
+    """
     entry = config.get(check_id, {})
-    declared = Severity(entry.get("severity", "warning"))
+    declared = severity or Severity(entry.get("severity", "warning"))
     return QualityIssue(
         check_id=check_id,
         layer=Layer(entry.get("layer", "basic")),
@@ -127,6 +143,8 @@ def check_basic(data: pd.DataFrame, spec: Spec, config_path: Path | None = None)
         _missing_values(data, columns, config, spec),
         _null_encoding(data, columns, config),
         _zero_spike(data, columns, config),
+        _isolated_extremes(data, columns, config),
+        _impossible_sign(data, columns, config),
         _constant_columns(data, columns, config),
     ]
     return QualityReport(issues=issues)
@@ -444,6 +462,147 @@ def _zero_spike(data: pd.DataFrame, columns: list[str], config: dict[str, Any]) 
             "Whether a zero is possible here is clinical knowledge, so this is a question "
             "rather than a defect: ask whether zero means zero in that column. If it means "
             "not measured, make it empty at the source."
+        ),
+    )
+
+
+def _isolated_extremes(
+    data: pd.DataFrame, columns: list[str], config: dict[str, Any]
+) -> QualityIssue:
+    """A value separated from the rest of its column by a gap.
+
+    The gap is the statistic, not the distance. A plain z-score rule is useless here: on this
+    project's ICU data the largest |z| per column runs from 2.9 to 4.2, so a rule at 3 or 4
+    fires on nearly every column and gets ignored. Lab values are right-skewed and a long tail
+    is a long tail. What a transcription error produces is an isolated point: clean columns
+    have top gaps of 0.007 to 0.31 interquartile ranges, one creatinine multiplied by ten gives
+    1.47, three potassiums in the wrong units give 2145.
+
+    A warning and never blocking. In an ICU a creatinine of 900 is real and matters, and a
+    check that encouraged deleting it would do more harm than the value does.
+    """
+    import pandas as pd
+
+    minimum = _threshold(config, "basic_isolated_extremes", "min_gap_to_iqr", 1.0)
+    # A sentinel is an isolated extreme, so without this the same -999 is reported twice: once
+    # as a placeholder, with the right repair, and once as an outlier, with the wrong one.
+    sentinels = {
+        float(value) for value in config.get("basic_null_encoding", {}).get("numeric_sentinels", [])
+    }
+    evidence: dict[str, float | int | str | bool] = {"min_gap_to_iqr": minimum}
+    findings: list[str] = []
+    affected: list[str] = []
+    for column in columns:
+        series = data[column]
+        if not pd.api.types.is_numeric_dtype(series):
+            continue
+        values = np.asarray(series.dropna(), dtype=float)
+        unique = np.unique(values)
+        if len(unique) < 4:
+            continue
+        spread = float(np.percentile(values, 75) - np.percentile(values, 25))
+        if spread <= 0:
+            continue
+        for end, gap, value in (
+            ("highest", (unique[-1] - unique[-2]) / spread, unique[-1]),
+            ("lowest", (unique[1] - unique[0]) / spread, unique[0]),
+        ):
+            if gap < minimum or float(value) in sentinels:
+                continue
+            count = int(np.sum(values == value))
+            findings.append(
+                f"{column}: the {end} value is {value:.6g}, {gap:.1f} interquartile ranges "
+                f"away from the next one ({count:,} rows)"
+            )
+            evidence[f"{column}_{end}_gap_to_iqr"] = round(gap, 3)
+            evidence[f"{column}_{end}_value"] = round(float(value), 6)
+            affected.append(column)
+    passed = not findings
+    return _issue(
+        config,
+        "basic_isolated_extremes",
+        passed=passed,
+        summary=(
+            "no column has a value standing apart from the rest of its distribution"
+            if passed
+            else "; ".join(findings)
+        ),
+        evidence=evidence,
+        columns=sorted(set(affected)),
+        impact=(
+            "If the value is a transcription error it is being treated as a measurement. If it "
+            "is real, it will dominate the propensity model and can put that patient in a "
+            "region with no comparable controls, which the overlap check sees but cannot "
+            "explain."
+        ),
+        repair=(
+            "Look at the row. A decimal in the wrong place and a column entered in different "
+            "units both look like this, and both are fixed at the source. If the value is "
+            "real, keep it: say so in the report and read the overlap check with it in mind. "
+            "Do not delete it to make the check pass."
+        ),
+    )
+
+
+def _impossible_sign(
+    data: pd.DataFrame, columns: list[str], config: dict[str, Any]
+) -> QualityIssue:
+    """A handful of values with the opposite sign to everything else in the column.
+
+    A negative creatinine, a negative length of stay. The rule requires the column to be
+    nearly all one sign, so a genuinely signed quantity is left alone: the fluid-balance
+    column in this project's data is 61% negative and 39% positive and never fires.
+    """
+    import pandas as pd
+
+    dominant_share = _threshold(config, "basic_impossible_sign", "min_dominant_share", 0.99)
+    evidence: dict[str, float | int | str | bool] = {"min_dominant_share": dominant_share}
+    findings: list[str] = []
+    affected: list[str] = []
+    for column in columns:
+        series = data[column]
+        if not pd.api.types.is_numeric_dtype(series):
+            continue
+        values = np.asarray(series.dropna(), dtype=float)
+        signed = values[values != 0.0]
+        if len(signed) == 0:
+            continue
+        positive = float(np.mean(signed > 0))
+        for share, odd_sign, label in ((positive, -1, "negative"), (1 - positive, 1, "positive")):
+            if share < dominant_share or share >= 1.0:
+                continue
+            odd = signed[np.sign(signed) == odd_sign]
+            findings.append(
+                f"{column} is {share:.1%} {'positive' if odd_sign < 0 else 'negative'} but "
+                f"{label} in {len(odd):,} rows (down to {odd.min():.6g})"
+                if odd_sign < 0
+                else f"{column} is {share:.1%} negative but positive in {len(odd):,} rows "
+                f"(up to {odd.max():.6g})"
+            )
+            evidence[f"{column}_odd_sign_rows"] = len(odd)
+            evidence[f"{column}_dominant_share"] = round(share, 4)
+            affected.append(column)
+    passed = not findings
+    return _issue(
+        config,
+        "basic_impossible_sign",
+        passed=passed,
+        summary=(
+            "no column mixes a dominant sign with a handful of the opposite"
+            if passed
+            else "; ".join(findings)
+        ),
+        evidence=evidence,
+        columns=sorted(set(affected)),
+        impact=(
+            "A quantity that cannot be negative and is negative in a few rows is wrong in "
+            "those rows, and nothing downstream will notice: the value is a number, so it "
+            "averages and it fits."
+        ),
+        repair=(
+            "Usually a subtraction in the wrong order, or a placeholder that is not on the "
+            "sentinel list. Fix it at the source. If the sign is real for that column, say so "
+            "and waive this check."
         ),
     )
 

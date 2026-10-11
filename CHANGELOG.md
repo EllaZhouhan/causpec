@@ -7,6 +7,33 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Two outlier checks in the basic layer, and the statistic matters.** A z-score rule is
+  useless here: on this project's ICU data the largest |z| per column runs from 2.9 to 4.2, so
+  a rule at 3 or 4 fires on nearly every column and gets ignored. Lab values are right-skewed
+  and a long tail is a long tail. `basic_isolated_extremes` measures the **gap** between the
+  most extreme value and the next one in interquartile ranges: clean columns sit between 0.007
+  and 0.31, one creatinine multiplied by ten gives 1.47, three potassiums in the wrong units
+  give 2145. A warning and never blocking, because in an ICU a creatinine of 900 is real and
+  often the most important value in the row. `basic_impossible_sign` catches a handful of
+  values with the opposite sign to the rest of their column, and leaves a genuinely signed
+  column alone: the fluid balance here is 61% negative and never fires
+- **The counting half of the feasibility layer** (design.md 8.1): `feasibility_arm_sizes` and
+  `feasibility_event_counts`, for cross-sectional analyses. These block where design.md 10.2's
+  rule says not to gate on what an interval already says, and the exception is deliberate:
+  that rule holds for an average effect, where a small sample gives a wide interval a reader
+  can see, and fails for heterogeneity, where a forest returns a per-patient estimate with an
+  interval around each that does not widen enough to say "this is noise". The number looks
+  like an answer
+- **Thresholds measured rather than invented.** The realistic preset gives 415 treated
+  patients at a 3.8% event rate, so 25 events against seven covariates, which is 3.6 per
+  covariate where the classic rule for an outcome model is ten. It warns, which is the right
+  verdict for that dataset, and the per-arm floor of 10 events refuses the 300-patient case
+  that has two. The smaller arm is the binding constraint, since a CATE needs the outcome
+  model estimable in both
+- **An eleventh dataset C defect**, a population filter that leaves five treated patients,
+  which is how a tiny arm actually arises. Its test asserted that every core layer has a
+  defect aimed at it and went red when the feasibility layer arrived, which is what it is for
+
 - **Step 1 now asks how the treatment was assigned**, before any column is mapped, because
   the answer decides which identification questions are worth asking at all. Three answers
   and three different worlds: randomised with full compliance, where exchangeability holds by
@@ -233,6 +260,19 @@ the milestones in plan.md section 2.
 - ADR-0001 (literal numbers in reports), ADR-0002 (data-source boundaries)
 
 ### Changed
+
+- **Dataset C's clean table moved to the high_power preset.** At the realistic scale a
+  2,000-row table has about six events in the treated arm, so the clean baseline itself
+  blocked on event counts, and a baseline that does not pass makes every defect's effect
+  unattributable. Deliberately not realistic: dataset C exercises the checks, while the demos
+  and the manual workflow test use the realistic scale, where the thin-events warning is part
+  of what a user should see
+- **A sentinel is no longer reported twice.** `-999` is both a placeholder and an isolated
+  extreme, and reporting both gave the user two findings for one defect with the wrong repair
+  attached to the second
+- **`_issue` takes a severity override**, so a check whose sub-cases differ in seriousness can
+  say so. The event-count check refuses below the per-arm floor and warns on a thin covariate
+  budget, with both severities declared in the config rather than decided in code
 
 - **The step list is split instead of annotated.** Steps 1, 2 and 6 to 8 are shared; steps 3
   to 5 are written out once per path, A for one row per unit and B for one row per unit per

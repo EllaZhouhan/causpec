@@ -25,7 +25,7 @@ from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
-from causpec.core.quality import check_basic, check_temporal
+from causpec.core.quality import check_basic, check_feasibility, check_temporal
 from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
@@ -157,7 +157,11 @@ def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
     deliverable).
     """
     core = QualityReport(
-        issues=[*check_basic(data, spec).issues, *check_temporal(data, spec).issues]
+        issues=[
+            *check_basic(data, spec).issues,
+            *check_temporal(data, spec).issues,
+            *check_feasibility(data, spec).issues,
+        ]
     )
     if core.blocking:
         return core

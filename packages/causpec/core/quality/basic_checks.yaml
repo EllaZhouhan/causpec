@@ -67,6 +67,37 @@ basic_zero_spike:
   # while urine output has values at 1 and 2 ml: 0.19 against 0.00, measured on the same data.
   min_gap_to_iqr: 0.05
 
+basic_isolated_extremes:
+  layer: basic
+  severity: warning
+  waivable: true
+  # A value separated from the rest of its column by a gap, which is what a transcription
+  # error looks like: a decimal slipped, or three rows entered in different units.
+  #
+  # The statistic is the gap between the most extreme value and the next one, in interquartile
+  # ranges. A plain z-score rule is useless here: on this project's own ICU data the largest
+  # |z| per column runs from 2.9 to 4.2, so a rule at 3 or 4 fires on nearly every column and
+  # the check gets ignored. Lab values are right-skewed and a long tail is just a long tail.
+  # What a mistake produces is an isolated point. Measured on the same data: clean columns
+  # have top gaps of 0.007 to 0.31 IQR, one creatinine multiplied by ten gives 1.47, and three
+  # potassiums in the wrong units give 2145.
+  #
+  # A warning, never blocking: in an ICU a creatinine of 900 is real and clinically important,
+  # and a check that encourages deleting it would do more harm than the outlier.
+  min_gap_to_iqr: 1.0
+
+basic_impossible_sign:
+  layer: basic
+  severity: blocking
+  waivable: true
+  # A handful of values with the opposite sign to everything else in the column. A negative
+  # creatinine, a negative length of stay. Waivable because only the user knows their columns.
+  #
+  # The rule needs the column to be nearly all one sign, so a genuinely signed quantity is
+  # left alone: the fluid-balance column in this project's own data is 61% negative and 39%
+  # positive and never fires.
+  min_dominant_share: 0.99
+
 basic_constant_column:
   layer: basic
   severity: warning
@@ -74,6 +105,38 @@ basic_constant_column:
   # A column with one value carries no information. It is not an error, but a covariate set
   # built by a script often collects a few, and they are worth naming: some learners will
   # also divide by their zero variance.
+
+# ---- the feasibility layer (design.md 8.1) ----
+# Cross-sectional analyses only: a panel's equivalent is its per-lag window counts, which the
+# family computes because they depend on the lag structure.
+
+feasibility_arm_sizes:
+  layer: feasibility
+  severity: blocking
+  waivable: true
+  # Below this an arm cannot support anything, heterogeneity least of all. Deliberately a
+  # floor rather than a power calculation: design.md 10.2's rule is that if the confidence
+  # interval already says it, do not gate on it, and an arm of 200 against an arm of 3000 is
+  # something the interval does say.
+  min_per_arm: 20
+
+feasibility_event_counts:
+  layer: feasibility
+  severity: blocking
+  waivable: true
+  # Binary outcomes only. This is the case design.md 10.2's rule does *not* cover: with few
+  # events a forest still produces confident-looking per-point estimates, so the interval does
+  # not say it. On this project's own realistic preset, 415 treated patients at a 3.8% event
+  # rate give 25 events, and a seven-covariate CATE over 25 events is fitting noise.
+  min_events_per_arm: 10
+  # The classic rule for a logistic outcome model is ten events per variable. A forest is less
+  # sharp about it, so this warns rather than blocks, and it uses the smaller arm's events
+  # because that is the binding constraint. The realistic preset lands at 3.6 and warns, which
+  # is the right verdict for it.
+  min_events_per_covariate: 5
+  # Thin rather than impossible, so this sub-case warns where falling below the per-arm floor
+  # refuses. Declared here rather than decided in code, like every other line in this file.
+  severity_thin_covariates: warning
 
 # ---- the temporal layer (design.md 8.1) ----
 # All of these read optional spec fields: time_zero, treatment_time, outcome_time,

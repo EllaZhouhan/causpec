@@ -118,6 +118,8 @@ are not attempted**, and the report says so rather than leaving a gap.
 | `basic_missing_values` | "30 patients have no urea recorded." Not waivable: a guess at a covariate is a guess at the effect |
 | `basic_duplicate_rows` | "120 patients appear twice, so they would be counted twice." Not waivable |
 | `basic_zero_spike` | "Creatinine is exactly zero for 300 patients, and the next smallest value is 30. Does zero mean zero here?" A warning: whether zero is possible is their knowledge, not yours |
+| `basic_isolated_extremes` | "One creatinine is 6,300 when the next highest is 630. Is that a real value or a decimal in the wrong place?" A warning, and **never** suggest deleting it: in an ICU an extreme value is often the most important one |
+| `basic_impossible_sign` | "Creatinine is negative in 5 rows." Blocking, and waivable only because they might know something about their columns that you don't |
 | `basic_constant_column` | "Potassium is the same value for everyone, so it cannot explain anything." A warning |
 
 `basic_null_encoding` is the one to understand. The others eventually fail somewhere if
@@ -125,6 +127,26 @@ ignored; a placeholder that is a number does not. It averages, it fits and it pr
 every later check passes and the answer is about the placeholder. When it fires, do not
 offer to drop those rows: ask what the value means first, because "not measured" and "really
 -999" lead to different analyses.
+
+## Is there enough data to answer the question that was asked
+
+| Check | What to say to the user |
+|---|---|
+| `feasibility_arm_sizes` | "Only 5 patients received dialysis in this population, so there is nothing to compare them against" |
+| `feasibility_event_counts` | "25 of the dialysed patients died. Across 7 covariates that's under 4 deaths per covariate, so a breakdown of who benefits would be describing noise. The average effect is still answerable" |
+
+**Why these refuse rather than leaving it to the interval.** For an average effect a small
+sample just gives a wide interval, and the reader sees it. For heterogeneity the estimator
+returns a per-patient estimate with an interval around each one, and those intervals do not
+widen enough to say "this is noise". The number looks like an answer, so it is refused.
+
+The repair is almost always to change the question rather than the data: an average effect
+needs far fewer events than a profile across patients. Offer that trade explicitly, because a
+user who asked "who benefits" will usually accept "here is the average, and the data cannot
+support the breakdown" once they see why.
+
+On a panel these do not apply and say so: the equivalent question is how many complete
+windows each lag has, which the family answers.
 
 ## The temporal layer, when the spec declares time columns
 

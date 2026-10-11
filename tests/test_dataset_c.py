@@ -23,7 +23,7 @@ import pytest
 
 from causpec.core.contracts.quality import QualityReport, Severity
 from causpec.core.contracts.spec import Source, Spec, SpecField, Status
-from causpec.core.quality import check_basic, check_temporal
+from causpec.core.quality import check_basic, check_feasibility, check_temporal
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "generators"))
 
@@ -66,10 +66,14 @@ def make_spec(timestamps: bool = True) -> Spec:
 
 
 def run_all(data, spec: Spec) -> QualityReport:
-    """Both core layers, which is what the CLI runs before any family check."""
-    basic = check_basic(data, spec)
-    temporal = check_temporal(data, spec)
-    return QualityReport(issues=[*basic.issues, *temporal.issues])
+    """Every core layer, which is what the CLI runs before any family check."""
+    return QualityReport(
+        issues=[
+            *check_basic(data, spec).issues,
+            *check_temporal(data, spec).issues,
+            *check_feasibility(data, spec).issues,
+        ]
+    )
 
 
 @pytest.fixture(scope="module")
@@ -158,6 +162,9 @@ def test_the_defect_does_not_fire_everything(defect: Defect, clean) -> None:
         "text_null_potassium": {"basic_null_encoding"},
         "immortal_time": {"temporal_insufficient_followup"},
         "inverted_followup": {"temporal_insufficient_followup"},
+        # Dropping to five treated patients drops their events with them, so the event count
+        # goes thin at the same time. Both statements are true of the same rows.
+        "tiny_treated_arm": {"feasibility_event_counts"},
     }.get(defect.id, set())
     assert fired <= allowed, f"{defect.id} also fired {sorted(fired - allowed)}"
 
@@ -183,8 +190,9 @@ def test_the_expected_checks_all_exist() -> None:
         assert defect.expect_check in declared, defect.id
 
 
-def test_both_core_layers_are_covered() -> None:
+def test_every_core_layer_is_covered() -> None:
     """The set is meant to exercise the suite, so a layer with no defect aimed at it is a gap
-    in the test, not in the checks."""
+    in the test, not in the checks. This went red when the feasibility layer arrived, which is
+    what it is for."""
     aimed = {defect.expect_check.split("_")[0] for defect in DEFECTS}
-    assert aimed == {"basic", "temporal"}
+    assert aimed == {"basic", "temporal", "feasibility"}

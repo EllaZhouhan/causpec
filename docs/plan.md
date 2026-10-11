@@ -76,8 +76,11 @@ so longitudinal IPCW can be delivered complete, with estimation.
 3. Estimand declarations in family.yaml, route_family and estimand reconciliation;
    rendering the variable-role diagram (optionally cross-checked with DoWhy)
 4. Basic-layer quality checks, written here rather than with pandera (ADR-0003): types,
-   uniqueness, missingness, NULL-encoding variants and zero spikes, run before the
-   design-level checks for every family
+   uniqueness, missingness, NULL-encoding variants, zero spikes, isolated extremes and
+   impossible signs, run before the design-level checks for every family. Plus the counting
+   half of the feasibility layer, arm sizes and event counts, which blocks where design.md
+   10.2 says not to gate, because a forest on too few events returns a confident per-patient
+   estimate that the interval does not contradict
 5. Temporal-consistency checks: immortal time, outcome before treatment, interval
    inversion, follow-up shorter than the outcome window. Each reads optional spec fields and
    reports when it could not run. Instrument relevance gained two checks from linearmodels
@@ -88,9 +91,10 @@ so longitudinal IPCW can be delivered complete, with estimation.
    come from simulation is not the kind of closed form this project writes by hand. Shea's
    partial R-squared was considered and rejected: with one endogenous treatment it equals the
    ordinary partial R-squared however many instruments there are
-6. Dataset C: ten defects, each one a mistake that happens to real extracts, each declaring
-   the check_id and severity it expects, asserted in CI. A defect caught by the wrong check
-   is worse than one caught by none, so the test checks both directions
+6. Dataset C: eleven defects, each one a mistake that happens to real extracts, each
+   declaring the check_id and severity it expects, asserted in CI across all three core
+   layers. A defect caught by the wrong check is worse than one caught by none, so the test
+   checks both directions
 7. The hte_backdoor family ([reuse] EconML CausalForestDML)
 8. HTE calibration (hte_backdoor: [reuse] EconML DRTester; hte_iv: an IV-appropriate
    score written here) and rank stability

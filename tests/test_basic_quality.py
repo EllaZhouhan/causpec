@@ -259,3 +259,97 @@ def test_the_config_ships_with_the_package() -> None:
     """Read through importlib.resources, because in skill form causpec is imported out of a
     wheel where a filesystem path points at nothing."""
     assert load_config()["version"] == 1
+
+
+# ---- isolated extremes: the gap is the statistic, not the distance ----
+
+
+def test_a_z_score_rule_would_have_been_noise(clean) -> None:
+    """Why the check measures a gap. On this data the largest |z| per column runs from 2.9 to
+    4.2, so a rule at 3 or 4 fires on nearly every column, and a check that always fires is a
+    check nobody reads. Lab values are right-skewed and a long tail is a long tail."""
+    worst = 0.0
+    for column in STATE:
+        values = clean[column].to_numpy(dtype=float)
+        worst = max(worst, float(np.abs((values - values.mean()) / values.std()).max()))
+    assert worst > 2.5, "the fixture should have the heavy tails that defeat a z-score rule"
+
+
+def test_a_clean_column_has_no_isolated_extreme(clean_report) -> None:
+    assert clean_report.get("basic_isolated_extremes").severity is Severity.INFO
+
+
+def test_a_decimal_slip_that_lands_outside_the_distribution_is_caught(clean) -> None:
+    """The largest creatinine multiplied by ten sits 36 interquartile ranges from the next
+    value, where clean columns sit between 0.007 and 0.31."""
+    data = clean.copy()
+    highest = float(clean["max_creatinine"].max())
+    data.loc[data["max_creatinine"].idxmax(), "max_creatinine"] = highest * 10
+    issue = check_basic(data, make_spec()).get("basic_isolated_extremes")
+    assert issue.severity is Severity.WARNING
+    assert "max_creatinine" in issue.affected_columns
+    assert float(issue.evidence["max_creatinine_highest_gap_to_iqr"]) > 10
+
+
+def test_a_slip_that_lands_inside_the_distribution_is_invisible(clean) -> None:
+    """The limitation, stated rather than discovered later. A creatinine of 44 entered as 440
+    is still an ordinary creatinine: it sits inside a distribution whose largest value is 632,
+    so there is no gap, and nothing in the data distinguishes it from a real measurement.
+
+    This check finds the slips that land outside. The ones that land inside need the
+    measurement, not the table, and no statistic recovers them.
+    """
+    data = clean.copy()
+    low = float(clean["max_creatinine"].min())
+    data.loc[clean["max_creatinine"].idxmin(), "max_creatinine"] = low * 10
+    assert low * 10 < float(clean["max_creatinine"].max())
+    issue = check_basic(data, make_spec()).get("basic_isolated_extremes")
+    assert issue.severity is Severity.INFO
+
+
+def test_a_units_error_is_caught(clean) -> None:
+    data = clean.copy()
+    rows = data.index[:3]
+    data.loc[rows, "max_potassium"] = data.loc[rows, "max_potassium"] * 1000
+    issue = check_basic(data, make_spec()).get("basic_isolated_extremes")
+    assert issue.severity is Severity.WARNING
+    assert float(issue.evidence["max_potassium_highest_gap_to_iqr"]) > 10
+
+
+def test_an_extreme_never_blocks(clean) -> None:
+    """In an ICU a creatinine of 900 is real and matters. A check that encouraged deleting it
+    would do more harm than the value does, so this reports and asks."""
+    data = clean.copy()
+    data.loc[data.index[0], "max_creatinine"] = 9000.0
+    issue = check_basic(data, make_spec()).get("basic_isolated_extremes")
+    assert issue.severity is not Severity.BLOCKING
+    assert "Do not delete it" in issue.recommended_repair
+
+
+def test_a_sentinel_is_not_reported_twice(clean) -> None:
+    """A sentinel is an isolated extreme. Reporting it as both gives the user two findings for
+    one defect, and the second one's repair is the wrong one."""
+    data = clean.copy()
+    data.loc[data.index[:400], "max_creatinine"] = -999.0
+    report = check_basic(data, make_spec())
+    assert report.get("basic_null_encoding").severity is Severity.BLOCKING
+    assert report.get("basic_isolated_extremes").severity is Severity.INFO
+
+
+# ---- impossible signs ----
+
+
+def test_a_handful_of_negatives_in_a_positive_column_blocks(clean) -> None:
+    data = clean.copy()
+    data.loc[data.index[:5], "max_creatinine"] = -12.0
+    issue = check_basic(data, make_spec()).get("basic_impossible_sign")
+    assert issue.severity is Severity.BLOCKING
+    assert issue.evidence["max_creatinine_odd_sign_rows"] == 5
+
+
+def test_a_genuinely_signed_column_is_left_alone(clean, clean_report) -> None:
+    """The fluid balance in this data is 61% negative and 39% positive. A rule that fired on
+    it would be unusable, which is why the rule requires a dominant sign."""
+    balance = clean["min_netBodyBalancePerHour"].to_numpy(dtype=float)
+    assert 0.2 < float(np.mean(balance < 0)) < 0.8
+    assert clean_report.get("basic_impossible_sign").severity is Severity.INFO

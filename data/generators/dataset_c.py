@@ -154,6 +154,19 @@ def _short_followup(data: pd.DataFrame, rng: np.random.Generator) -> pd.DataFram
     return out
 
 
+def _tiny_treated_arm(data: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """A population filter narrower than the question needed, which is how it usually happens.
+
+    Someone restricts to a subgroup to make the comparison cleaner and leaves five treated
+    patients. The estimator will still return a per-patient effect for all of them.
+    """
+    del rng
+    treated = np.flatnonzero(np.asarray(data["isDialysisICU"], dtype=float) == 1.0)
+    control = np.flatnonzero(np.asarray(data["isDialysisICU"], dtype=float) == 0.0)
+    keep = np.concatenate([treated[:5], control])
+    return data.iloc[np.sort(keep)].reset_index(drop=True)
+
+
 DEFECTS: tuple[Defect, ...] = (
     Defect(
         id="sentinel_creatinine",
@@ -200,6 +213,14 @@ DEFECTS: tuple[Defect, ...] = (
         expect_severity="warning",
     ),
     Defect(
+        id="tiny_treated_arm",
+        description="a population filter leaves five treated patients",
+        provenance="restricting to a subgroup to make the comparison cleaner, and not looking"
+        " at what is left in the smaller arm",
+        inject=_tiny_treated_arm,
+        expect_check="feasibility_arm_sizes",
+    ),
+    Defect(
         id="immortal_time",
         description="time zero is anchored on the treatment instead of on admission",
         provenance="the classic: a cohort defined as treated within a window, anchored on the"
@@ -238,8 +259,19 @@ BY_ID = {defect.id: defect for defect in DEFECTS}
 
 
 def clean_frame(n: int = 2000, seed: int = 11, timestamps: bool = True) -> pd.DataFrame:
-    """The table every defect is injected into: dataset A, optionally with its time columns."""
-    return generate(config_for("realistic", n=n, seed=seed, emit_timestamps=timestamps))
+    """The table every defect is injected into: dataset A, optionally with its time columns.
+
+    The high_power preset rather than the realistic one, and the reason is the feasibility
+    layer. At the realistic scale, 10% treated and a 3.8% event rate, a 2,000-row table has
+    about six events in the treated arm, so the clean table itself would block on event
+    counts. That is a true finding about that scale and a useless baseline: if the clean table
+    does not pass, no defect's effect can be attributed to the defect.
+
+    So this is deliberately not realistic. Dataset C exists to exercise the checks; the
+    realistic scale is what the demos and the manual workflow test use, where the thin-events
+    warning is part of what a user should see.
+    """
+    return generate(config_for("high_power", n=n, seed=seed, emit_timestamps=timestamps))
 
 
 def inject(defect_id: str, data: pd.DataFrame, seed: int = 0) -> pd.DataFrame:

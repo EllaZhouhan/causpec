@@ -407,10 +407,10 @@ desk (ideas only).
 
 | Layer | Checks | Implementation |
 |---|---|---|
-| basic | types, uniqueness, missingness, NULL-encoding variants, zero spikes | Written here (ADR-0003: pandera would carry the easy third of the layer in a format that has to be rewritten). Thresholds in `core/quality/basic_checks.yaml` |
+| basic | types, uniqueness, missingness, NULL-encoding variants, zero spikes, isolated extremes, impossible signs | Written here (ADR-0003: pandera would carry the easy third of the layer in a format that has to be rewritten). Thresholds in `core/quality/basic_checks.yaml` |
 | temporal | treatment before time zero (immortal time), outcome before treatment, time inversion, insufficient follow-up | Written here. Reads optional spec fields and **says when it could not run**: a check reporting nothing on a table it could not read turns the report into a clean bill of health |
 | identification | treatment prevalence, overlap, SMD, suspected post-treatment, instrument relevance, censoring against state | Overlap and SMD written here (the logic is simple); instrument relevance in 8.2 |
-| feasibility | per-arm sample sizes, event counts, minimum subgroup n, extreme weights and ESS | Written here |
+| feasibility | per-arm sizes and event counts in core; extreme weights and ESS in the families | Counting written here. These block where 10.2's rule says not to gate on what an interval says, because a forest on 25 events returns a confident per-patient estimate: the interval does not say it |
 
 ### 8.2 Instrument relevance
 
