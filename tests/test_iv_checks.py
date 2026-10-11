@@ -6,6 +6,8 @@ Mirrors design.md 8.2 (instrument relevance), 8.3 (the issue schema),
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytest
 from dataset_a import config_for, generate
@@ -395,16 +397,15 @@ def test_the_endogeneity_test_matches_the_package_it_replaced(strong) -> None:
     exog = pd.DataFrame({"const": np.ones(len(strong))}, index=strong.index)
     for column in controls:
         exog[column] = strong[column].astype(float).to_numpy()
-    theirs = (
-        IV2SLS(
-            strong["death"].astype(float),
-            exog,
-            strong["isDialysisICU"].astype(float),
-            strong[["instrument"]].astype(float),
-        )
-        .fit(cov_type="robust")
-        .wooldridge_score
-    )
+    # Any, because linearmodels types fit() as returning OLSResults, which is what it gives
+    # for a model with no endogenous variable. One is always passed here.
+    fitted: Any = IV2SLS(
+        strong["death"].astype(float),
+        exog,
+        strong["isDialysisICU"].astype(float),
+        strong[["instrument"]].astype(float),
+    ).fit(cov_type="robust")
+    theirs = fitted.wooldridge_score
     # Not algebraically identical: ours is the Wald form of the augmented regression and
     # theirs is the score form, which are asymptotically equivalent and differ in the
     # small-sample scaling of the robust covariance. They agree to under 1% here, and what
