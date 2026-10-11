@@ -18,9 +18,14 @@ blocks**: overlap, instrument relevance and continuation weights are all compute
 numbers in these columns, so assessing identification on a table whose creatinine column
 contains -999 gives a confident answer about an export convention.
 
-Implemented here: basic, temporal, and the counting half of feasibility. Identification
-lives in the families, which need to know what the instrument and the state are, and so does
-the weight-and-ESS half of feasibility.
+Implemented here: basic, temporal, the counting half of feasibility, and the two
+identification checks that need no family knowledge, both about the population. The rest of
+identification lives in the families, which need to know what the instrument and the state
+are, and so does the weight-and-ESS half of feasibility. A layer names what a check is about
+rather than where its code lives.
+
+The population checks run on the frame **before** the filters are applied, because the people
+a filter removed are the only evidence about whether removing them mattered.
 
 The temporal layer reads optional spec fields, and **says when it could not run**. A study
 with no timestamps is a legitimate thing to analyse, but a check that reports nothing when it
@@ -29,12 +34,14 @@ had nothing to read is worse than no check: the report then reads as a clean bil
 
 from causpec.core.quality.basic import analysis_columns, check_basic, config_hash, load_config
 from causpec.core.quality.feasibility import check_feasibility
+from causpec.core.quality.population import check_population
 from causpec.core.quality.temporal import check_temporal
 
 __all__ = [
     "analysis_columns",
     "check_basic",
     "check_feasibility",
+    "check_population",
     "check_temporal",
     "config_hash",
     "load_config",

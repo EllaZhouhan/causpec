@@ -72,7 +72,11 @@ so longitudinal IPCW can be delivered complete, with estimation.
 ### Phase 1 (W2-W3)
 
 1. csv/parquet adapter, the derived snapshot (parquet), the normalised fingerprint
-2. Lightweight mapping and the variable catalogue. The preprocessing half is in:
+2. Lightweight mapping, the population, and the variable catalogue. `population.filters`
+   with a closed operator set, applied after preprocessing and before every check, with an
+   exclusion ledger in the report and two checks pricing what each filter removed. This closed
+   the hole where the missing-value refusal recommended an exclusion the spec had no way to
+   express. The preprocessing half is in:
    `recode_null` and `cast` applied to a working copy from an ordered `spec.preprocessing`,
    offered by the check that found the problem and written down in the user's own words.
    Two of the six designed operations, because those are the two a check can suggest. A step

@@ -128,10 +128,40 @@ measurement artefact.
 > get those values, drop those patients and say so in the report, or leave creatinine out of
 > the covariate set."
 
-**Never offer a step that makes a check pass by hiding what it reported.** There is no safe
-automatic answer to a duplicated join, a missing value, an outlier or too few events, and the
-checks for those carry no suggestion for that reason. If a user asks you to drop outliers or
-impute a column, the answer is that the tool does not do it and why, not a workaround.
+## The two kinds of fix, which differ in what they cost
+
+A suggestion carries a `kind`, and it decides which part of the spec the answer goes into.
+
+**`preprocessing`** changes how a value is written down and adds no information. The sentinel
+recode above is one. It costs nothing, which is why it can be offered freely.
+
+**`population_filter`** changes **who the answer is about**, so it costs something and the
+report says so. This is the honest answer to "can you just drop the patients with no
+creatinine": yes, and here is what it does.
+
+> "I can exclude those 200 patients. That makes the analysis about the 1,800 who had a
+> creatinine drawn, and in an ICU whether a test was ordered usually tracks how sick someone
+> looked, so those 1,800 may not be the patients you had in mind. The report will show the
+> exclusion and compare the two groups. The alternative is to leave creatinine out of the
+> covariate set, which keeps all 2,000 patients."
+
+On yes, write it into `spec.population.filters` with what they said. Then **read the two
+population checks back to them**, because that is where the cost shows up:
+
+> "The excluded patients had a 0% treatment rate against 21% among the kept, so the exclusion
+> is not neutral. The analysis is now about a population that was more likely to be treated.
+> That can still be the right analysis, but the report has to say it, and it does."
+
+**Decide exclusions one at a time.** When several columns have missing values the check
+offers nothing, deliberately: each exclusion compounds the last, and a user who agrees to one
+number has not agreed to the total.
+
+**What is still refused.** A filter on the treatment or the outcome is blocked and cannot be
+waived. Dropping outliers and imputing a column are not operations this tool has: the first
+discards the most informative value in an ICU row, and the second produces an interval
+computed as though the filled values had been measured. If the user asks for imputation, say
+that multiple imputation with the uncertainty carried into the interval is the version worth
+having and that it is not built yet, rather than offering a single filled value.
 
 ## The basic layer, which runs first for every family
 

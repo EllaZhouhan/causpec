@@ -7,6 +7,33 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Population filters, so the tool can do the exclusion it was already recommending**
+  (design.md 7.2). `basic_missing_values` used to say "drop those units and say in the report
+  how many and why", and no spec field could express it: `population` existed only as a
+  future item in a docstring. So the user went and filtered the CSV by hand, and the report
+  knew nothing about the patients who had disappeared, which is exactly the silent exclusion
+  that sentence warned against. Now the check offers the filter, the user agrees in their own
+  words, and the tool applies it
+- **An exclusion ledger, the first table a reader checks.** One row per filter, in the order
+  applied, with counts before and after and the user's own words for why. An effect measured
+  on 1,800 of 2,000 patients is an effect for whoever those 1,800 are, and the ledger sits
+  above the quality table because every check below it describes the population it leaves
+  behind
+- **Two population checks, which price the exclusion rather than having an opinion about it.**
+  `population_exclusion_informative` compares the treatment rate and the event rate among the
+  excluded against the kept, so "we dropped 200 patients" cannot stand in for "we dropped 200
+  of the patients nobody was going to treat". A warning and never blocking, since an
+  eligibility criterion is informative by construction. `population_filter_variable` refuses
+  a filter on the outcome, which compares the survivors of one arm with the survivors of the
+  other, and refuses a filter on a column that separates the arms almost perfectly, on the
+  same criterion `panel_post_treatment_state` uses: it is the same error reached by selection
+  instead of by adjustment. A confounder is meant to predict the treatment, so moderate
+  association only asks a question
+- **The closed operator set and one consequence worth stating.** `not_missing`, `eq`, `ne`,
+  `lt`, `le`, `gt`, `ge`, `in`, `not_in`, conjunctive, no nesting and no expressions, because
+  a criterion deciding who is in the analysis has to be reviewable by someone who did not
+  write it. Missing values never satisfy a comparison: a patient whose creatinine is unknown
+  is not known to be above 300 and not known to be below it, and the ledger shows them going
 - **A preprocessing path where the check that found the problem offers the fix** (design.md
   6.4): `spec.preprocessing` is an ordered list of steps applied to a working copy before
   anything is checked or estimated, and a check that has an exact remedy attaches it as

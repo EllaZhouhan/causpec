@@ -58,17 +58,24 @@ class QualityIssue(BaseModel):
     affected_columns: list[str] = Field(default_factory=list)
     impact_on_analysis: str = ""
     recommended_repair: str = ""
-    # A preprocessing step that would address this, when one exists and is safe to name:
-    # {"op": ..., "column": ..., "values": [...]} or {"op": "cast", "column": ..., "to": ...}.
+    # An operation that would address this, when one exists and is safe to name. `kind` says
+    # which part of the spec it belongs to, because the two differ in what they cost:
     #
-    # Machine-readable alongside the prose, so the agent can offer the exact step and write it
-    # into the spec on acceptance rather than paraphrasing a sentence into an operation. It is
-    # a suggestion and nothing more: a step only runs once the user has agreed in their own
-    # words, which PreprocessingStep enforces.
+    #   {"kind": "preprocessing", "op": "recode_null", "column": ..., "values": [...]}
+    #   {"kind": "population_filter", "column": ..., "op": "not_missing"}
     #
-    # Most checks carry none, deliberately. There is no safe automatic answer to a duplicated
-    # join, a missing value, or too few events, and offering one would invite the user to make
-    # a problem invisible instead of deciding about it.
+    # A preprocessing step changes how a value is written down and adds no information. A
+    # population filter changes **who the answer is about**, so accepting one puts a row in
+    # the report's exclusion ledger and triggers a check on whether the excluded differ from
+    # the kept. Both are suggestions and nothing more: neither runs until the user has agreed
+    # in their own words, which both contracts enforce.
+    #
+    # Machine-readable alongside the prose, so the agent offers the exact operation and writes
+    # it into the spec on acceptance rather than paraphrasing a sentence back into one.
+    #
+    # Many checks carry none, deliberately. A duplicated join, an outlier and too few events
+    # have no safe automatic answer, and offering one would invite the user to make a problem
+    # invisible instead of deciding about it.
     suggested_operation: dict[str, Any] | None = None
 
     @property

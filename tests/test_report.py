@@ -361,3 +361,36 @@ def test_no_tables_declared_changes_nothing() -> None:
     """The cross-sectional families declare none, and their reports are unaffected."""
     without = build(SPEC, QUALITY, DECISION, PROFILE_ADDRESSES)
     assert "The lag profile" not in without
+
+
+# ---- the exclusion ledger ----
+
+LEDGER = [
+    {
+        "criterion": "max_creatinine not missing",
+        "said": "yes, drop the ones with no creatinine",
+        "n_before": 2000,
+        "n_removed": 200,
+        "n_after": 1800,
+    }
+]
+
+
+def test_the_exclusion_ledger_shows_who_the_analysis_is_about() -> None:
+    """The first table a reader checks. An effect measured on 1,800 of 2,000 patients is an
+    effect for whoever those 1,800 are, and the user's own words for why are in the row."""
+    markdown = build(SPEC, QUALITY, DECISION, ADDRESSES, exclusions=LEDGER)
+    assert "max_creatinine not missing" in markdown
+    assert "2,000" in markdown and "1,800" in markdown
+    assert "yes, drop the ones with no creatinine" in markdown
+
+
+def test_the_ledger_comes_before_the_quality_table() -> None:
+    """Every check below it describes the population it leaves behind, so a reader who meets
+    the checks first has formed a view about a population that was not analysed."""
+    markdown = build(SPEC, QUALITY, DECISION, ADDRESSES, exclusions=LEDGER)
+    assert markdown.index("Who the analysis is about") < markdown.index("| Check |")
+
+
+def test_no_filters_means_no_ledger() -> None:
+    assert "Who the analysis is about" not in build(SPEC, QUALITY, DECISION, ADDRESSES)

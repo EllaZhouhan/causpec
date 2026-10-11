@@ -174,13 +174,46 @@ def _assumptions_section(spec: Spec) -> str:
     return "\n".join(lines).rstrip()
 
 
-def _quality_section(report: QualityReport, preprocessing: Sequence[str] = ()) -> str:
+def _exclusion_ledger(ledger: Sequence[Mapping[str, Any]]) -> str:
+    """Who was excluded and by what, in the form a reader of a study already audits.
+
+    This is the one table a reader checks before any estimate: an effect measured on 2,800
+    of 3,000 patients is an effect for whoever those 2,800 are. The counts come from the
+    filters actually applied, so the ledger cannot drift from what ran.
+    """
+    if not ledger:
+        return ""
+    lines = [
+        "**Who the analysis is about.** Each row is a criterion from the spec, in the order "
+        "it was applied, with the user's own words for why.",
+        "",
+        "| Criterion | Said | Before | Excluded | After |",
+        "|---|---|---|---|---|",
+    ]
+    for row in ledger:
+        lines.append(
+            f"| `{row['criterion']}` | {_escape(str(row['said']))} | {row['n_before']:,} "
+            f"| {row['n_removed']:,} | {row['n_after']:,} |"
+        )
+    return "\n".join(lines)
+
+
+def _quality_section(
+    report: QualityReport,
+    preprocessing: Sequence[str] = (),
+    ledger: Sequence[Mapping[str, Any]] = (),
+) -> str:
     """The checks, preceded by what was done to the data before they ran.
 
     The order is the point. A reader who sees the checks first and the transformations
-    afterwards has already formed a view about a table that no longer exists.
+    afterwards has already formed a view about a table that no longer exists. The exclusion
+    ledger comes first of all, because every number below it describes the population it
+    leaves behind.
     """
     lines: list[str] = []
+    ledger_table = _exclusion_ledger(ledger)
+    if ledger_table:
+        lines += [ledger_table, ""]
     if preprocessing:
         lines += [
             "**Before these checks ran, the following was applied to a working copy of the "
@@ -313,6 +346,7 @@ def build(
     narrative: Mapping[Any, str] | None = None,
     tables: Sequence[Mapping[str, Any]] | None = None,
     preprocessing: Sequence[str] | None = None,
+    exclusions: Sequence[Mapping[str, Any]] | None = None,
     execution_mode: ExecutionMode = ExecutionMode.CLI,
     title: str | None = None,
 ) -> str:
@@ -328,6 +362,9 @@ def build(
         preprocessing: what the agreed preprocessing steps actually did, printed above the
             quality table. Every number below them was computed on the transformed copy, so
             a reader who does not know that is reading the wrong table.
+        exclusions: the exclusion ledger, one row per population filter. Printed above
+            everything else in the data section: an estimate computed on 2,800 of 3,000
+            patients is an estimate for whoever those 2,800 are.
 
     Raises:
         ReportError: the model tried to author a purely factual section.
@@ -348,7 +385,7 @@ def build(
     facts: dict[Section, str] = {
         Section.QUESTION_AND_SPEC: _spec_section(spec, execution_mode),
         Section.ASSUMPTIONS: _assumptions_section(spec),
-        Section.DATA_QUALITY: _quality_section(quality, preprocessing or []),
+        Section.DATA_QUALITY: _quality_section(quality, preprocessing or [], exclusions or []),
         Section.CLAIM_LEVEL: _claim_level_section(decision),
         Section.VARIABLE_ROLES: _not_implemented(
             "The variable-role diagram", "plan.md Phase 1 task 3"

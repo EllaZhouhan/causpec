@@ -2,7 +2,7 @@
 
 Mirrors design.md 7.1 and 7.2. This is the vertical-slice version: it carries only
 the fields the gate and the two implemented families need. The full structure
-(population, variable_roles, key_non_edges, analysis_plan) grows as consumers appear.
+(variable_roles, key_non_edges, analysis_plan) grows as consumers appear.
 """
 
 from __future__ import annotations
@@ -116,8 +116,10 @@ class SpecField(BaseModel):
 
 
 # Fields the gate requires to be confirmed (design.md 7.1). The slice version lists
-# three; the full list also covers population, variable_roles, key_non_edges,
-# identification_strategy, adjustment_set and instrument.
+# three; the full list also covers variable_roles, key_non_edges,
+# identification_strategy, adjustment_set and instrument. `population` is deliberately not
+# here: an analysis of everyone in the extract is a legitimate analysis, and the filters that
+# exist are each confirmed individually.
 CRITICAL_FIELDS = ("treatment", "outcome", "estimand")
 
 # The operations a preprocessing step may name (design.md 6.4). Six are designed; two are
@@ -171,6 +173,89 @@ class PreprocessingStep(BaseModel):
         return self
 
 
+# Comparisons a population filter may use. No arbitrary expressions, for the same reason the
+# mapping refuses them: a filter decides who the answer is about, so it has to be reviewable by
+# someone who did not write it.
+FILTER_OPERATORS = (
+    "not_missing",
+    "eq",
+    "ne",
+    "lt",
+    "le",
+    "gt",
+    "ge",
+    "in",
+    "not_in",
+)
+
+# Operators that need no right-hand side.
+UNARY_FILTER_OPERATORS = ("not_missing",)
+
+
+class PopulationFilter(BaseModel):
+    """One criterion deciding who is in the analysis.
+
+    Separate from a preprocessing step because it does a different thing: a step changes how a
+    value is written, a filter changes **who the answer is about**. Dropping the patients with
+    no creatinine is not cleaning, it is redefining the population as "patients who had a
+    creatinine drawn", and whether a test was ordered is itself a clinical decision. So every
+    filter is counted in the report's exclusion ledger and checked for whether the people it
+    removed differ from the people it kept.
+
+    Filters are conjunctive and applied in order: the ledger reads as a sequence of
+    exclusions, which is the form a reader of a study already knows how to audit.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    column: str
+    op: str
+    # Absent for `not_missing`; a scalar for the comparisons; a list for `in` / `not_in`.
+    value: Any = None
+    said: str
+    turn: int | None = None
+    suggested_by: str = ""
+
+    @model_validator(mode="after")
+    def _known_operator(self) -> PopulationFilter:
+        if self.op not in FILTER_OPERATORS:
+            raise ValueError(
+                f"unknown filter operator {self.op!r}; available: {', '.join(FILTER_OPERATORS)}"
+            )
+        if not self.said.strip():
+            raise ValueError(
+                "a population filter requires the user's own words in `said`: it decides who "
+                "the answer is about, so silence is not consent"
+            )
+        if self.op in UNARY_FILTER_OPERATORS:
+            if self.value is not None:
+                raise ValueError(f"{self.op} takes no value; got {self.value!r}")
+        elif self.value is None:
+            raise ValueError(f"{self.op} requires a value to compare against")
+        if self.op in ("in", "not_in") and not isinstance(self.value, (list, tuple)):
+            raise ValueError(f"{self.op} requires a list of values; got {self.value!r}")
+        return self
+
+    def describe(self) -> str:
+        if self.op in UNARY_FILTER_OPERATORS:
+            return f"{self.column} {self.op.replace('_', ' ')}"
+        return f"{self.column} {self.op} {self.value!r}"
+
+
+class Population(BaseModel):
+    """Who the analysis is about: a description in the user's words, and the filters.
+
+    The description is not decoration. Two analyses with the same filters and different
+    descriptions mean the user and the data disagree about one of them, and the description is
+    what a reader compares the ledger against.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    description: str = ""
+    filters: list[PopulationFilter] = Field(default_factory=list)
+
+
 class Spec(BaseModel):
     """An analysis specification."""
 
@@ -191,6 +276,10 @@ class Spec(BaseModel):
     # checked or estimated. They are part of the spec because they change the numbers, so they
     # enter spec_hash and the manifest along with everything else that does.
     preprocessing: list[PreprocessingStep] = Field(default_factory=list)
+    # design.md 7.2's `population`. Applied after preprocessing and before any check, because
+    # a check should describe the population being analysed rather than one nobody asked
+    # about. It changes who the answer is about, so it enters spec_hash.
+    population: Population = Field(default_factory=Population)
 
     def param(self, name: str, default: Any) -> Any:
         """Read one estimator hyper-parameter, falling back to a default."""

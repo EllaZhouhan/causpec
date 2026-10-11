@@ -290,6 +290,20 @@ def _missing_values(
         if final_only
         else ""
     )
+    # A filter is offered only for a single affected column, and only when the missingness is
+    # not the final-period artefact. Dropping on four columns at once compounds an exclusion
+    # the user has not seen the size of yet, and each column deserves its own decision, so
+    # several affected columns carry no suggestion and the prose says to take them one at a
+    # time. The drop is a population decision rather than a preprocessing step: it changes who
+    # the answer is about, so it belongs in the ledger.
+    suggestion: dict[str, Any] | None = None
+    if len(counts) == 1 and not passed and not final_only:
+        suggestion = {
+            "kind": "population_filter",
+            "column": next(iter(counts)),
+            "op": "not_missing",
+        }
+
     return _issue(
         config,
         "basic_missing_values",
@@ -316,10 +330,20 @@ def _missing_values(
             "about NaN."
         ),
         repair=(
-            "Fix the extraction where you can. Where you cannot, drop those units and say in "
-            "the report how many and why: a reader can judge a stated exclusion, not a silent "
-            "one." + extra
+            "Fix the extraction where you can. Where you cannot, there are two ways forward "
+            "and they differ in what they cost: exclude those units, which keeps the column "
+            "and changes who the answer is about, or leave the column out of the covariate "
+            "set, which keeps the units. The exclusion is counted in the report's ledger and "
+            "checked for whether the excluded differ from the kept."
+            + (
+                " Several columns are affected, so no single exclusion is offered: decide "
+                "them one at a time, because each one compounds the last."
+                if len(counts) > 1
+                else ""
+            )
+            + extra
         ),
+        suggested_operation=suggestion,
     )
 
 
@@ -381,6 +405,7 @@ def _null_encoding(data: pd.DataFrame, columns: list[str], config: dict[str, Any
     if per_column:
         column = max(per_column, key=lambda name: len(per_column[name]))
         suggestion = {
+            "kind": "preprocessing",
             "op": "recode_null",
             "column": column,
             "values": sorted(per_column[column], key=str),

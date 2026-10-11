@@ -27,7 +27,8 @@ from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
 from causpec.core.mapping import PreprocessingError, StepRecord
 from causpec.core.mapping import apply as apply_preprocessing
-from causpec.core.quality import check_basic, check_feasibility, check_temporal
+from causpec.core.population import ExclusionRecord, PopulationError, apply_filters
+from causpec.core.quality import check_basic, check_feasibility, check_population, check_temporal
 from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
@@ -163,6 +164,24 @@ def _preprocess(data: pd.DataFrame, spec: Spec) -> tuple[pd.DataFrame, list[Step
         raise SystemExit(3) from error
 
 
+def _select_population(
+    data: pd.DataFrame, spec: Spec
+) -> tuple[pd.DataFrame, list[ExclusionRecord], QualityReport]:
+    """Apply the population filters, and assess them against the frame they were applied to.
+
+    The order matters in one direction only: the population checks look at the people each
+    filter removed, so they must see the frame before the removal. Everything after this point
+    sees the analysis population, which is what the rest of the report is about.
+    """
+    before = check_population(data, spec)
+    try:
+        kept, ledger = apply_filters(data, spec)
+    except PopulationError as error:
+        print(f"population filters failed: {error}", file=sys.stderr)
+        raise SystemExit(3) from error
+    return kept, ledger, before
+
+
 def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
     """The core layers first, then the family's own, unless a core layer blocked.
 
@@ -195,7 +214,10 @@ def cmd_quality(args: argparse.Namespace) -> int:
     data, applied = _preprocess(_load_data(args.data), spec)
     for record in applied:
         print(f"~ [applied  ] {record.describe()}")
-    report = _run_checks(data, spec)
+    data, ledger, population = _select_population(data, spec)
+    for record in ledger:
+        print(f"- [excluded ] {record.describe()}")
+    report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues])
     for issue in report.issues:
         mark = {"blocking": "✗", "warning": "!", "info": "·"}[issue.severity.value]
         print(f"{mark} [{issue.severity.value:8}] {issue.check_id}: {issue.summary}")
@@ -207,13 +229,14 @@ def cmd_quality(args: argparse.Namespace) -> int:
 def cmd_estimate(args: argparse.Namespace) -> int:
     spec = _load_spec(args.spec)
     data, applied = _preprocess(_load_data(args.data), spec)
+    data, ledger, population = _select_population(data, spec)
     family = _resolve_family(spec)
 
     # The gate runs before estimation and stops the command if it fails, an `if` in
     # code, not a rule in a prompt. Condition 1 checks spec confirmation, condition 2
     # checks for unwaived blocking quality issues.
     waivers = _parse_waivers(args.waive)
-    report = _run_checks(data, spec)
+    report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues])
     try:
         check_all(spec, report, waivers)
     except GateError as error:
@@ -256,6 +279,16 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                 # happened to mention.
                 tables=registry.load_declaration(spec.family).get("report_tables", []),
                 preprocessing=[record.describe() for record in applied],
+                exclusions=[
+                    {
+                        "criterion": record.criterion,
+                        "said": record.said,
+                        "n_before": record.n_before,
+                        "n_removed": record.n_removed,
+                        "n_after": record.n_after,
+                    }
+                    for record in ledger
+                ],
                 execution_mode=ExecutionMode.CLI,
             )
         except (RenderError, ReportError) as error:

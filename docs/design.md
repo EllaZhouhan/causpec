@@ -278,7 +278,12 @@ row of fields confirmed).
 ```yaml
 spec_version: 1
 meta: {question: ...}
-population: {filters: [...]}
+# Who the answer is about. Each filter carries the user's own words, the same rule as a
+# confirmed field, because an exclusion changes the estimand's population rather than
+# cleaning anything. Operators are a closed set (not_missing, eq, ne, lt, le, gt, ge, in,
+# not_in); filters are conjunctive and applied in order, so the report's exclusion ledger
+# reads as a sequence a reader of a study already knows how to audit.
+population: {description: ..., filters: [{column, op, value, said, turn, suggested_by}]}
 causal_design:
   analysis_type: hte | panel
   estimand: ...
@@ -436,8 +441,25 @@ desk (ideas only).
 |---|---|---|
 | basic | types, uniqueness, missingness, NULL-encoding variants, zero spikes, isolated extremes, impossible signs | Written here (ADR-0003: pandera would carry the easy third of the layer in a format that has to be rewritten). Thresholds in `core/quality/basic_checks.yaml` |
 | temporal | treatment before time zero (immortal time), outcome before treatment, time inversion, insufficient follow-up | Written here. Reads optional spec fields and **says when it could not run**: a check reporting nothing on a table it could not read turns the report into a clean bill of health |
-| identification | treatment prevalence, overlap, SMD, suspected post-treatment, instrument relevance, censoring against state | Overlap and SMD written here (the logic is simple); instrument relevance in 8.2 |
+| identification | treatment prevalence, overlap, SMD, suspected post-treatment, instrument relevance, censoring against state, **and the two population checks** | Overlap and SMD written here (the logic is simple); instrument relevance in 8.2. The population checks are in core because they need no family knowledge, and are labelled `identification` because selecting on a consequence of treatment is an identification failure: a layer names what a check is about, not where its code lives |
 | feasibility | per-arm sizes and event counts in core; extreme weights and ESS in the families | Counting written here. These block where 10.2's rule says not to gate on what an interval says, because a forest on 25 events returns a confident per-patient estimate: the interval does not say it |
+
+The population checks run on the frame **before** the filters are applied, because the
+people a filter removed are the only evidence about whether removing them mattered. Two
+questions:
+
+- **`population_filter_variable`**: is the filter conditioning on something the treatment
+  could have caused? Filtering on the outcome is refused and not waivable: it compares the
+  survivors of one arm with the survivors of the other. A column that separates the arms
+  almost perfectly is refused on the same criterion `panel_post_treatment_state` uses, since
+  it is the same error reached by selection rather than by adjustment. A confounder is *meant*
+  to predict the treatment, so moderate association is the design working and only asks a
+  question.
+- **`population_exclusion_informative`**: are the people it removed different from the people
+  it kept? Measured as the treatment rate and the event rate among the excluded against the
+  kept. A warning and never blocking, because an eligibility criterion is informative by
+  construction. It exists so the report cannot imply the remaining patients are a random
+  subset of the ones asked about.
 
 ### 8.2 Instrument relevance
 

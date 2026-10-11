@@ -207,7 +207,15 @@ def test_the_check_suggests_the_exact_step(sentinel) -> None:
     paraphrasing a sentence back into an operation."""
     issue = check_basic(sentinel, make_spec()).get("basic_null_encoding")
     suggestion = issue.suggested_operation
-    assert suggestion == {"op": "recode_null", "column": "max_creatinine", "values": [-999.0]}
+    assert suggestion == {
+        # `kind` says which part of the spec it belongs to. A recode is a preprocessing step
+        # because it adds no information; an exclusion is a population decision because it
+        # changes who the answer is about, and costs a row in the ledger.
+        "kind": "preprocessing",
+        "op": "recode_null",
+        "column": "max_creatinine",
+        "values": [-999.0],
+    }
     assert suggestion is not None
     # And the suggestion is applicable as written, once the user has agreed to it. Field by
     # field rather than by unpacking, so that a suggestion growing a key the contract does not

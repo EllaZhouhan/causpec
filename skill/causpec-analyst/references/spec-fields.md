@@ -70,6 +70,44 @@ lenient cast would perform the recode silently and leave no record of it.
 **The steps enter `spec_hash`.** They change the numbers, so a run with them is a different
 run, and the report prints what each one did above the quality table.
 
+## `population`, when the user agreed to an exclusion
+
+Who the answer is about: a description in their words, and the filters, applied in order
+after preprocessing and before any check.
+
+```yaml
+population:
+  description: dialysis-eligible ICU patients with a creatinine on record
+  filters:
+    - column: max_creatinine
+      op: not_missing
+      said: yes, drop the ones with no creatinine and say so in the report
+      turn: 9
+      suggested_by: basic_missing_values
+    - column: admission_age
+      op: ge
+      value: 18
+      said: adults only
+```
+
+Operators are a closed set: `not_missing`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`,
+`not_in`. No `or`, no nesting, no expressions, because a criterion deciding who is in the
+analysis has to be reviewable by someone who did not write it. Filters are conjunctive.
+
+**`said` is required and enforced**, as for a preprocessing step, and for a stronger reason:
+an exclusion is not cleaning, it redefines the population the estimate is about.
+
+**Missing values never satisfy a comparison.** A patient whose creatinine is unknown is not
+known to be above 300 and not known to be below it, so `max_creatinine ge 300` excludes them
+and the ledger shows it.
+
+**Two things happen on every run.** The report prints an exclusion ledger, one row per
+filter with counts before and after, and `population_exclusion_informative` compares the
+excluded with the kept on the treatment and event rates. Read both back to the user: the
+ledger is what they asked for, the comparison is what it cost.
+
+**A filter on the treatment or the outcome is refused** and the refusal cannot be waived.
+
 ## `assignment_mechanism`, asked at step 1c
 
 How the treatment came to be given, in the user's words, with one of three values. It is not

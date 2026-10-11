@@ -183,3 +183,42 @@ temporal_insufficient_followup:
   # was not observed through is a wrong row, and the right response is to say how many and
   # decide, not to tolerate a quota. Waivable for the design that handles it deliberately.
   max_short_share: 0.0
+
+# ---------------------------------------------------------------------------------------
+# Population. Labelled `identification` rather than given a layer of their own: selecting
+# the population on a consequence of treatment is an identification failure, and the layer
+# names what a check is about rather than where its code lives, the same way the counting
+# half of feasibility lives in core.
+# ---------------------------------------------------------------------------------------
+
+population_filter_variable:
+  layer: identification
+  severity: blocking
+  waivable: false
+  # Filtering on the treatment or the outcome. Not waivable: there is no reading of the data
+  # under which comparing the survivors of one arm with the survivors of the other answers
+  # the question that was asked.
+  #
+  # The separation thresholds are the ones `panel_post_treatment_state` uses, deliberately:
+  # it is the same error, reached by selection instead of by adjustment. A confounder is meant
+  # to predict the treatment, so a moderate correlation is the design working; near-perfect
+  # separation belongs to a column recorded after the decision.
+  separation_blocking_above: 0.9
+  separation_warning_above: 0.7
+  severity_suspicious: warning
+
+population_exclusion_informative:
+  layer: identification
+  severity: warning
+  waivable: true
+  # Whether the rows a filter removed differ from the rows it kept, on the treatment rate and
+  # the event rate. A warning, never blocking: an informative exclusion is often exactly what
+  # the question needs (an eligibility criterion is informative by construction), and the
+  # report's exclusion ledger plus this gap is what lets a reader judge it.
+  #
+  # Ten percentage points is a gap a reader would want to see stated. Below ten the arms and
+  # events look alike enough that the ledger's counts carry the story on their own.
+  rate_gap_above: 0.1
+  # Below this many excluded rows the two rates are too noisy to compare, and a gap computed
+  # from four patients would fire more often than one computed from four hundred.
+  min_excluded_to_assess: 10

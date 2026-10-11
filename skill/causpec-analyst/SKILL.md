@@ -372,6 +372,18 @@ A blocking issue means **stop** and read the problem and its suggested repair ba
 user. **Even when the analysis cannot run, the quality report is itself a deliverable**, do
 not skip it because estimation is impossible.
 
+**When an issue carries a `suggested_operation`, offer it and say what it will and will not
+do.** There are two kinds and they differ in what they cost: a preprocessing step changes how
+a value is written down, a population filter changes who the answer is about. On agreement,
+write it into the spec with the user's own words and run the checks again. A recode that
+reveals 200 missing values has not cleared the problem, it has made it visible, and the next
+refusal is the honest one. `quality-checks.md` has the wording for both.
+
+Do not offer what the tool does not do. Dropping outliers and imputing a column are not
+operations here, and the reasons are worth giving: the first discards the most informative
+value in an ICU row, the second produces an interval computed as though the filled values had
+been measured.
+
 A waiver needs an explicit reason from the user, and a waived analysis can never reach
 `causal` wording.
 
