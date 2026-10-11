@@ -13,12 +13,18 @@ the milestones in plan.md section 2.
   missing-value check now offers a menu of five ways forward, each with the sentence to read
   back to the user, rather than one default: exclusion first because it invents nothing, the
   fills next, dropping the column last
-- **Any fill makes the run `exploratory` and the report says which column did it.** A single
-  filled value understates the variance by exactly the between-imputation term that multiple
-  imputation exists to add back, and the pooling step is not built, so no result in such a run
-  may be called significant. `interval_calibration` was a property of the family only; it is
-  now also a property of the run, and the reason text names the filled columns instead of
-  blaming the estimator
+- **A fill carries an assumption, not a penalty**, after the first version of this got it
+  wrong. That version made any fill force `interval_calibration: exploratory`, so no result in
+  such a run could be called significant. It was not defensible: excluding the units with a
+  missing column distorts the estimate too, through selection rather than through variance,
+  and it kept its calibrated interval. Penalising one and not the other pushed users towards
+  the exclusion, which is not reliably the better choice, and it dressed a judgement up as
+  arithmetic. `imputation_assumption_declared` replaces it: a model-based fill blocks until
+  `missing_at_random` is declared as an `untestable` assumption, waivable so it never
+  dead-ends, and then the ordinary machinery applies, unjustified capping the level and
+  justified by the user permitting causal wording with their name on it. `impute_constant` and
+  `impute_locf` are exempt, because a named constant and a value carried one period rest on an
+  argument about the clinical process rather than on a pattern in the missingness
 - **The spread statistic had to be the right one.** The column's own standard deviation does
   not reliably shrink under a fill: filling a right-skewed column at its median puts values
   away from the mean, which can widen it. So each step records the spread **among the values

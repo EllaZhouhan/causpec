@@ -163,15 +163,23 @@ is right; what matters in the conversation is that **you say the price before th
 not after**:
 
 > "I can fill those 200 creatinines with the median of the rest. Every one of those patients
-> then sits at the same value, so the column carries less than it did, and the report will
-> print how much the spread moved. It also means this run cannot call anything significant:
-> filling a value makes the interval narrower than the evidence supports, and the correction
-> for that needs multiple imputation, which this tool does not have. If you want the
-> interval to mean what it says, the exclusion is the honest route."
+> then sits at the same value, so the column carries less than it did, and the report prints
+> the spread among the filled values, which will be zero. Filling also assumes those 200 are
+> missing for reasons the other columns already capture. If creatinine here is drawn on a
+> schedule, that is reasonable and you can say so. If it was skipped because someone looked
+> fine, or because they died in the first hours, it is not, and the fill will be confidently
+> wrong in the direction that matters."
 
-That last clause is the one to keep. The claim level drops to `suggestive` automatically and
-the report names the filled columns as the reason, so a user who was not told beforehand will
-find out from the report, which is the wrong order.
+Then **ask them for the justification and write it into `assumptions`**, because
+`imputation_assumption_declared` blocks until the assumption is on the record. Unjustified, it
+caps the claim level like any other untestable assumption; justified by them, the analysis can
+reach causal wording with their name on it. That is the whole mechanism: the user decides, and
+the report says who decided.
+
+Do not tell them a fill makes the run exploratory. It does not, and an earlier version of this
+tool was wrong to: the exclusion distorts an estimate too, through selection rather than
+variance, and it kept its calibrated interval. Penalising one and not the other pushed people
+towards the exclusion for no good reason.
 
 Two things to get right when they say yes:
 

@@ -323,9 +323,10 @@ def _missing_values(
                 operation={"op": "impute_median", "column": column},
                 cost=(
                     "Keeps every unit and places each filled one at the centre, so the "
-                    "column's spread shrinks and whatever it contributes is diluted. The "
-                    "step record prints how much the spread moved. Any fill makes this run "
-                    "exploratory: no result may be called significant."
+                    "column carries less than it did and the step record prints the spread "
+                    "among the filled values, which is zero. Needs the missing-at-random "
+                    "assumption declared and justified, and until it is the claim level "
+                    "stays below causal."
                 ),
             ),
             Suggestion(
@@ -333,11 +334,12 @@ def _missing_values(
                 operation={"op": "impute_iterative", "column": column},
                 cost=(
                     "Fills from the other analysis columns including the treatment and the "
-                    "outcome, so relationships survive better than under the median. Still "
-                    "one draw, so the interval is still too narrow, and this run becomes "
-                    "exploratory. It assumes the values are missing at random given those "
-                    "columns, which is untestable and often false where a test was skipped "
-                    "because the patient looked fine."
+                    "outcome, so relationships survive better than under the median. One "
+                    "draw, so the interval is still narrower than the evidence supports. It "
+                    "assumes the values are missing at random given those columns, which is "
+                    "untestable and often false where a test was skipped because the patient "
+                    "looked fine: declaring and justifying that is what the claim level "
+                    "reads."
                 ),
             ),
             Suggestion(

@@ -222,3 +222,19 @@ population_exclusion_informative:
   # Below this many excluded rows the two rates are too noisy to compare, and a gap computed
   # from four patients would fire more often than one computed from four hundred.
   min_excluded_to_assess: 10
+
+imputation_assumption_declared:
+  layer: identification
+  severity: blocking
+  waivable: true
+  # A model-based fill assumes the values are missing at random given what it conditioned on.
+  # Nothing can check that, so the assumption goes on the record and the claim level reads it,
+  # which is how every other untestable assumption is handled here.
+  #
+  # Blocking so that the declaration cannot be skipped in silence, waivable so that it never
+  # dead-ends: a waiver is itself a statement, and it lowers the claim level on its own.
+  #
+  # Earlier this was not a check at all: any fill forced `interval_calibration: exploratory`.
+  # That was wrong because the alternative, excluding the units with a missing column,
+  # distorts the estimate through selection and kept its calibrated interval. Penalising one
+  # and not the other is a judgement dressed as arithmetic.

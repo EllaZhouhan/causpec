@@ -24,8 +24,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from causpec.core.contracts.quality import Severity
 from causpec.core.contracts.spec import (
     IMPUTATION_OPERATIONS,
+    Assumption,
+    AssumptionCategory,
     PreprocessingStep,
     Source,
     Spec,
@@ -34,7 +37,7 @@ from causpec.core.contracts.spec import (
 )
 from causpec.core.mapping import PreprocessingError
 from causpec.core.mapping import apply as apply_steps
-from causpec.core.quality import check_basic
+from causpec.core.quality import check_assumptions, check_basic
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "generators"))
 
@@ -47,7 +50,11 @@ def confirmed(value: object) -> SpecField:
     return SpecField(value=value, source=Source.USER, said="yes", status=Status.CONFIRMED)
 
 
-def make_spec(steps: list[PreprocessingStep] | None = None, **extra: object) -> Spec:
+def make_spec(
+    steps: list[PreprocessingStep] | None = None,
+    assumptions: list[Assumption] | None = None,
+    **extra: object,
+) -> Spec:
     fields = {
         "treatment": confirmed("isDialysisICU"),
         "outcome": confirmed("death"),
@@ -55,7 +62,23 @@ def make_spec(steps: list[PreprocessingStep] | None = None, **extra: object) -> 
         "effect_modifiers": confirmed(COVARIATES),
     }
     fields.update({name: confirmed(value) for name, value in extra.items()})
-    return Spec(question="q", family="hte_backdoor", fields=fields, preprocessing=steps or [])
+    return Spec(
+        question="q",
+        family="hte_backdoor",
+        fields=fields,
+        preprocessing=steps or [],
+        assumptions=assumptions or [],
+    )
+
+
+# The assumption check reads the spec only, so the frame it is handed is irrelevant to it.
+EMPTY = pd.DataFrame({"x": [0.0]})
+
+MAR = Assumption(
+    id="missing_at_random",
+    category=AssumptionCategory.UNTESTABLE,
+    statement="Values are missing at random given the other analysis columns.",
+)
 
 
 def step(op: str, column: str = "max_creatinine", **kwargs: Any) -> PreprocessingStep:
@@ -78,38 +101,87 @@ def gapped(clean: pd.DataFrame) -> pd.DataFrame:
 # ---- the price, which is the point ----
 
 
-def test_any_fill_makes_the_run_exploratory(gapped) -> None:
-    """The one rule that keeps a fill honest. A single filled value understates the variance
-    by exactly the between-imputation term that multiple imputation adds back, and the
-    pooling step does not exist here, so the run cannot claim significance."""
+def test_a_fill_does_not_touch_the_interval_calibration() -> None:
+    """A design mistake, recorded so it does not come back.
+
+    An earlier version made any fill force `exploratory`, so no result in such a run could be
+    called significant. It was not defensible: excluding the units with a missing column
+    distorts the estimate too, through selection rather than through variance, and it kept its
+    calibrated interval. Penalising one and not the other pushed users towards the exclusion,
+    which is not reliably the better choice, and it dressed a judgement up as arithmetic.
+
+    What a fill introduces is an assumption, and this project already has a place for those.
+    """
     from causpec.cli import _interval_calibration
 
-    del gapped
-    calibration, subject = _interval_calibration(make_spec([step("impute_median")]))
-    assert calibration == "exploratory"
-    assert "max_creatinine" in subject
-    # Without a fill the same family is calibrated, so this is the spec talking, not the
-    # method.
-    assert _interval_calibration(make_spec())[0] == "calibrated"
+    assert _interval_calibration(make_spec([step("impute_median")])) == "calibrated"
+    assert _interval_calibration(make_spec()) == "calibrated"
 
 
-def test_the_claim_level_is_capped_and_says_why(gapped) -> None:
-    from causpec.cli import _interval_calibration
-    from causpec.core.contracts.quality import QualityReport
-    from causpec.core.reporting.claim_level import determine
-
-    del gapped
-    spec = make_spec([step("impute_median")])
-    calibration, subject = _interval_calibration(spec)
-    decision = determine(
-        spec,
-        QualityReport(issues=[]),
-        gate_passed=True,
-        interval_calibration=calibration,
-        calibration_subject=subject,
+def test_a_model_based_fill_needs_its_assumption_on_the_record() -> None:
+    """The replacement. Filling from a model of the other columns assumes missing at random
+    given those columns, which nothing can check and which is often false in exactly the way
+    that matters: a test skipped because the patient looked fine is missing because of
+    something related to the outcome."""
+    issue = check_assumptions(EMPTY, make_spec([step("impute_median")])).get(
+        "imputation_assumption_declared"
     )
-    assert decision.significance_claims_allowed is False
-    assert any("filled values in max_creatinine" in reason for reason in decision.reasons)
+    assert issue.severity is Severity.BLOCKING
+    assert issue.waivable is True
+    assert issue.evidence["filled_columns"] == "max_creatinine"
+    assert "missing at random" in issue.impact_on_analysis
+
+
+def test_declaring_the_assumption_is_enough_to_proceed() -> None:
+    """Declared but unjustified does not block: it caps the claim level, which is how every
+    untestable assumption is handled here. The user decides, with their name on it."""
+    spec = make_spec([step("impute_median")], assumptions=[MAR])
+    issue = check_assumptions(EMPTY, spec).get("imputation_assumption_declared")
+    assert issue.severity is Severity.INFO
+    assert "not yet justified" in issue.summary
+    assert spec.unjustified_untestable_assumptions() == ["missing_at_random"]
+
+
+def test_a_justified_assumption_leaves_the_ceiling_alone() -> None:
+    justified = MAR.model_copy(
+        update={
+            "justification": "creatinine is ordered on a schedule here, not in response to "
+            "how the patient looks",
+            "justified_by": Source.USER,
+        }
+    )
+    spec = make_spec([step("impute_median")], assumptions=[justified])
+    assert spec.unjustified_untestable_assumptions() == []
+    issue = check_assumptions(EMPTY, spec).get("imputation_assumption_declared")
+    assert issue.severity is Severity.INFO
+    assert "not yet justified" not in issue.summary
+
+
+def test_a_mechanism_fill_needs_no_missingness_assumption() -> None:
+    """A constant the user named and a value carried forward rest on an argument about the
+    clinical process, which the report states, rather than on a pattern in the missingness.
+    They are still fills and still printed with their counts."""
+    for fill in (step("impute_constant", value=0.0), step("impute_locf", limit=1)):
+        issue = check_assumptions(EMPTY, make_spec([fill])).get("imputation_assumption_declared")
+        assert issue.severity is Severity.INFO, fill.op
+        assert issue.evidence["mechanism_fills_only"] is True
+
+
+def test_no_fill_means_no_assumption_to_ask_for() -> None:
+    issue = check_assumptions(EMPTY, make_spec()).get("imputation_assumption_declared")
+    assert issue.severity is Severity.INFO
+    assert issue.evidence["assessed"] is False
+
+
+def test_the_check_offers_the_assumption_to_declare() -> None:
+    issue = check_assumptions(EMPTY, make_spec([step("impute_median")])).get(
+        "imputation_assumption_declared"
+    )
+    suggestion = issue.suggestions[0]
+    assert suggestion.kind == "assumption"
+    assert suggestion.operation["id"] == "missing_at_random"
+    assert suggestion.operation["category"] == "untestable"
+    assert "max_creatinine" in suggestion.operation["statement"]
 
 
 def test_a_recode_is_not_a_fill(gapped) -> None:
@@ -348,12 +420,13 @@ def test_the_missing_value_check_offers_the_whole_menu(gapped) -> None:
     assert all(suggestion.cost for suggestion in issue.suggestions)
 
 
-def test_every_fill_in_the_menu_warns_that_it_costs_the_interval(gapped) -> None:
+def test_every_fill_in_the_menu_states_what_it_assumes(gapped) -> None:
+    """Said before they accept, not discovered in the report afterwards."""
     issue = check_basic(gapped, make_spec()).get("basic_missing_values")
     fills = [s for s in issue.suggestions if s.operation.get("op", "").startswith("impute_")]
     assert len(fills) == 2
     for suggestion in fills:
-        assert "exploratory" in suggestion.cost
+        assert "missing" in suggestion.cost and "random" in suggestion.cost
 
 
 def test_the_suggested_fill_is_applicable_as_written(gapped) -> None:

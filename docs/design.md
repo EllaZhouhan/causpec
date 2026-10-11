@@ -184,11 +184,22 @@ Implemented: `recode_null`, `cast`, and four fills, `impute_constant`, `impute_m
 estimate runs. `impute_mean` is deliberately absent: ICU labs are right-skewed, so the mean of
 the observed is a worse centre than the median and there is no case where it is better.
 
-**A fill is allowed and it is charged for.** Any step in `IMPUTATION_OPERATIONS` makes the run
-`interval_calibration: exploratory`, which forbids a significance claim, because a single
-fill understates the variance by exactly the between-imputation term that multiple imputation
-exists to add back, and the pooling step is not built. The report names the columns that were
-filled as the reason, rather than attributing it to the estimator.
+**A fill is allowed, and what it introduces is an assumption rather than a penalty.** An
+earlier version made any fill force `interval_calibration: exploratory`, so no result in such
+a run could be called significant. That was wrong, and the reason is worth keeping: excluding
+the units with a missing column distorts the estimate too, through selection rather than
+through variance, and it kept its calibrated interval. Penalising the fill and not the
+exclusion pushed users towards the exclusion, which is not reliably the better choice, and it
+dressed a judgement up as arithmetic.
+
+What a model-based fill actually adds is the claim that the values are missing at random given
+whatever it conditioned on, which no diagnostic can settle. So `imputation_assumption_declared`
+requires it on the record as an `untestable` assumption, blocking until declared and waivable
+so it never dead-ends, and from there the ordinary machinery applies: justified by the user,
+causal wording is available; declared and unjustified, the level is capped like any other
+untestable assumption. `impute_constant` and `impute_locf` are exempt from the requirement,
+because a named constant and a value carried one period rest on an argument about the clinical
+process rather than on a pattern in the missingness. They are still printed with their counts.
 
 Each fill also records what it did to the spread, and the statistic has to be the right one.
 The column's own standard deviation does not reliably shrink: filling a right-skewed column

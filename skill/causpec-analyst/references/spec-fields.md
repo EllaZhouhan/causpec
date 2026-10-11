@@ -66,10 +66,22 @@ recording whether the value was observed, and four fill missing values:
 | `impute_iterative` | The other columns genuinely predict this one | One draw, so still too narrow. Assumes missing at random given those columns. Where the columns are independent it degenerates to the median fill, and the record's spread among the filled is what tells you |
 | `impute_locf` | A panel measurement not repeated often means nothing changed | Requires `limit`, because carrying a value twelve hours and carrying it five days are different claims. Carries forward only, never backward |
 
-**Any fill makes the run exploratory.** `interval_calibration` drops from `calibrated` to
-`exploratory` and no result may be called significant, because a single filled value
-understates the variance by exactly the term multiple imputation exists to add back. Say this
-to the user **before** they accept, not after.
+**A model-based fill needs its assumption declared**, and `imputation_assumption_declared`
+blocks until it is. Say this to the user **before** they accept, not after:
+
+```yaml
+assumptions:
+  - id: missing_at_random
+    category: untestable
+    statement: Creatinine is missing at random given the other analysis columns.
+    justification: creatinine is drawn on a fixed morning schedule here, not in response to how the patient looks
+    justified_by: user
+```
+
+The justification has to be the user's, as for every untestable assumption: declared without
+one, the claim level stays below `causal`; justified, the analysis can reach it with their
+name on it. `impute_constant` and `impute_locf` do not need it, because a named constant and
+a value carried one period rest on an argument about the clinical process instead.
 
 **`add_missing_indicator` must come before a fill on the same column** and is refused after
 one: once the gaps are filled there is no record of where they were. It also does nothing

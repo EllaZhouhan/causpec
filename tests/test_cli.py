@@ -429,7 +429,7 @@ def test_the_families_interval_calibration_reaches_the_claim_level() -> None:
     from causpec.core.contracts.spec import Spec
 
     def calibration_of(family: str) -> str:
-        return _interval_calibration(Spec(question="q", family=family))[0]
+        return _interval_calibration(Spec(question="q", family=family))
 
     assert calibration_of("dynamic_lag_dml") == "exploratory"
     # The cross-sectional families say nothing, and the default is the ordinary case.

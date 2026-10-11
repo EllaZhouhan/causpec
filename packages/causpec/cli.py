@@ -28,7 +28,13 @@ from causpec.core.gates import GateError, check_all
 from causpec.core.mapping import PreprocessingError, StepRecord
 from causpec.core.mapping import apply as apply_preprocessing
 from causpec.core.population import ExclusionRecord, PopulationError, apply_filters
-from causpec.core.quality import check_basic, check_feasibility, check_population, check_temporal
+from causpec.core.quality import (
+    check_assumptions,
+    check_basic,
+    check_feasibility,
+    check_population,
+    check_temporal,
+)
 from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
@@ -89,28 +95,24 @@ def _resolve_family(spec: Spec):
         raise SystemExit(4) from error
 
 
-def _interval_calibration(spec: Spec) -> tuple[str, str]:
-    """Whether this run's intervals are calibrated, and what to name as the reason.
+def _interval_calibration(spec: Spec) -> str:
+    """What the family says about its own intervals, from its declaration.
 
-    Two independent sources, and either is enough to make a run exploratory.
+    A property of the method rather than of a run, so it is read from family.yaml. Families
+    that say nothing are calibrated, which is the ordinary case; the exception is an
+    estimator proved consistent with no limiting distribution.
 
-    The family's declaration is a property of the method: an estimator proved consistent with
-    no limiting distribution cannot support a significance claim however clean the data is.
-
-    The spec is a property of the run: a column that was partly filled produces an interval
-    narrower than the evidence supports, because nothing downstream can tell a filled value
-    from a measured one. Single imputation understates the variance by exactly the
-    between-imputation term that multiple imputation exists to add back, and this project has
-    not built the pooling step, so the price of a fill is a report that cannot claim
-    significance. Charged here rather than left to a reader to notice.
+    Imputation deliberately does **not** enter here, after an earlier version of this function
+    made any filled value force `exploratory`. That rule was not defensible: excluding the
+    units with a missing column also distorts the estimate, through selection rather than
+    through variance, and it kept `calibrated`. Penalising one and not the other pushed users
+    towards the exclusion, which is not reliably the better choice. A fill is handled the way
+    this project handles every other thing the data cannot settle: as a declared untestable
+    assumption that the user justifies in their own words, which `imputation_assumption_declared`
+    requires and the claim level reads.
     """
     declaration = registry.load_declaration(spec.family)
-    declared = str(declaration.get("inference", {}).get("calibration", "calibrated"))
-    imputed = spec.imputed_columns()
-    if imputed and declared == "calibrated":
-        columns = ", ".join(sorted(set(imputed)))
-        return "exploratory", f"The intervals for a run that filled values in {columns}"
-    return declared, "The estimator's intervals"
+    return str(declaration.get("inference", {}).get("calibration", "calibrated"))
 
 
 def _persist_run(
@@ -209,6 +211,7 @@ def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
             *check_basic(data, spec).issues,
             *check_temporal(data, spec).issues,
             *check_feasibility(data, spec).issues,
+            *check_assumptions(data, spec).issues,
         ]
     )
     if core.blocking:
@@ -244,7 +247,6 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     data, applied = _preprocess(_load_data(args.data), spec)
     data, ledger, population = _select_population(data, spec)
     family = _resolve_family(spec)
-    calibration, calibration_subject = _interval_calibration(spec)
 
     # The gate runs before estimation and stops the command if it fails, an `if` in
     # code, not a rule in a prompt. Condition 1 checks spec confirmation, condition 2
@@ -270,8 +272,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         report,
         gate_passed=True,
         waived=waivers,
-        interval_calibration=calibration,
-        calibration_subject=calibration_subject,
+        interval_calibration=_interval_calibration(spec),
     )
     addresses: dict[str, float | int | str] = {
         **result.values,

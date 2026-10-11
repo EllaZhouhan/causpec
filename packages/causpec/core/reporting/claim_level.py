@@ -126,7 +126,6 @@ def determine(
     waived: dict[str, str] | None = None,
     rules_path: Path | None = None,
     interval_calibration: str = "calibrated",
-    calibration_subject: str = "The estimator's intervals",
 ) -> ClaimLevelDecision:
     """Decide how strongly this analysis's conclusion may be worded.
 
@@ -137,16 +136,10 @@ def determine(
             since the gate also inspects spec confirmation).
         waived: check_id -> waiver reason. A waived blocking check still lowers the level.
         rules_path: override the packaged claim_levels.yaml.
-        interval_calibration: whether this run's intervals are "calibrated" or
-            "exploratory". An exploratory interval forbids significance wording and caps the
-            level, independently of everything else here. It comes from the family's
-            declaration and from the spec: an estimator proved consistent with no limiting
-            distribution is exploratory, and so is any run that filled values nobody
-            measured, because the arithmetic downstream cannot tell a filled value from a
-            measured one.
-        calibration_subject: what to name as the reason in the report, since the two sources
-            are different findings and a reader who is told the wrong one will go looking for
-            a problem in the wrong place.
+        interval_calibration: what the family declares about its intervals, "calibrated"
+            or "exploratory". An exploratory interval forbids significance wording and caps
+            the level, independently of everything else here. A property of the estimator:
+            what the *data* cannot settle arrives through `assumptions` instead.
     """
     rules = load_rules(rules_path)
     waived = waived or {}
@@ -170,15 +163,15 @@ def determine(
         """
         if _ORDER[calibration_ceiling] < _ORDER[level]:
             reasons.append(
-                f"{calibration_subject} are {interval_calibration}: they indicate where the "
-                f"effect sits and do not test anything, so the level is capped at "
-                f"{calibration_ceiling.value} and no result may be called significant."
+                f"The estimator's intervals are {interval_calibration}: they indicate "
+                f"where the effect sits and do not test anything, so the level is capped "
+                f"at {calibration_ceiling.value} and no result may be called significant."
             )
             level = calibration_ceiling
         elif not significance_allowed:
             reasons.append(
-                f"{calibration_subject} are {interval_calibration}: no result may be called "
-                f"significant."
+                f"The estimator's intervals are {interval_calibration}: no result may be "
+                f"called significant."
             )
         return ClaimLevelDecision(
             level=level,
