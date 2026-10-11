@@ -103,6 +103,36 @@ decide: their judgement about unmeasured confounding outranks this test.
 Both are computed on a linear two-stage specification, not on the forest that produces the
 reported effect. They are statements about the instruments.
 
+## When a check suggests a fix you can run
+
+Some checks carry a `suggested_operation` alongside the prose: an exact transformation that
+would address what they found. **Offer it, do not apply it.** A transformation changes the
+numbers, so it needs the user's own words before it runs, the same as any other spec field.
+
+The shape of the exchange, using the one that comes up most:
+
+> "Creatinine is exactly -999 for 300 patients. Does that mean the test wasn't ordered? If so
+> I can mark those as missing rather than as a value, which would stop them being treated as
+> an impossibly low creatinine."
+
+On yes, write it into `spec.preprocessing` with what they said, and run the checks again.
+
+**Say what it will and will not do.** This is the part that gets misreported. Recoding a
+placeholder to missing does not make the data usable; it makes the problem visible. Those 300
+patients still have no creatinine, and the missing-value check will now say so and still
+block. What has changed is that the number is no longer being quietly computed from a
+measurement artefact.
+
+> "That's marked them as missing, which is what they are. Now the missing-value check sees
+> 300 patients with no creatinine, which it won't let us estimate through. The options are to
+> get those values, drop those patients and say so in the report, or leave creatinine out of
+> the covariate set."
+
+**Never offer a step that makes a check pass by hiding what it reported.** There is no safe
+automatic answer to a duplicated join, a missing value, an outlier or too few events, and the
+checks for those carry no suggestion for that reason. If a user asks you to drop outliers or
+impute a column, the answer is that the tool does not do it and why, not a workaround.
+
 ## The basic layer, which runs first for every family
 
 These ask whether the table says what it appears to say. They run before anything about

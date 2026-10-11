@@ -25,6 +25,8 @@ from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.gates import GateError, check_all
+from causpec.core.mapping import PreprocessingError, StepRecord
+from causpec.core.mapping import apply as apply_preprocessing
 from causpec.core.quality import check_basic, check_feasibility, check_temporal
 from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
@@ -147,6 +149,20 @@ def _persist_run(
     return run.directory
 
 
+def _preprocess(data: pd.DataFrame, spec: Spec) -> tuple[pd.DataFrame, list[StepRecord]]:
+    """Apply the spec's preprocessing steps to a working copy, before anything reads the data.
+
+    Before the checks, because a check on the raw table would report a placeholder the user
+    has already agreed to recode, and before estimation for the obvious reason. The steps are
+    part of the spec, so they are in spec_hash and the manifest already.
+    """
+    try:
+        return apply_preprocessing(data, list(spec.preprocessing))
+    except PreprocessingError as error:
+        print(f"preprocessing failed: {error}", file=sys.stderr)
+        raise SystemExit(3) from error
+
+
 def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
     """The core layers first, then the family's own, unless a core layer blocked.
 
@@ -176,7 +192,10 @@ def cmd_quality(args: argparse.Namespace) -> int:
     is why this subcommand stands alone and does not require a confirmed spec.
     """
     spec = _load_spec(args.spec)
-    report = _run_checks(_load_data(args.data), spec)
+    data, applied = _preprocess(_load_data(args.data), spec)
+    for record in applied:
+        print(f"~ [applied  ] {record.describe()}")
+    report = _run_checks(data, spec)
     for issue in report.issues:
         mark = {"blocking": "✗", "warning": "!", "info": "·"}[issue.severity.value]
         print(f"{mark} [{issue.severity.value:8}] {issue.check_id}: {issue.summary}")
@@ -187,7 +206,7 @@ def cmd_quality(args: argparse.Namespace) -> int:
 
 def cmd_estimate(args: argparse.Namespace) -> int:
     spec = _load_spec(args.spec)
-    data = _load_data(args.data)
+    data, applied = _preprocess(_load_data(args.data), spec)
     family = _resolve_family(spec)
 
     # The gate runs before estimation and stops the command if it fails, an `if` in
@@ -236,6 +255,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                 # result with one row per lag: the reader would see the lags a sentence
                 # happened to mention.
                 tables=registry.load_declaration(spec.family).get("report_tables", []),
+                preprocessing=[record.describe() for record in applied],
                 execution_mode=ExecutionMode.CLI,
             )
         except (RenderError, ReportError) as error:

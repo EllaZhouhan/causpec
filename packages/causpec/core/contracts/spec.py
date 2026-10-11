@@ -120,6 +120,56 @@ class SpecField(BaseModel):
 # identification_strategy, adjustment_set and instrument.
 CRITICAL_FIELDS = ("treatment", "outcome", "estimand")
 
+# The operations a preprocessing step may name (design.md 6.4). Six are designed; two are
+# implemented, because those are the two any check can currently suggest and unreachable
+# operations are unreviewable ones.
+PREPROCESSING_OPERATIONS = ("recode_null", "cast")
+
+
+class PreprocessingStep(BaseModel):
+    """One transformation applied to the working copy before anything is checked or estimated.
+
+    It carries ``said`` for the same reason every spec field does, and the rule is stricter
+    here: a transformation changes the numbers, so there is no version of this that the user
+    merely did not object to. If they did not say yes in their own words, it does not run.
+
+    Steps are an ordered list and the order is part of the meaning. Recoding a sentinel to
+    missing and then casting a column is not the same as casting first, where a lenient cast
+    would silently swallow the sentinel and no record of it would exist.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    op: str
+    column: str
+    # recode_null: the values to treat as missing. cast: ignored.
+    values: list[Any] = Field(default_factory=list)
+    # cast: "number". recode_null: ignored.
+    to: str | None = None
+    said: str
+    turn: int | None = None
+    # Which check asked for this, when a check suggested it. Blank for a step the user asked
+    # for themselves, which is also allowed.
+    suggested_by: str = ""
+
+    @model_validator(mode="after")
+    def _known_operation(self) -> PreprocessingStep:
+        if self.op not in PREPROCESSING_OPERATIONS:
+            raise ValueError(
+                f"unknown preprocessing operation {self.op!r}; "
+                f"available: {', '.join(PREPROCESSING_OPERATIONS)}"
+            )
+        if not self.said.strip():
+            raise ValueError(
+                "a preprocessing step requires the user's own words in `said`: a "
+                "transformation changes the numbers, so silence is not consent"
+            )
+        if self.op == "recode_null" and not self.values:
+            raise ValueError("recode_null requires the values to treat as missing")
+        if self.op == "cast" and not self.to:
+            raise ValueError("cast requires `to`")
+        return self
+
 
 class Spec(BaseModel):
     """An analysis specification."""
@@ -137,6 +187,10 @@ class Spec(BaseModel):
     # design.md 7.2's `assumptions`: three categories plus justification. The claim-level
     # decision reads this.
     assumptions: list[Assumption] = Field(default_factory=list)
+    # design.md 6.4: transformations applied to the working copy, in order, before anything is
+    # checked or estimated. They are part of the spec because they change the numbers, so they
+    # enter spec_hash and the manifest along with everything else that does.
+    preprocessing: list[PreprocessingStep] = Field(default_factory=list)
 
     def param(self, name: str, default: Any) -> Any:
         """Read one estimator hyper-parameter, falling back to a default."""

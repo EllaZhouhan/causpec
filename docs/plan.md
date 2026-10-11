@@ -72,7 +72,12 @@ so longitudinal IPCW can be delivered complete, with estimation.
 ### Phase 1 (W2-W3)
 
 1. csv/parquet adapter, the derived snapshot (parquet), the normalised fingerprint
-2. Lightweight mapping and the variable catalogue
+2. Lightweight mapping and the variable catalogue. The preprocessing half is in:
+   `recode_null` and `cast` applied to a working copy from an ordered `spec.preprocessing`,
+   offered by the check that found the problem and written down in the user's own words.
+   Two of the six designed operations, because those are the two a check can suggest. A step
+   reveals rather than repairs, which is why accepting the sentinel recode moves the refusal
+   from the NULL-encoding check to the missingness check rather than clearing it
 3. Estimand declarations in family.yaml, route_family and estimand reconciliation;
    rendering the variable-role diagram (optionally cross-checked with DoWhy)
 4. Basic-layer quality checks, written here rather than with pandera (ADR-0003): types,

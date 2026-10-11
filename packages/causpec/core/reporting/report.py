@@ -174,10 +174,25 @@ def _assumptions_section(spec: Spec) -> str:
     return "\n".join(lines).rstrip()
 
 
-def _quality_section(report: QualityReport) -> str:
+def _quality_section(report: QualityReport, preprocessing: Sequence[str] = ()) -> str:
+    """The checks, preceded by what was done to the data before they ran.
+
+    The order is the point. A reader who sees the checks first and the transformations
+    afterwards has already formed a view about a table that no longer exists.
+    """
+    lines: list[str] = []
+    if preprocessing:
+        lines += [
+            "**Before these checks ran, the following was applied to a working copy of the "
+            "data, with the user's agreement recorded in the spec. The source was not "
+            "modified.**",
+            "",
+        ]
+        lines += [f"- {step}" for step in preprocessing]
+        lines += [""]
     if not report.issues:
-        return "_No quality checks were run._"
-    lines = ["| Check | Result | Summary |", "|---|---|---|"]
+        return "\n".join([*lines, "_No quality checks were run._"]).strip()
+    lines += ["| Check | Result | Summary |", "|---|---|---|"]
     for issue in report.issues:
         lines.append(
             f"| `{issue.check_id}` | {SEVERITY_MARKS[issue.severity]} | {_escape(issue.summary)} |"
@@ -297,6 +312,7 @@ def build(
     *,
     narrative: Mapping[Any, str] | None = None,
     tables: Sequence[Mapping[str, Any]] | None = None,
+    preprocessing: Sequence[str] | None = None,
     execution_mode: ExecutionMode = ExecutionMode.CLI,
     title: str | None = None,
 ) -> str:
@@ -309,6 +325,9 @@ def build(
         tables: result-table declarations from the family, rendered into the primary
             results section ahead of the model's prose. Declared rather than coded, so
             core needs to know nothing about any family.
+        preprocessing: what the agreed preprocessing steps actually did, printed above the
+            quality table. Every number below them was computed on the transformed copy, so
+            a reader who does not know that is reading the wrong table.
 
     Raises:
         ReportError: the model tried to author a purely factual section.
@@ -329,7 +348,7 @@ def build(
     facts: dict[Section, str] = {
         Section.QUESTION_AND_SPEC: _spec_section(spec, execution_mode),
         Section.ASSUMPTIONS: _assumptions_section(spec),
-        Section.DATA_QUALITY: _quality_section(quality),
+        Section.DATA_QUALITY: _quality_section(quality, preprocessing or []),
         Section.CLAIM_LEVEL: _claim_level_section(decision),
         Section.VARIABLE_ROLES: _not_implemented(
             "The variable-role diagram", "plan.md Phase 1 task 3"

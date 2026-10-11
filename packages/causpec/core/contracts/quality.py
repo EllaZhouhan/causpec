@@ -10,6 +10,7 @@ cannot run. This layer therefore does not depend on estimation succeeding.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,6 +58,18 @@ class QualityIssue(BaseModel):
     affected_columns: list[str] = Field(default_factory=list)
     impact_on_analysis: str = ""
     recommended_repair: str = ""
+    # A preprocessing step that would address this, when one exists and is safe to name:
+    # {"op": ..., "column": ..., "values": [...]} or {"op": "cast", "column": ..., "to": ...}.
+    #
+    # Machine-readable alongside the prose, so the agent can offer the exact step and write it
+    # into the spec on acceptance rather than paraphrasing a sentence into an operation. It is
+    # a suggestion and nothing more: a step only runs once the user has agreed in their own
+    # words, which PreprocessingStep enforces.
+    #
+    # Most checks carry none, deliberately. There is no safe automatic answer to a duplicated
+    # join, a missing value, or too few events, and offering one would invite the user to make
+    # a problem invisible instead of deciding about it.
+    suggested_operation: dict[str, Any] | None = None
 
     @property
     def address(self) -> str:

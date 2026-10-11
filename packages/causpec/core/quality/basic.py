@@ -111,6 +111,7 @@ def _issue(
     impact: str = "",
     repair: str = "",
     severity: Severity | None = None,
+    suggested_operation: dict[str, Any] | None = None,
 ) -> QualityIssue:
     """Build one issue, honouring the invariant that a passing check is downgraded to INFO.
 
@@ -130,6 +131,7 @@ def _issue(
         affected_columns=columns or [],
         impact_on_analysis=impact,
         recommended_repair=repair,
+        suggested_operation=suggested_operation,
     )
 
 
@@ -344,6 +346,9 @@ def _null_encoding(data: pd.DataFrame, columns: list[str], config: dict[str, Any
     }
     findings: list[str] = []
     affected: list[str] = []
+    # Column -> the placeholder values found in it, so a suggested step can name them exactly
+    # rather than the agent re-deriving them from the prose.
+    per_column: dict[str, list[object]] = {}
     for column in columns:
         series = data[column]
         if pd.api.types.is_numeric_dtype(series):
@@ -356,6 +361,7 @@ def _null_encoding(data: pd.DataFrame, columns: list[str], config: dict[str, Any
                     evidence[f"{column}_sentinel"] = sentinel
                     evidence[f"{column}_sentinel_count"] = count
                     affected.append(column)
+                    per_column.setdefault(column, []).append(sentinel)
         else:
             texts = {
                 str(value).strip().lower()
@@ -367,7 +373,18 @@ def _null_encoding(data: pd.DataFrame, columns: list[str], config: dict[str, Any
                 findings.append(f"{column} contains the text {', '.join(repr(s) for s in spelled)}")
                 evidence[f"{column}_string_nulls"] = ", ".join(spelled)
                 affected.append(column)
+                per_column.setdefault(column, []).extend(spelled)
     passed = not findings
+    # One step per column would be the honest shape, but a check emits one issue, so the
+    # suggestion names the column with the most occurrences and the agent asks about the rest.
+    suggestion: dict[str, Any] | None = None
+    if per_column:
+        column = max(per_column, key=lambda name: len(per_column[name]))
+        suggestion = {
+            "op": "recode_null",
+            "column": column,
+            "values": sorted(per_column[column], key=str),
+        }
     return _issue(
         config,
         "basic_null_encoding",
@@ -386,8 +403,12 @@ def _null_encoding(data: pd.DataFrame, columns: list[str], config: dict[str, Any
         repair=(
             "Replace the placeholder with an empty value at the source, then decide what to do "
             "about the missingness, which is a different question with a different answer. If "
-            "the value is real in your data, say so and waive this check."
+            "the value is real in your data, say so and waive this check. The suggested step "
+            "does the replacement on the working copy, which reveals the missingness rather "
+            "than repairing it: the missing-value check will then report what the placeholder "
+            "was hiding."
         ),
+        suggested_operation=suggestion,
     )
 
 

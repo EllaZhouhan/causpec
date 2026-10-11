@@ -35,6 +35,41 @@ fields:
   causal_claim_approved: {value: true, ...}       # only once the user agrees to causal wording
 ```
 
+## `preprocessing`, when a check suggested a step and the user agreed
+
+An ordered list of transformations applied to a working copy before anything is checked or
+estimated. The source file is never modified.
+
+```yaml
+preprocessing:
+  - op: recode_null
+    column: max_creatinine
+    values: [-999]
+    said: yes, -999 means the test was never ordered
+    turn: 7
+    suggested_by: basic_null_encoding
+  - op: cast
+    column: max_potassium
+    to: number
+    said: yes, that column should be numbers
+    turn: 8
+```
+
+Two operations exist: `recode_null`, which treats the named values as missing, and `cast`,
+which converts a column to numbers and **refuses** anything that is not one. Four more are
+designed and not implemented, because nothing suggests them yet.
+
+**`said` is required and is enforced**, not conventional. A transformation changes the
+numbers, so a step the user did not agree to in their own words does not exist. The same
+rule as a confirmed field, applied where it matters more.
+
+**Order matters.** `recode_null` before `cast`: a cast that met the placeholder first would
+refuse, and the error message says to add the recode. That refusal is deliberate, because a
+lenient cast would perform the recode silently and leave no record of it.
+
+**The steps enter `spec_hash`.** They change the numbers, so a run with them is a different
+run, and the report prints what each one did above the quality table.
+
 ## `assignment_mechanism`, asked at step 1c
 
 How the treatment came to be given, in the user's words, with one of three values. It is not

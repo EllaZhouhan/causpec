@@ -9,5 +9,14 @@ This package also holds the variable catalogue (design.md 6.2): source column, u
 measurement window relative to time zero, aggregation. Without a measurement window
 the post-treatment check can only report `suspected`.
 
-Not implemented yet, see plan.md Phase 1 task 2.
+Two of the six operations are implemented, ``recode_null`` and ``cast``, because those are
+the two any check can currently suggest and an operation no caller can reach is an operation
+nobody reviews. See ``operations.py``; the rest wait for a caller.
+
+The variable catalogue and the lightweight column mapping are still open (plan.md Phase 1
+task 2).
 """
+
+from causpec.core.mapping.operations import PreprocessingError, StepRecord, apply
+
+__all__ = ["PreprocessingError", "StepRecord", "apply"]

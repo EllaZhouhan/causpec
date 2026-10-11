@@ -7,6 +7,29 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **A preprocessing path where the check that found the problem offers the fix** (design.md
+  6.4): `spec.preprocessing` is an ordered list of steps applied to a working copy before
+  anything is checked or estimated, and a check that has an exact remedy attaches it as
+  `suggested_operation` so the agent offers the operation it found rather than paraphrasing a
+  sentence back into one. Two operations, `recode_null` and `cast`, because those are the two
+  a check can currently suggest and an operation no caller can reach is an operation nobody
+  reviews
+- **A step reveals rather than repairs, and this is the property that makes the path safe.**
+  Accepting the sentinel recode on 300 patients does not clear the refusal, it relocates it:
+  `basic_null_encoding` stops blocking and `basic_missing_values` starts, because those
+  patients have no creatinine either way and now the report says so. No check suggests a step
+  that would make it pass by hiding what it reported, and there is no suggestion at all for a
+  duplicated join, a missing value, an outlier or too few events, which have no safe automatic
+  answer
+- **`cast` is strict, and the lenient version is the trap it exists to avoid.**
+  `to_numeric(errors="coerce")` would turn "NA" into a missing value, performing a recode
+  nobody declared and leaving no record of it. So the cast refuses, names the values standing
+  in the way, and says to add the `recode_null` step before it. Order is part of the meaning
+- **Silence is not consent, enforced in the contract.** `PreprocessingStep` requires `said`
+  and rejects a blank one, the same rule as a confirmed spec field applied where it matters
+  more, because a step changes the numbers. The steps enter `spec_hash`, so a run with them is
+  a different run, and the report prints what each one did above the quality table, including
+  a step that changed nothing, which usually means the column was not what the user thought
 - **Two outlier checks in the basic layer, and the statistic matters.** A z-score rule is
   useless here: on this project's ICU data the largest |z| per column runs from 2.9 to 4.2, so
   a rule at 3 or 4 fires on nearly every column and gets ignored. Lab values are right-skewed

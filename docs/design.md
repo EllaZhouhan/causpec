@@ -171,12 +171,39 @@ time_zero.
 Longitudinal table: unit_id, episode_id, time_index, timestamp, eligible, action, state
 variables, outcome, event_type.
 
-### 6.4 Mapping
+### 6.4 Mapping and preprocessing
 
 Six lightweight operations only: rename, cast, recode_null, map_categories,
 unit_convert, aggregate over a window. Anything more complex belongs in the data owner's
 view. The mapping is drafted by the agent and confirmed by the user; arbitrary
 expressions are not accepted.
+
+Two are implemented, `recode_null` and `cast`, because those are the two a check can
+currently suggest, and an operation no caller can reach is an operation nobody reviews.
+The steps live in `spec.preprocessing` as an ordered list and are applied to a working
+copy before any check or estimate runs.
+
+Four properties govern the path, and the first is what makes it worth having:
+
+1. **A step reveals; it does not repair.** Recoding a placeholder to missing does not
+   make the data usable, it makes the problem visible: the missingness check then
+   reports the 300 patients the sentinel was concealing, and still blocks. A
+   preprocessing path that let a blocking check pass by hiding what it reported would be
+   worse than having none, so no check ever suggests a step with that effect. There is no
+   safe automatic answer to a duplicated join, a missing value, an outlier or too few
+   events, and those checks carry no suggestion.
+2. **Silence is not consent.** A step changes the numbers, so `said` is required and
+   enforced in the contract rather than left to convention. The agent offers the exact
+   operation a check attached to its finding; the user agrees in their own words.
+3. **Order is meaning.** `recode_null` before `cast`, because a lenient cast would
+   perform the recode silently and leave no record of it. So `cast` is strict and its
+   refusal names the values in the way and the step that would clear them.
+4. **The source is never modified**, which is the read-only guarantee of ADR-0002 rather
+   than a convenience.
+
+The steps enter `spec_hash`: a run with them is a different run. The report prints what
+each one did, including a step that changed nothing, which usually means the column was
+not what the user thought it was.
 
 ### 6.5 Snapshots and fingerprints
 
