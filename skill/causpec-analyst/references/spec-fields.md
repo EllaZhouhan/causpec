@@ -55,17 +55,35 @@ preprocessing:
     turn: 8
 ```
 
-Two operations exist: `recode_null`, which treats the named values as missing, and `cast`,
-which converts a column to numbers and **refuses** anything that is not one. Four more are
-designed and not implemented, because nothing suggests them yet.
+Operations: `recode_null` treats the named values as missing, `cast` converts a column to
+numbers and **refuses** anything that is not one, `add_missing_indicator` adds a 0/1 column
+recording whether the value was observed, and four fill missing values:
+
+| Operation | When it is right | What it costs |
+|---|---|---|
+| `impute_constant` | A missing infusion rate usually means no infusion, so zero is a measurement | Worst of the four when wrong: a plausible number is indistinguishable from a real one, so `value` is required and never defaulted |
+| `impute_median` | Nothing else is available and the column is one of many | Every filled unit sits at the centre, so the column carries less than it did. The record prints the spread among the filled, which is zero |
+| `impute_iterative` | The other columns genuinely predict this one | One draw, so still too narrow. Assumes missing at random given those columns. Where the columns are independent it degenerates to the median fill, and the record's spread among the filled is what tells you |
+| `impute_locf` | A panel measurement not repeated often means nothing changed | Requires `limit`, because carrying a value twelve hours and carrying it five days are different claims. Carries forward only, never backward |
+
+**Any fill makes the run exploratory.** `interval_calibration` drops from `calibrated` to
+`exploratory` and no result may be called significant, because a single filled value
+understates the variance by exactly the term multiple imputation exists to add back. Say this
+to the user **before** they accept, not after.
+
+**`add_missing_indicator` must come before a fill on the same column** and is refused after
+one: once the gaps are filled there is no record of where they were. It also does nothing
+until the new column is in the covariate set, which is a separate confirmed spec field, so
+write both in the same turn.
 
 **`said` is required and is enforced**, not conventional. A transformation changes the
 numbers, so a step the user did not agree to in their own words does not exist. The same
 rule as a confirmed field, applied where it matters more.
 
-**Order matters.** `recode_null` before `cast`: a cast that met the placeholder first would
-refuse, and the error message says to add the recode. That refusal is deliberate, because a
-lenient cast would perform the recode silently and leave no record of it.
+**Order matters**, in two places. `recode_null` before `cast`: a cast that met the
+placeholder first would refuse, and the error says to add the recode, because a lenient cast
+would perform the recode silently. `add_missing_indicator` before any fill, for the reason
+above.
 
 **The steps enter `spec_hash`.** They change the numbers, so a run with them is a different
 run, and the report prints what each one did above the quality table.

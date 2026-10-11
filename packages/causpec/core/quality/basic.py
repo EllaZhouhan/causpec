@@ -30,7 +30,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import yaml
 
-from causpec.core.contracts.quality import Layer, QualityIssue, QualityReport, Severity
+from causpec.core.contracts.quality import (
+    Layer,
+    QualityIssue,
+    QualityReport,
+    Severity,
+    Suggestion,
+)
 from causpec.core.contracts.spec import Spec
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -111,7 +117,7 @@ def _issue(
     impact: str = "",
     repair: str = "",
     severity: Severity | None = None,
-    suggested_operation: dict[str, Any] | None = None,
+    suggestions: list[Suggestion] | None = None,
 ) -> QualityIssue:
     """Build one issue, honouring the invariant that a passing check is downgraded to INFO.
 
@@ -131,7 +137,7 @@ def _issue(
         affected_columns=columns or [],
         impact_on_analysis=impact,
         recommended_repair=repair,
-        suggested_operation=suggested_operation,
+        suggestions=suggestions or [],
     )
 
 
@@ -290,19 +296,70 @@ def _missing_values(
         if final_only
         else ""
     )
-    # A filter is offered only for a single affected column, and only when the missingness is
-    # not the final-period artefact. Dropping on four columns at once compounds an exclusion
-    # the user has not seen the size of yet, and each column deserves its own decision, so
-    # several affected columns carry no suggestion and the prose says to take them one at a
-    # time. The drop is a population decision rather than a preprocessing step: it changes who
-    # the answer is about, so it belongs in the ledger.
-    suggestion: dict[str, Any] | None = None
+    # The menu, offered only for a single affected column and only when the missingness is not
+    # the final-period artefact. Several affected columns get nothing: each exclusion
+    # compounds the last and each fill flattens another column, so they are decided one at a
+    # time, and a user who agreed to one number has not agreed to the total.
+    #
+    # The order is the order worth considering, not a ranking of quality. Exclusion comes
+    # first because it invents nothing; the fills come next with what each one costs; leaving
+    # the column out is last and carries no operation because it is a change to a confirmed
+    # spec field rather than something to run.
+    suggestions: list[Suggestion] = []
     if len(counts) == 1 and not passed and not final_only:
-        suggestion = {
-            "kind": "population_filter",
-            "column": next(iter(counts)),
-            "op": "not_missing",
-        }
+        column = next(iter(counts))
+        suggestions = [
+            Suggestion(
+                kind="population_filter",
+                operation={"column": column, "op": "not_missing"},
+                cost=(
+                    "Invents nothing. The analysis becomes about the units that have this "
+                    "column, which are usually not a random subset: the exclusion ledger "
+                    "and population_exclusion_informative will say how they differ."
+                ),
+            ),
+            Suggestion(
+                kind="preprocessing",
+                operation={"op": "impute_median", "column": column},
+                cost=(
+                    "Keeps every unit and places each filled one at the centre, so the "
+                    "column's spread shrinks and whatever it contributes is diluted. The "
+                    "step record prints how much the spread moved. Any fill makes this run "
+                    "exploratory: no result may be called significant."
+                ),
+            ),
+            Suggestion(
+                kind="preprocessing",
+                operation={"op": "impute_iterative", "column": column},
+                cost=(
+                    "Fills from the other analysis columns including the treatment and the "
+                    "outcome, so relationships survive better than under the median. Still "
+                    "one draw, so the interval is still too narrow, and this run becomes "
+                    "exploratory. It assumes the values are missing at random given those "
+                    "columns, which is untestable and often false where a test was skipped "
+                    "because the patient looked fine."
+                ),
+            ),
+            Suggestion(
+                kind="preprocessing",
+                operation={"op": "add_missing_indicator", "column": column},
+                cost=(
+                    "Adds information rather than substituting it: that the test was ordered "
+                    "is itself a fact. Does not fix the missingness, so pair it with a fill, "
+                    "and add the new column to the covariate set or it changes nothing."
+                ),
+            ),
+            Suggestion(
+                kind="spec_field",
+                operation={"field": "effect_modifiers", "remove": column},
+                cost=(
+                    "Keeps every unit and invents nothing, at the price of whatever this "
+                    "column was adjusting for. The best answer when the column is one of "
+                    "many and a poor confounder, the worst when it drives the treatment "
+                    "decision."
+                ),
+            ),
+        ]
 
     return _issue(
         config,
@@ -343,7 +400,7 @@ def _missing_values(
             )
             + extra
         ),
-        suggested_operation=suggestion,
+        suggestions=suggestions,
     )
 
 
@@ -401,15 +458,24 @@ def _null_encoding(data: pd.DataFrame, columns: list[str], config: dict[str, Any
     passed = not findings
     # One step per column would be the honest shape, but a check emits one issue, so the
     # suggestion names the column with the most occurrences and the agent asks about the rest.
-    suggestion: dict[str, Any] | None = None
+    suggestion: list[Suggestion] = []
     if per_column:
         column = max(per_column, key=lambda name: len(per_column[name]))
-        suggestion = {
-            "kind": "preprocessing",
-            "op": "recode_null",
-            "column": column,
-            "values": sorted(per_column[column], key=str),
-        }
+        suggestion = [
+            Suggestion(
+                kind="preprocessing",
+                operation={
+                    "op": "recode_null",
+                    "column": column,
+                    "values": sorted(per_column[column], key=str),
+                },
+                cost=(
+                    "Nothing is invented and nothing is lost: the placeholder stops being "
+                    "read as a measurement. It does not make the data usable, it makes the "
+                    "gap visible, so expect the missing-value check to speak next."
+                ),
+            )
+        ]
     return _issue(
         config,
         "basic_null_encoding",
@@ -433,7 +499,7 @@ def _null_encoding(data: pd.DataFrame, columns: list[str], config: dict[str, Any
             "than repairing it: the missing-value check will then report what the placeholder "
             "was hiding."
         ),
-        suggested_operation=suggestion,
+        suggestions=suggestion,
     )
 
 

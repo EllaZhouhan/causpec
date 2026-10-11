@@ -422,15 +422,19 @@ def test_the_families_interval_calibration_reaches_the_claim_level() -> None:
     significance claim, and the CLI has to carry that from family.yaml to the decision.
 
     Without this wiring the panel family's report would print calibrated intervals it does
-    not have, which is the one thing the claim level exists to prevent. Read from the
-    declaration rather than from a run, because it is a property of the method.
+    not have, which is the one thing the claim level exists to prevent. A property of the
+    method, so it is read from the declaration.
     """
     from causpec.cli import _interval_calibration
+    from causpec.core.contracts.spec import Spec
 
-    assert _interval_calibration("dynamic_lag_dml") == "exploratory"
+    def calibration_of(family: str) -> str:
+        return _interval_calibration(Spec(question="q", family=family))[0]
+
+    assert calibration_of("dynamic_lag_dml") == "exploratory"
     # The cross-sectional families say nothing, and the default is the ordinary case.
-    assert _interval_calibration("hte_iv") == "calibrated"
-    assert _interval_calibration("hte_backdoor") == "calibrated"
+    assert calibration_of("hte_iv") == "calibrated"
+    assert calibration_of("hte_backdoor") == "calibrated"
 
 
 def test_a_blocking_gate_reports_the_diagnosis_it_already_computed(workspace, capsys) -> None:

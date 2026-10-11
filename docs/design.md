@@ -178,10 +178,25 @@ unit_convert, aggregate over a window. Anything more complex belongs in the data
 view. The mapping is drafted by the agent and confirmed by the user; arbitrary
 expressions are not accepted.
 
-Two are implemented, `recode_null` and `cast`, because those are the two a check can
-currently suggest, and an operation no caller can reach is an operation nobody reviews.
-The steps live in `spec.preprocessing` as an ordered list and are applied to a working
-copy before any check or estimate runs.
+Implemented: `recode_null`, `cast`, and four fills, `impute_constant`, `impute_median`,
+`impute_iterative` and `impute_locf`, plus `add_missing_indicator`. The steps live in
+`spec.preprocessing` as an ordered list and are applied to a working copy before any check or
+estimate runs. `impute_mean` is deliberately absent: ICU labs are right-skewed, so the mean of
+the observed is a worse centre than the median and there is no case where it is better.
+
+**A fill is allowed and it is charged for.** Any step in `IMPUTATION_OPERATIONS` makes the run
+`interval_calibration: exploratory`, which forbids a significance claim, because a single
+fill understates the variance by exactly the between-imputation term that multiple imputation
+exists to add back, and the pooling step is not built. The report names the columns that were
+filled as the reason, rather than attributing it to the estimator.
+
+Each fill also records what it did to the spread, and the statistic has to be the right one.
+The column's own standard deviation does not reliably shrink: filling a right-skewed column
+at its median puts values away from the mean, which can widen it. What is unambiguous is
+**the spread among the values written**, which a median fill makes exactly zero. On this
+project's own data, where the generator's covariates are independent by construction, an
+iterative fill produces a spread of 0.04 on a column whose own spread is 108: it has done the
+median fill with extra steps, and that number is what says so.
 
 Four properties govern the path, and the first is what makes it worth having:
 
@@ -200,6 +215,12 @@ Four properties govern the path, and the first is what makes it worth having:
    refusal names the values in the way and the step that would clear them.
 4. **The source is never modified**, which is the read-only guarantee of ADR-0002 rather
    than a convenience.
+
+Two ordering rules follow from the second and third, and both were found by running the CLI
+rather than by reasoning about it. `recode_null` comes before `cast`, because a lenient cast
+would perform the recode silently. `add_missing_indicator` comes before any fill on the same
+column, and is refused after one: once the gaps are filled there is no record of where they
+were, so the indicator would be 1 everywhere and carry nothing, silently.
 
 The steps enter `spec_hash`: a run with them is a different run. The report prints what
 each one did, including a step that changed nothing, which usually means the column was

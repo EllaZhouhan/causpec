@@ -156,12 +156,39 @@ population checks back to them**, because that is where the cost shows up:
 offers nothing, deliberately: each exclusion compounds the last, and a user who agrees to one
 number has not agreed to the total.
 
+## Filling the gaps, which the tool will do and will charge for
+
+Four fills exist and none of them is a default. `spec-fields.md` has the table of when each
+is right; what matters in the conversation is that **you say the price before they accept,
+not after**:
+
+> "I can fill those 200 creatinines with the median of the rest. Every one of those patients
+> then sits at the same value, so the column carries less than it did, and the report will
+> print how much the spread moved. It also means this run cannot call anything significant:
+> filling a value makes the interval narrower than the evidence supports, and the correction
+> for that needs multiple imputation, which this tool does not have. If you want the
+> interval to mean what it says, the exclusion is the honest route."
+
+That last clause is the one to keep. The claim level drops to `suggestive` automatically and
+the report names the filled columns as the reason, so a user who was not told beforehand will
+find out from the report, which is the wrong order.
+
+Two things to get right when they say yes:
+
+- **`add_missing_indicator` goes before the fill**, and is refused after one. Once the gaps
+  are filled there is nothing left to record. Add the new column to the covariate set in the
+  same turn or it changes nothing.
+- **Read back the spread among the filled values** from the step record. Zero means every
+  filled patient holds the same number. A near-zero spread from `impute_iterative` means the
+  other columns do not predict this one and the fancier method did the median fill with extra
+  steps, which is worth saying rather than hiding.
+
 **What is still refused.** A filter on the treatment or the outcome is blocked and cannot be
-waived. Dropping outliers and imputing a column are not operations this tool has: the first
-discards the most informative value in an ICU row, and the second produces an interval
-computed as though the filled values had been measured. If the user asks for imputation, say
-that multiple imputation with the uncertainty carried into the interval is the version worth
-having and that it is not built yet, rather than offering a single filled value.
+waived. Dropping outliers and winsorizing are not operations this tool has, because the
+largest creatinine in an ICU row is often the most important number in it. If a user asks for
+multiple imputation, the honest answer is that it is the version worth having, that it needs
+m datasets, m analyses and a pooling step, and that this tool has the single-draw version
+with the interval marked exploratory instead.
 
 ## The basic layer, which runs first for every family
 

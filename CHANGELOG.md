@@ -7,6 +7,34 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Four imputations the user chooses from, with the price charged automatically.**
+  `impute_constant`, `impute_median`, `impute_iterative` and `impute_locf`, plus
+  `add_missing_indicator`, all ordinary preprocessing steps on the working copy. The
+  missing-value check now offers a menu of five ways forward, each with the sentence to read
+  back to the user, rather than one default: exclusion first because it invents nothing, the
+  fills next, dropping the column last
+- **Any fill makes the run `exploratory` and the report says which column did it.** A single
+  filled value understates the variance by exactly the between-imputation term that multiple
+  imputation exists to add back, and the pooling step is not built, so no result in such a run
+  may be called significant. `interval_calibration` was a property of the family only; it is
+  now also a property of the run, and the reason text names the filled columns instead of
+  blaming the estimator
+- **The spread statistic had to be the right one.** The column's own standard deviation does
+  not reliably shrink under a fill: filling a right-skewed column at its median puts values
+  away from the mean, which can widen it. So each step records the spread **among the values
+  written**, which a median fill makes exactly zero. On this project's own data, whose
+  covariates are independent by construction, `impute_iterative` produces a spread of 0.04 on
+  a column whose own spread is 108: it has done the median fill with extra steps, and that
+  number is what says so. Both outcomes are pinned by tests
+- **`impute_iterative` predicts from the treatment and the outcome**, which is the part that
+  is usually got wrong: imputing a covariate from the other covariates alone makes the filled
+  values independent of the outcome given those covariates, which biases the association
+  towards zero and weakens the very adjustment the column was there to provide
+- **Two ordering rules, both found by running the CLI rather than by reasoning.**
+  `add_missing_indicator` is refused after a fill on the same column: the gaps are gone, so
+  the indicator would be 1 everywhere and carry nothing, silently. And a step's record counts
+  what it actually changed rather than what was missing, which `impute_locf` with a limit
+  exposed: it left one gap open on purpose and the record had claimed it
 - **Population filters, so the tool can do the exclusion it was already recommending**
   (design.md 7.2). `basic_missing_values` used to say "drop those units and say in the report
   how many and why", and no spec field could express it: `population` existed only as a

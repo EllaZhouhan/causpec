@@ -32,6 +32,32 @@ class Severity(StrEnum):
     INFO = "info"
 
 
+class Suggestion(BaseModel):
+    """One way forward the user can accept, with what it costs.
+
+    `kind` says which part of the spec the answer goes into, and the two differ in what they
+    do. A `preprocessing` step changes the data: a recode changes only how a value is written
+    down, an imputation substitutes values nobody measured. A `population_filter` changes
+    **who the answer is about**, and accepting one puts a row in the report's exclusion
+    ledger.
+
+    `cost` is the sentence to read back to the user. It exists because the agent would
+    otherwise invent one, and the trade-offs here are the kind that sound reasonable in
+    either direction: "we filled the gaps" and "we dropped the incomplete records" both sound
+    like diligence.
+
+    `operation` is the spec fragment, ready to write once the user has agreed in their own
+    words. Nothing runs before that, which `PreprocessingStep` and `PopulationFilter`
+    enforce for themselves.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: str
+    operation: dict[str, Any]
+    cost: str = ""
+
+
 class QualityIssue(BaseModel):
     """One quality-check result.
 
@@ -58,25 +84,15 @@ class QualityIssue(BaseModel):
     affected_columns: list[str] = Field(default_factory=list)
     impact_on_analysis: str = ""
     recommended_repair: str = ""
-    # An operation that would address this, when one exists and is safe to name. `kind` says
-    # which part of the spec it belongs to, because the two differ in what they cost:
-    #
-    #   {"kind": "preprocessing", "op": "recode_null", "column": ..., "values": [...]}
-    #   {"kind": "population_filter", "column": ..., "op": "not_missing"}
-    #
-    # A preprocessing step changes how a value is written down and adds no information. A
-    # population filter changes **who the answer is about**, so accepting one puts a row in
-    # the report's exclusion ledger and triggers a check on whether the excluded differ from
-    # the kept. Both are suggestions and nothing more: neither runs until the user has agreed
-    # in their own words, which both contracts enforce.
-    #
-    # Machine-readable alongside the prose, so the agent offers the exact operation and writes
-    # it into the spec on acceptance rather than paraphrasing a sentence back into one.
+    # Ways forward the user can accept, in the order they are worth considering. A list
+    # rather than one operation because the honest answer to missing values is a menu: fill
+    # the column, exclude the units, or drop the column, and the choice is a trade the user
+    # has to make rather than one a default can make for them.
     #
     # Many checks carry none, deliberately. A duplicated join, an outlier and too few events
     # have no safe automatic answer, and offering one would invite the user to make a problem
     # invisible instead of deciding about it.
-    suggested_operation: dict[str, Any] | None = None
+    suggestions: list[Suggestion] = Field(default_factory=list)
 
     @property
     def address(self) -> str:

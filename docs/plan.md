@@ -76,7 +76,9 @@ so longitudinal IPCW can be delivered complete, with estimation.
    with a closed operator set, applied after preprocessing and before every check, with an
    exclusion ledger in the report and two checks pricing what each filter removed. This closed
    the hole where the missing-value refusal recommended an exclusion the spec had no way to
-   express. The preprocessing half is in:
+   express. Four imputations too, offered as a menu with what each costs, and any of them
+   makes the run exploratory because the pooling step that would justify the interval is not
+   built. The preprocessing half is in:
    `recode_null` and `cast` applied to a working copy from an ordered `spec.preprocessing`,
    offered by the check that found the problem and written down in the user's own words.
    Two of the six designed operations, because those are the two a check can suggest. A step

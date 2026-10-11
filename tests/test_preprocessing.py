@@ -206,24 +206,25 @@ def test_the_check_suggests_the_exact_step(sentinel) -> None:
     """Machine-readable alongside the prose, so the agent offers the step it found rather than
     paraphrasing a sentence back into an operation."""
     issue = check_basic(sentinel, make_spec()).get("basic_null_encoding")
-    suggestion = issue.suggested_operation
-    assert suggestion == {
-        # `kind` says which part of the spec it belongs to. A recode is a preprocessing step
-        # because it adds no information; an exclusion is a population decision because it
-        # changes who the answer is about, and costs a row in the ledger.
-        "kind": "preprocessing",
+    assert len(issue.suggestions) == 1
+    suggestion = issue.suggestions[0]
+    # `kind` says which part of the spec the answer goes into. A recode is preprocessing
+    # because it adds no information; an exclusion is a population decision because it changes
+    # who the answer is about, and costs a row in the ledger.
+    assert suggestion.kind == "preprocessing"
+    assert suggestion.operation == {
         "op": "recode_null",
         "column": "max_creatinine",
         "values": [-999.0],
     }
-    assert suggestion is not None
+    assert "makes the gap visible" in suggestion.cost
     # And the suggestion is applicable as written, once the user has agreed to it. Field by
     # field rather than by unpacking, so that a suggestion growing a key the contract does not
     # accept fails here rather than at the call site in the agent's hands.
     step = PreprocessingStep(
-        op=str(suggestion["op"]),
-        column=str(suggestion["column"]),
-        values=list(suggestion["values"]),
+        op=str(suggestion.operation["op"]),
+        column=str(suggestion.operation["column"]),
+        values=list(suggestion.operation["values"]),
         said="yes, -999 means not ordered",
     )
     _, records = apply_steps(sentinel, [step])
@@ -236,5 +237,5 @@ def test_most_checks_suggest_nothing(sentinel) -> None:
     deciding about it."""
     data = pd.concat([sentinel, sentinel.iloc[:10]], ignore_index=True)
     report = check_basic(data, make_spec())
-    for check_id in ("basic_duplicate_rows", "basic_missing_values", "basic_isolated_extremes"):
-        assert report.get(check_id).suggested_operation is None, check_id
+    for check_id in ("basic_duplicate_rows", "basic_isolated_extremes", "basic_zero_spike"):
+        assert report.get(check_id).suggestions == [], check_id

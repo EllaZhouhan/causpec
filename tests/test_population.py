@@ -295,16 +295,15 @@ def test_the_missing_value_check_offers_the_exclusion(unmeasured) -> None:
     could express, so the user went and filtered the CSV by hand, which is the silent
     exclusion the same sentence warned against."""
     issue = check_basic(unmeasured, make_spec()).get("basic_missing_values")
-    suggestion = issue.suggested_operation
-    assert suggestion == {
-        "kind": "population_filter",
-        "column": "max_creatinine",
-        "op": "not_missing",
-    }
-    assert suggestion is not None
+    exclusions = [s for s in issue.suggestions if s.kind == "population_filter"]
+    assert len(exclusions) == 1
+    # First in the menu, because it invents nothing. The fills follow it, each with its own
+    # cost, and the user chooses: see test_imputation.py for what the fills cost.
+    assert issue.suggestions[0] is exclusions[0]
+    assert exclusions[0].operation == {"column": "max_creatinine", "op": "not_missing"}
     accepted = PopulationFilter(
-        column=str(suggestion["column"]),
-        op=str(suggestion["op"]),
+        column=str(exclusions[0].operation["column"]),
+        op=str(exclusions[0].operation["op"]),
         said="yes, drop them and note it",
     )
     _, ledger = apply_filters(unmeasured, make_spec(accepted))
@@ -317,5 +316,5 @@ def test_several_affected_columns_offer_nothing(unmeasured) -> None:
     data = unmeasured.copy()
     data.loc[data.index[500:600], "max_potassium"] = np.nan
     issue = check_basic(data, make_spec()).get("basic_missing_values")
-    assert issue.suggested_operation is None
+    assert issue.suggestions == []
     assert "one at a time" in issue.recommended_repair

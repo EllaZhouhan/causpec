@@ -122,10 +122,34 @@ class SpecField(BaseModel):
 # exist are each confirmed individually.
 CRITICAL_FIELDS = ("treatment", "outcome", "estimand")
 
-# The operations a preprocessing step may name (design.md 6.4). Six are designed; two are
-# implemented, because those are the two any check can currently suggest and unreachable
-# operations are unreviewable ones.
-PREPROCESSING_OPERATIONS = ("recode_null", "cast")
+# The operations a preprocessing step may name (design.md 6.4).
+#
+# The first two change how a value is written down and add no information. The rest fill
+# values nobody measured, which is a different kind of act: every one of them makes the
+# interval narrower than the evidence supports, so a spec containing any of them runs with
+# `interval_calibration: exploratory` and cannot reach a significance claim. That is the
+# price, and it is charged automatically rather than left to a reader to notice.
+#
+# `impute_mean` is deliberately absent: ICU labs are right-skewed, so the mean of the
+# observed is a worse centre than the median and there is no case where it is the better
+# choice.
+PREPROCESSING_OPERATIONS = (
+    "recode_null",
+    "cast",
+    "impute_constant",
+    "impute_median",
+    "impute_iterative",
+    "impute_locf",
+    "add_missing_indicator",
+)
+
+# The operations that substitute values nobody measured.
+IMPUTATION_OPERATIONS = (
+    "impute_constant",
+    "impute_median",
+    "impute_iterative",
+    "impute_locf",
+)
 
 
 class PreprocessingStep(BaseModel):
@@ -148,6 +172,12 @@ class PreprocessingStep(BaseModel):
     values: list[Any] = Field(default_factory=list)
     # cast: "number". recode_null: ignored.
     to: str | None = None
+    # impute_constant: the value to fill. Required there, ignored elsewhere.
+    value: Any = None
+    # impute_locf: how many consecutive periods a value may be carried. Required, because
+    # carrying a creatinine forward twelve hours and carrying it forward five days are
+    # different claims and only one of them is usually defensible.
+    limit: int | None = None
     said: str
     turn: int | None = None
     # Which check asked for this, when a check suggested it. Blank for a step the user asked
@@ -170,7 +200,26 @@ class PreprocessingStep(BaseModel):
             raise ValueError("recode_null requires the values to treat as missing")
         if self.op == "cast" and not self.to:
             raise ValueError("cast requires `to`")
+        if self.op == "impute_constant" and self.value is None:
+            raise ValueError(
+                "impute_constant requires `value`: the number to fill. There is no sensible "
+                "default, and a wrong one is indistinguishable from a measurement"
+            )
+        if self.op == "impute_locf":
+            if self.limit is None:
+                raise ValueError(
+                    "impute_locf requires `limit`: how many consecutive periods a value may "
+                    "be carried forward. Carrying one forward twelve hours and carrying it "
+                    "forward five days are different claims"
+                )
+            if self.limit < 1:
+                raise ValueError("impute_locf requires limit >= 1")
         return self
+
+    @property
+    def imputes(self) -> bool:
+        """Whether this step fills values nobody measured."""
+        return self.op in IMPUTATION_OPERATIONS
 
 
 # Comparisons a population filter may use. No arbitrary expressions, for the same reason the
@@ -280,6 +329,16 @@ class Spec(BaseModel):
     # a check should describe the population being analysed rather than one nobody asked
     # about. It changes who the answer is about, so it enters spec_hash.
     population: Population = Field(default_factory=Population)
+
+    def imputed_columns(self) -> list[str]:
+        """Columns holding filled values, in the order they were filled.
+
+        Read by the claim-level decision: an interval computed over a column that is partly
+        invented is narrower than the evidence supports, whatever the estimator does, so the
+        run is exploratory. The alternative to charging this automatically is a report whose
+        interval looks like every other interval.
+        """
+        return [step.column for step in self.preprocessing if step.imputes]
 
     def param(self, name: str, default: Any) -> Any:
         """Read one estimator hyper-parameter, falling back to a default."""
