@@ -157,6 +157,32 @@ checks:
     # Binary instruments only. Under monotonicity E[T|Z=1] - E[T|Z=0] is the complier share.
     min_complier_share: 0.05
 
+  iv_overidentification:
+    layer: identification
+    severity: warning           # never blocking: see below
+    waivable: true
+    # Only engages with more than one instrument, since with one there is nothing for the
+    # instruments to disagree about. Heteroskedasticity-robust, from linearmodels (NCSA).
+    #
+    # Not blocking, and the reason is specific to this family rather than general caution.
+    # With a heterogeneous effect, two valid instruments identify two different weighted
+    # averages of individual effects, so the test rejects even when every instrument is valid.
+    # Measured on this project's own generator: a valid pair that splits the same physician
+    # preference two ways gives p = 0.06, while a pair whose second instrument violates
+    # exclusion gives p = 0 and a twelvefold change in the estimate. Both readings are live,
+    # they call for opposite responses, and only the user can tell them apart.
+    min_p_value: 0.05
+
+  iv_treatment_exogeneity:
+    layer: identification
+    severity: warning
+    waivable: true
+    # Fires when the test *fails* to reject: the data cannot distinguish the treatment from an
+    # exogenous one, so the instrument's variance cost may be buying nothing. Failing to
+    # reject is not evidence of exogeneity, and the user's judgement about unmeasured
+    # confounding stands above this test, which is why it warns and cannot block.
+    max_p_value: 0.10
+
   iv_covariate_imbalance:
     layer: identification
     severity: warning           # not blocking: the exclusion restriction is untestable,

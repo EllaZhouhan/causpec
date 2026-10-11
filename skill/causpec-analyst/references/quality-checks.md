@@ -73,6 +73,36 @@ Three rules:
 The reason is persisted into the run directory, where it is the first thing an audit
 of this analysis would read.
 
+## Two instrument checks that are easy to misread
+
+| Check | What to say to the user |
+|---|---|
+| `iv_overidentification` | "Your two instruments disagree about the size of the effect. That has two explanations and they need opposite responses" |
+| `iv_treatment_exogeneity` | "The data doesn't show dialysis being chosen for reasons we can't see. The instrument is still available, but plain adjustment would give you a much narrower answer" |
+
+**`iv_overidentification` only appears with more than one instrument**, and warning does not
+mean "mild". It means the number cannot tell two situations apart:
+
+- one of the instruments reaches the outcome by a path that does not run through the
+  treatment, so the estimate is biased
+- every instrument is valid, and they identify different groups of patients, so they
+  genuinely estimate different things
+
+The second is **expected** in this family. With a heterogeneous effect, two valid instruments
+estimate two different weighted averages of individual effects. On this project's own data, a
+valid pair gives p = 0.04 and an invalid one gives p = 0, so the statistic alone does not
+separate them. What to do: estimate with each instrument separately and compare. Same sign,
+different size points at heterogeneity, and the honest report says whose effect each
+instrument identifies. Opposite signs point at exclusion.
+
+**`iv_treatment_exogeneity` fires when the test fails to reject**, and failing to reject is
+not evidence of exogeneity. Do not tell the user their treatment is exogenous. Tell them the
+instrument may be buying protection they do not need, at a real cost in width, and let them
+decide: their judgement about unmeasured confounding outranks this test.
+
+Both are computed on a linear two-stage specification, not on the forest that produces the
+reported effect. They are statements about the instruments.
+
 ## The basic layer, which runs first for every family
 
 These ask whether the table says what it appears to say. They run before anything about

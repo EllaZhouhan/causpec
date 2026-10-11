@@ -450,7 +450,7 @@ Repairs act on the derived snapshot only.
 | Refutation: placebo treatment, random common cause, data subset | [reuse] DoWhy (MIT) refuters |
 | Longitudinal IPCW | The author's code; correctness verified by ground-truth coverage on synthetic dataset A |
 
-Dependency policy: only three direct dependencies (EconML, DoWhy and DoubleML),
+Dependency policy: only four direct dependencies (EconML, DoWhy, DoubleML and linearmodels),
 all mature with stable interfaces. Closed-form diagnostics (E-value, effective F) are
 written here with numerical regression tests: writing them costs a few dozen lines,
 while each additional heavy dependency adds version drift and correctness risk. StatsPAI

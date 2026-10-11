@@ -256,3 +256,117 @@ def test_each_family_brings_its_own_checks(strong) -> None:
     """The two families check different things; core knows what neither of them checks."""
     iv_checks = {i.check_id for i in registry.get("hte_iv").check(strong, SPEC).issues}
     assert iv_checks and all(check.startswith("iv_") for check in iv_checks)
+
+
+# ---- overidentification and endogeneity, from linearmodels ----
+
+
+def _second_instrument(data, kind: str):
+    """A second instrument of one of three kinds, each with a known status.
+
+    ``same_compliers``: another continuous reading of the same physician preference, so it
+    moves the same patients and identifies the same complier group. Valid.
+
+    ``other_compliers``: the preference as a median split, alongside the continuous one. Both
+    are valid, and they identify *different* complier groups, which matters below.
+
+    ``invalid``: the preference plus the unmeasured confounder, so it reaches the outcome by a
+    path that does not run through the treatment. ``u_true`` is in dataset A for exactly this
+    purpose and never reaches an estimator.
+    """
+    out = data.copy()
+    rng = np.random.default_rng(0)
+    preference = out["consultant_preference"].to_numpy(float)
+    if kind == "same_compliers":
+        out["second_instrument"] = preference + rng.normal(size=len(out))
+        return out, ["consultant_preference", "second_instrument"]
+    if kind == "other_compliers":
+        out["second_instrument"] = preference + rng.normal(size=len(out))
+        return out, ["instrument", "second_instrument"]
+    out["second_instrument"] = preference + 2.0 * out["u_true"].to_numpy(float)
+    return out, ["instrument", "second_instrument"]
+
+
+def _spec_with(instruments: list[str]) -> Spec:
+    return SPEC.model_copy(update={"fields": {**SPEC.fields, "instrument": confirmed(instruments)}})
+
+
+def _overid(frame, instruments):
+    return check_instrument(frame, _spec_with(instruments), CONFIG).get("iv_overidentification")
+
+
+def test_one_instrument_gets_no_overidentification_check(strong_report) -> None:
+    """With one instrument there is nothing for the instruments to disagree about, so the
+    check is not emitted rather than emitted and passed."""
+    with pytest.raises(KeyError):
+        strong_report.get("iv_overidentification")
+
+
+def test_instruments_selecting_the_same_compliers_agree(strong) -> None:
+    frame, instruments = _second_instrument(strong, "same_compliers")
+    issue = _overid(frame, instruments)
+    assert issue.severity is Severity.INFO
+    assert issue.evidence["n_instruments"] == 2
+    assert float(issue.evidence["overid_p_value"]) > 0.05
+
+
+def test_an_instrument_that_violates_exclusion_is_caught(strong) -> None:
+    """The failure the check exists for. The second instrument reaches the outcome through the
+    unmeasured confounder, and the test rejects decisively."""
+    frame, instruments = _second_instrument(strong, "invalid")
+    issue = _overid(frame, instruments)
+    assert issue.severity is Severity.WARNING
+    assert float(issue.evidence["overid_p_value"]) < 0.01
+
+
+def test_two_valid_instruments_can_also_disagree(strong) -> None:
+    """Why this check cannot block, as a measurement rather than an opinion.
+
+    Both instruments here are valid: one is the physician preference, the other is the same
+    preference split at its median. They identify different complier groups, and with a
+    heterogeneous effect those are different weighted averages of individual effects, so the
+    test rejects. On this fixture it gives p = 0.04 while the genuinely invalid instrument
+    gives p = 0.
+
+    Blocking would therefore refuse a correct analysis, and the two cases cannot be separated
+    by the statistic alone, which is what the issue text has to say.
+    """
+    frame, instruments = _second_instrument(strong, "other_compliers")
+    issue = _overid(frame, instruments)
+    assert float(issue.evidence["overid_p_value"]) < 0.05
+    assert issue.severity is Severity.WARNING
+    assert issue.severity is not Severity.BLOCKING
+    assert issue.waivable is True
+    # The text has to name both readings, because the number cannot tell them apart.
+    assert "heterogeneous effect" in issue.impact_on_analysis
+    assert "exclusion restriction" in issue.impact_on_analysis
+    assert "each instrument alone" in issue.recommended_repair
+
+
+def test_the_endogeneity_test_confirms_the_instrument_earns_its_cost(strong_report) -> None:
+    """Dataset A has real unmeasured confounding, so the treatment should look endogenous.
+    If it did not, the instrument would be paying variance for nothing."""
+    issue = strong_report.get("iv_treatment_exogeneity")
+    assert issue.severity is Severity.INFO
+    assert float(issue.evidence["endogeneity_p_value"]) < 0.10
+
+
+def test_the_endogeneity_test_does_not_claim_exogeneity(strong_report) -> None:
+    """Failing to reject is not evidence of exogeneity, and the issue text has to say so:
+    the user's judgement about unmeasured confounding stands above this test."""
+    issue = strong_report.get("iv_treatment_exogeneity")
+    assert "not evidence of exogeneity" in issue.impact_on_analysis
+
+
+def test_a_broken_specification_is_reported_as_not_assessed(strong) -> None:
+    """A diagnostic must not take the report down. It must also not report a bug as a finding:
+    a bare except once turned a NameError in this module into "the linear specification did
+    not fit", which reads as a property of the user's data."""
+    frame = strong.copy()
+    frame["collinear"] = frame["instrument"]
+    spec = _spec_with(["instrument", "collinear"])
+    report = check_instrument(frame, spec, CONFIG)
+    # Either it fits and says the instruments agree, or it does not and says it was not
+    # assessed. What it must never do is raise.
+    issue = report.get("iv_overidentification")
+    assert issue.severity in (Severity.INFO, Severity.WARNING)

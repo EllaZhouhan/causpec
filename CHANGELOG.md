@@ -7,6 +7,21 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Two instrument checks from linearmodels** (NCSA), rather than the effective F that
+  plan.md asked for. `iv_overidentification` engages only with more than one instrument and
+  tests, robustly to heteroskedasticity, whether they agree. `iv_treatment_exogeneity` tests
+  whether the treatment behaves endogenously at all, and fires when it does **not**: an
+  instrument buys protection from unmeasured confounding and pays for it in width, so a
+  treatment the data cannot distinguish from exogenous may be paying for nothing. Both are
+  computed on a linear two-stage specification alongside the forest, which the issue text
+  states, since they are statements about the instruments and not inference about the CATE
+- **The overidentification check warns and cannot block, as a measured property.** Two
+  *valid* instruments that identify different complier groups reject under a heterogeneous
+  effect, which is this family's whole subject: on the project's own fixture, a valid pair
+  gives p = 0.04 while an instrument violating exclusion gives p = 0. The statistic cannot
+  separate them, so the issue names both readings and the repair is to estimate with each
+  instrument alone and compare signs
+
 - **The temporal check layer** (design.md 8.1): immortal time, an outcome dated before the
   treatment it is credited to, inverted follow-up intervals, and follow-up shorter than the
   outcome window. It reads optional spec fields (`time_zero`, `treatment_time`,
@@ -188,6 +203,13 @@ the milestones in plan.md section 2.
 - ADR-0001 (literal numbers in reports), ADR-0002 (data-source boundaries)
 
 ### Changed
+
+- **The effective F is dropped from the plan, and Shea's partial R-squared with it.** No
+  Python package implements Montiel Olea and Pflueger's effective F; the canonical
+  implementations are Stata's `weakivtest` and R's `momentfit`. Shea's partial R-squared,
+  which linearmodels does provide, equals the ordinary partial R-squared when there is one
+  endogenous treatment, however many instruments are declared, so it adds nothing to this
+  family. What linearmodels adds is the overidentification and endogeneity tests above
 
 - **`dynamic_lag_dml` handed two checks back to core.** `panel_missing_values` and
   `panel_duplicate_periods` were declared there because core had no basic layer, which meant a

@@ -20,6 +20,12 @@ dependencies = [
 hte = [
     "econml>=0.15",
     "joblib>=1.3",
+    # linearmodels is here for the instrument diagnostics a single hand-written first stage
+    # cannot give: a heteroskedasticity-robust overidentification test when more than one
+    # instrument is declared, and a test of whether the treatment behaves endogenously at
+    # all. Shea's partial R-squared is not the reason: with one endogenous treatment it
+    # equals the ordinary partial R-squared however many instruments there are.
+    "linearmodels>=6.0",
     "scikit-learn>=1.4",
     "scipy>=1.11",
     "statsmodels>=0.14",

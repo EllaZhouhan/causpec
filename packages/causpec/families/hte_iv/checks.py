@@ -34,6 +34,10 @@ if TYPE_CHECKING:
     import pandas as pd
 
 ROBUST_COV = "HC1"
+# linearmodels spells the same thing differently, and passing statsmodels' name raises a bare
+# KeyError('HC1') from inside its covariance registry. Two constants rather than one, so the
+# two libraries' vocabularies do not get conflated.
+ROBUST_COV_LINEARMODELS = "robust"
 
 
 def _threshold(config: dict[str, Any], check_id: str, key: str, default: float) -> float:
@@ -73,6 +77,59 @@ def benjamini_hochberg(p_values: np.ndarray, level: float) -> np.ndarray:
 def _design_matrix(data: pd.DataFrame, columns: list[str]) -> np.ndarray:
     matrix = data[columns].astype(float).to_numpy()
     return np.asarray(sm.add_constant(matrix, has_constant="add"), dtype=float)
+
+
+def _two_stage_diagnostics(
+    data: pd.DataFrame,
+    treatment_col: str,
+    outcome_col: str,
+    instruments: list[str],
+    controls: list[str],
+) -> dict[str, float]:
+    """Overidentification and endogeneity, from linearmodels' 2SLS (NCSA licence).
+
+    Taken from a package rather than written here, which is worth saying because the rest of
+    this module is hand-written. The two statistics are standard, their robust forms have
+    details worth not getting wrong, and nothing about them is specific to this project.
+
+    **Both describe a linear specification, not the forest.** The estimator for this family is
+    a causal forest or a non-parametric DMLIV; this fits a scalar 2SLS alongside it so that
+    the instruments can be interrogated at all. A diagnostic about the linear specification is
+    informative about the instruments and is not inference about the CATE, and the issue text
+    says so.
+
+    What is deliberately *not* taken from the package: Shea's partial R-squared, which with a
+    single endogenous treatment equals the ordinary partial R-squared however many instruments
+    there are, and the first-stage F, which is already computed here in a probit form that
+    suits a binary treatment better than a linear one.
+    """
+    import pandas as pd
+    from linearmodels.iv import IV2SLS
+
+    exog = pd.DataFrame({"const": np.ones(len(data))}, index=data.index)
+    for column in controls:
+        exog[column] = data[column].astype(float).to_numpy()
+    # Typed as Any because linearmodels declares fit() as returning OLSResults, which is what
+    # it gives when a model has no endogenous variable. One is always passed here, so the
+    # result is an IVResults and carries the two statistics below.
+    fitted: Any = IV2SLS(
+        data[outcome_col].astype(float),
+        exog,
+        data[treatment_col].astype(float),
+        data[instruments].astype(float),
+    ).fit(cov_type=ROBUST_COV_LINEARMODELS)
+
+    endogeneity = fitted.wooldridge_score
+    out = {
+        "linear_iv_estimate": float(np.ravel(fitted.params[treatment_col])[0]),
+        "endogeneity_statistic": float(endogeneity.stat),
+        "endogeneity_p_value": float(endogeneity.pval),
+    }
+    if len(instruments) > 1:
+        overid = fitted.wooldridge_overid
+        out["overid_statistic"] = float(overid.stat)
+        out["overid_p_value"] = float(overid.pval)
+    return out
 
 
 def _first_stage_linear(
@@ -350,4 +407,157 @@ def check_instrument(
             )
         )
 
+    # ---- 5. overidentification and endogeneity, on a linear 2SLS specification ----
+    issues.extend(_two_stage_issues(data, spec, config, treatment_col, instruments, covariates))
     return QualityReport(issues=issues)
+
+
+def _issue_from(
+    config: dict[str, Any],
+    check_id: str,
+    passed: bool,
+    summary: str,
+    evidence: dict[str, float | int | str | bool],
+    affected_columns: list[str] | None = None,
+    impact: str = "",
+    repair: str = "",
+) -> QualityIssue:
+    layer, severity, waivable = _issue_settings(config, check_id)
+    return QualityIssue(
+        check_id=check_id,
+        layer=layer,
+        severity=Severity.INFO if passed else severity,
+        waivable=waivable,
+        summary=summary,
+        evidence={**evidence, "passed": passed},
+        affected_columns=affected_columns or [],
+        impact_on_analysis=impact,
+        recommended_repair=repair,
+    )
+
+
+def _two_stage_issues(
+    data: pd.DataFrame,
+    spec: Spec,
+    config: dict[str, Any],
+    treatment_col: str,
+    instruments: list[str],
+    covariates: list[str],
+) -> list[QualityIssue]:
+    """Two diagnostics from linearmodels, both about the instruments rather than the CATE."""
+    from causpec.families.hte_iv.estimator import _column_names
+
+    outcome = _column_names(spec, "outcome")
+    if not outcome:
+        return []
+    try:
+        measured = _two_stage_diagnostics(data, treatment_col, outcome[0], instruments, covariates)
+    except (ValueError, np.linalg.LinAlgError, KeyError) as error:
+        # Narrow on purpose. A bare `except Exception` here reported a NameError in this
+        # module as "the linear specification did not fit", which reads as a finding about
+        # the data: a bug would have been presented to the user as a property of their table.
+        # What a fit can legitimately raise is a singular design, a rank failure, or a column
+        # that is not there; anything else is ours and should surface as itself.
+        return [
+            _issue_from(
+                config,
+                "iv_overidentification",
+                passed=True,
+                summary=f"not assessed: the linear 2SLS specification did not fit ({error})",
+                evidence={"assessed": False},
+                impact=(
+                    "This diagnostic did not run; its absence is not evidence about the "
+                    "instruments."
+                ),
+            )
+        ]
+
+    issues: list[QualityIssue] = []
+
+    # Overidentification needs something to compare: with one instrument there is nothing for
+    # the instruments to disagree about.
+    if "overid_p_value" in measured:
+        minimum = _threshold(config, "iv_overidentification", "min_p_value", 0.05)
+        p_value = measured["overid_p_value"]
+        issues.append(
+            _issue_from(
+                config,
+                "iv_overidentification",
+                passed=p_value >= minimum,
+                summary=(
+                    f"the {len(instruments)} instruments agree "
+                    f"(robust overidentification p = {p_value:.3g})"
+                    if p_value >= minimum
+                    else f"the {len(instruments)} instruments disagree about the effect "
+                    f"(robust overidentification p = {p_value:.3g}, threshold {minimum:g})"
+                ),
+                evidence={
+                    "assessed": True,
+                    "n_instruments": len(instruments),
+                    "overid_statistic": round(measured["overid_statistic"], 4),
+                    "overid_p_value": round(p_value, 6),
+                    "min_p_value": minimum,
+                    "linear_iv_estimate": round(measured["linear_iv_estimate"], 6),
+                },
+                affected_columns=instruments,
+                impact=(
+                    "There are two readings and they call for opposite responses. Either at "
+                    "least one instrument violates the exclusion restriction, in which case "
+                    "the estimate is biased by an amount nothing here can bound. Or every "
+                    "instrument is valid and they identify different complier groups, which is "
+                    "expected in this family: with a heterogeneous effect, two valid "
+                    "instruments estimate two different weighted averages of individual "
+                    "effects and the test rejects for that reason alone. Measured on this "
+                    "project's own generator, a valid pair that splits the same preference two "
+                    "ways gives p = 0.06 while an invalid one gives p = 0 and a twelvefold "
+                    "change in the estimate. That is why this warns rather than blocks."
+                ),
+                repair=(
+                    "Estimate with each instrument alone and compare. Estimates that differ in "
+                    "magnitude but agree in sign point at heterogeneity, and the honest "
+                    "response is to report whose effect each instrument identifies. Estimates "
+                    "that disagree in sign point at exclusion, and then the question is which "
+                    "instrument moves the outcome by a path that does not run through the "
+                    "treatment."
+                ),
+            )
+        )
+
+    maximum = _threshold(config, "iv_treatment_exogeneity", "max_p_value", 0.10)
+    p_value = measured["endogeneity_p_value"]
+    issues.append(
+        _issue_from(
+            config,
+            "iv_treatment_exogeneity",
+            passed=p_value <= maximum,
+            summary=(
+                f"the treatment behaves endogenously (p = {p_value:.3g}), so an instrument "
+                f"earns its variance cost"
+                if p_value <= maximum
+                else f"the data does not show the treatment behaving endogenously "
+                f"(p = {p_value:.3g}), so the instrument may be paying for nothing"
+            ),
+            evidence={
+                "assessed": True,
+                "endogeneity_statistic": round(measured["endogeneity_statistic"], 4),
+                "endogeneity_p_value": round(p_value, 6),
+                "max_p_value": maximum,
+            },
+            affected_columns=[treatment_col],
+            impact=(
+                "An instrument buys protection from unmeasured confounding and pays for it in "
+                "variance, often by an order of magnitude. When the data cannot distinguish "
+                "the treatment from an exogenous one, that protection may be bought for "
+                "nothing, and plain adjustment would answer the same question far more "
+                "precisely. **Failing to reject is not evidence of exogeneity**: the test is "
+                "weak, and the user's judgement about unmeasured confounding stands above it."
+            ),
+            repair=(
+                "Nothing to repair in the data. Report both, what the instrument gives and what "
+                "plain adjustment gives, and let the user see the width of each. If they still "
+                "believe something unmeasured drives the treatment, the instrument is the right "
+                "choice whatever this test says."
+            ),
+        )
+    )
+    return issues

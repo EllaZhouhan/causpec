@@ -111,3 +111,19 @@ The exclusion restriction needs a **domain argument**, so you have to ask:
 The `iv_covariate_imbalance` check only tests a **necessary** condition, if the
 instrument really were close to random, covariates should be balanced across it.
 **Balance is not evidence that the exclusion restriction holds.**
+
+## With more than one instrument
+
+The research this family comes from tried several instruments and kept one, physician
+preference, because the others had no first stage. If a user declares more than one, two
+things change.
+
+The overidentification test becomes available, and it is reported as a warning whatever it
+says, because a rejection has two readings that call for opposite responses: an instrument
+that violates exclusion, or valid instruments identifying different complier groups under a
+heterogeneous effect. See `quality-checks.md`.
+
+And the estimand changes. Each instrument identifies the LATE of its own complier group, so
+two instruments identify two different weighted averages. Reporting one number from both is a
+choice, not an aggregation, and the report has to say which patients each instrument speaks
+about. The `ivforest` backend takes one instrument only; `dmliv` takes several.

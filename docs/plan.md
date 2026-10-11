@@ -80,9 +80,14 @@ so longitudinal IPCW can be delivered complete, with estimation.
    design-level checks for every family
 5. Temporal-consistency checks: immortal time, outcome before treatment, interval
    inversion, follow-up shorter than the outcome window. Each reads optional spec fields and
-   reports when it could not run. Still open: instrument relevance's effective F, written
-   here with a regression test against the original paper's numerical example (the AR test
-   goes to the backlog)
+   reports when it could not run. Instrument relevance gained two checks from linearmodels
+   instead of the effective F: a robust overidentification test when more than one
+   instrument is declared, and a test of whether the treatment behaves endogenously at all.
+   The effective F is dropped: no Python package implements it (the canonical ones are
+   Stata's weakivtest and R's momentfit), and hand-writing a statistic whose critical values
+   come from simulation is not the kind of closed form this project writes by hand. Shea's
+   partial R-squared was considered and rejected: with one endogenous treatment it equals the
+   ordinary partial R-squared however many instruments there are
 6. Dataset C: ten defects, each one a mistake that happens to real extracts, each declaring
    the check_id and severity it expects, asserted in CI. A defect caught by the wrong check
    is worse than one caught by none, so the test checks both directions
