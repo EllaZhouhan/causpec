@@ -11,7 +11,7 @@ file header.
 | EconML | MIT | `CausalForestDML` and `CausalIVForest`, `NonParamDMLIV`, `econml.validate.DRTester` |
 | DoWhy | MIT | `CausalModel` identification cross-check; refuters (placebo, random common cause, data subset) |
 | DoubleML | BSD-3-Clause | `sensitivity_analysis` for unmeasured confounding |
-| linearmodels | NCSA | `IV2SLS` diagnostics for `hte_iv`: the robust overidentification test when more than one instrument is declared, and the test of whether the treatment behaves endogenously |
+| linearmodels | NCSA | `IV2SLS.wooldridge_overid` for `hte_iv`, the robust overidentification test, used only when more than one instrument is declared (ADR-0004) |
 
 ## Adapted code (original copyright retained)
 

@@ -162,7 +162,11 @@ checks:
     severity: warning           # never blocking: see below
     waivable: true
     # Only engages with more than one instrument, since with one there is nothing for the
-    # instruments to disagree about. Heteroskedasticity-robust, from linearmodels (NCSA).
+    # instruments to disagree about. Heteroskedasticity-robust, from linearmodels (NCSA),
+    # which is the only statistic in this family taken from a package: a hand-rolled version
+    # used k degrees of freedom where the test has k-1, and agreed with the package's verdict
+    # on every design it was tried on (ADR-0004). A single-instrument analysis never reaches
+    # this code, so it never loads linearmodels.
     #
     # Not blocking, and the reason is specific to this family rather than general caution.
     # With a heterogeneous effect, two valid instruments identify two different weighted
@@ -178,7 +182,9 @@ checks:
     severity: warning
     waivable: true
     # Fires when the test *fails* to reject: the data cannot distinguish the treatment from an
-    # exogenous one, so the instrument's variance cost may be buying nothing. Failing to
+    # exogenous one, so the instrument's variance cost may be buying nothing. Written here
+    # with statsmodels rather than imported, because it is three lines of OLS and agrees with
+    # the package to under 1% (ADR-0004). Failing to
     # reject is not evidence of exogeneity, and the user's judgement about unmeasured
     # confounding stands above this test, which is why it warns and cannot block.
     max_p_value: 0.10

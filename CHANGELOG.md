@@ -7,7 +7,8 @@ the milestones in plan.md section 2.
 
 ### Added
 
-- **Two instrument checks from linearmodels** (NCSA), rather than the effective F that
+- **Two instrument checks, one imported and one written here** (ADR-0004), rather than the
+  effective F that
   plan.md asked for. `iv_overidentification` engages only with more than one instrument and
   tests, robustly to heteroskedasticity, whether they agree. `iv_treatment_exogeneity` tests
   whether the treatment behaves endogenously at all, and fires when it does **not**: an
@@ -15,6 +16,12 @@ the milestones in plan.md section 2.
   treatment the data cannot distinguish from exogenous may be paying for nothing. Both are
   computed on a linear two-stage specification alongside the forest, which the issue text
   states, since they are statements about the instruments and not inference about the CATE
+- **ADR-0004 splits them by measurement**: the endogeneity test is three lines of statsmodels
+  and is written here, agreeing with the package to under 1% with a test pinning it. The
+  overidentification test is imported, because a hand-rolled version used k degrees of freedom
+  where the test has k-1, giving p = 0.24 against the package's 0.092 while agreeing with its
+  **verdict** on all four designs it was tried on. A single-instrument analysis never reaches
+  that code, so it never loads linearmodels
 - **The overidentification check warns and cannot block, as a measured property.** Two
   *valid* instruments that identify different complier groups reject under a heterogeneous
   effect, which is this family's whole subject: on the project's own fixture, a valid pair

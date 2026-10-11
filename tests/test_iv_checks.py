@@ -370,3 +370,46 @@ def test_a_broken_specification_is_reported_as_not_assessed(strong) -> None:
     # assessed. What it must never do is raise.
     issue = report.get("iv_overidentification")
     assert issue.severity in (Severity.INFO, Severity.WARNING)
+
+
+def test_the_endogeneity_test_matches_the_package_it_replaced(strong) -> None:
+    """It is three lines of OLS, so it is written here rather than imported. This pins it
+    against linearmodels' wooldridge_score, which is what it was checked against when the
+    decision was made to hand-write it (ADR-0003's test, applied honestly: a package earns
+    its place when it carries something substantial, and this is not that).
+
+    The overidentification test went the other way. A hand-rolled version gave p = 0.24 where
+    the package gives 0.092, because the overidentification degrees of freedom are k - 1 and
+    not k, and every verdict happened to agree on the designs it was tried on.
+    """
+    import pandas as pd
+    from linearmodels.iv import IV2SLS
+
+    from causpec.families.hte_iv.checks import _endogeneity_test
+
+    controls = COVARIATES
+    treatment = strong["isDialysisICU"].astype(float).to_numpy()
+    outcome = strong["death"].astype(float).to_numpy()
+    ours = _endogeneity_test(treatment, outcome, strong, ["instrument"], controls)
+
+    exog = pd.DataFrame({"const": np.ones(len(strong))}, index=strong.index)
+    for column in controls:
+        exog[column] = strong[column].astype(float).to_numpy()
+    theirs = (
+        IV2SLS(
+            strong["death"].astype(float),
+            exog,
+            strong["isDialysisICU"].astype(float),
+            strong[["instrument"]].astype(float),
+        )
+        .fit(cov_type="robust")
+        .wooldridge_score
+    )
+    # Not algebraically identical: ours is the Wald form of the augmented regression and
+    # theirs is the score form, which are asymptotically equivalent and differ in the
+    # small-sample scaling of the robust covariance. They agree to under 1% here, and what
+    # has to hold is that they never disagree about the verdict.
+    mine = ours["endogeneity_p_value"]
+    assert mine == pytest.approx(float(theirs.pval), rel=0.02)
+    threshold = float(CONFIG["iv_treatment_exogeneity"]["max_p_value"])
+    assert (mine <= threshold) is (float(theirs.pval) <= threshold)
