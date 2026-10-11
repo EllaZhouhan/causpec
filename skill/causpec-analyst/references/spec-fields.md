@@ -35,6 +35,34 @@ fields:
   causal_claim_approved: {value: true, ...}       # only once the user agrees to causal wording
 ```
 
+## `assignment_mechanism`, asked at step 1c
+
+How the treatment came to be given, in the user's words, with one of three values. It is not
+read by any estimator: it decides which identification questions are worth asking, and it
+appears in the report's provenance table so a reader can see which world the analysis thought
+it was in.
+
+| Value | What the user said |
+|---|---|
+| `randomised` | Something random decided, and nearly everyone got what they were assigned |
+| `randomised_with_noncompliance` | Something random decided the assignment, but many did not take it |
+| `decided` | A person decided, case by case |
+
+```yaml
+fields:
+  assignment_mechanism:
+    value: randomised_with_noncompliance
+    source: user
+    said: we randomised which arm each clinic was offered, but uptake was about 60%
+    status: confirmed
+```
+
+Why it is confirmed rather than inferred: nothing in a table says whether a treatment was
+randomised, and the consequence of guessing is large in both directions. Guessing
+`decided` on a trial makes the user argue for an assumption their design already gives them.
+Guessing `randomised` on observational data grants the strongest possible justification to an
+assumption nobody checked.
+
 ## Optional time fields, which turn the timing checks on
 
 None of the estimators read these. They exist so the timing checks can run, and **while they

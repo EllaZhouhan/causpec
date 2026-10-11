@@ -42,6 +42,28 @@ Seeing `suggestive`, a user may ask why it cannot be called causal. Answer plain
 
 **Do not make that decision for them, and do not imply it is a formality.**
 
+## Randomisation is the one justification that is not a judgement
+
+`untestable` means no diagnostic can establish it. It does not mean every justification for
+one is equally weak. When the user answered step 1c with "something random decided", the
+justification for exchangeability is the design, and it is the strongest one available:
+
+> "Because the assignment was randomised, the assumption that usually needs your judgement
+> here is given to you by the design. I've recorded that as the justification, in your words."
+
+Three things to keep straight even so.
+
+**It is the assignment that randomisation makes unconfounded, not the treatment received.**
+With partial compliance, adjustment on the treatment received has no design argument behind
+it at all; the instrument does. That is a different family, not a stronger claim.
+
+**A randomised study can still be broken.** Differential dropout, a leaky rollout, a
+randomisation that did not hold. The quality checks run and block the same way, and "it was a
+trial" is not a pass.
+
+**The user still approves the wording.** The design justifies the assumption; it does not
+replace the step where a person agrees to a causal reading and the report records who did.
+
 ## A model's own justification does not count
 
 ```yaml

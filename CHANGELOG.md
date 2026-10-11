@@ -7,6 +7,29 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Step 1 now asks how the treatment was assigned**, before any column is mapped, because
+  the answer decides which identification questions are worth asking at all. Three answers
+  and three different worlds: randomised with full compliance, where exchangeability holds by
+  design and the justification is the randomisation rather than the user's judgement;
+  randomised with partial compliance, where the assignment is an instrument for the treatment
+  received, which is design.md's own dataset D and the answer a workflow without this
+  question cannot propose; and decided case by case, the observational path. Recorded in
+  `assignment_mechanism`
+- **The follow-up for the observational case asks what the decider had in front of them**,
+  not "what are your confounders". A clinician can answer the first and cannot reliably answer
+  the second, and the gap between what they used and what the file holds is the
+  unmeasured-confounding question asked concretely enough to get a concrete answer
+- **Key rule 9: an association is not evidence of confounding.** A variable correlated with
+  both treatment and outcome may be a confounder, a mediator, a collider or a consequence of
+  either; which it is comes from how the treatment was decided and when the variable was
+  measured. And covariates balancing after weighting says nothing about the variables nobody
+  has
+- **claim-levels.md distinguishes randomisation from a judgement.** `untestable` means no
+  diagnostic can establish an assumption; it does not mean every justification for one is
+  equally weak. With three precisions kept in view: randomisation makes the **assignment**
+  unconfounded and not the treatment received, a randomised study can still be broken by
+  differential dropout, and the user still approves the wording
+
 - **Two instrument checks, one imported and one written here** (ADR-0004), rather than the
   effective F that
   plan.md asked for. `iv_overidentification` engages only with more than one instrument and
@@ -210,6 +233,13 @@ the milestones in plan.md section 2.
 - ADR-0001 (literal numbers in reports), ADR-0002 (data-source boundaries)
 
 ### Changed
+
+- **The step list is split instead of annotated.** Steps 1, 2 and 6 to 8 are shared; steps 3
+  to 5 are written out once per path, A for one row per unit and B for one row per unit per
+  period. They had been a single list written for the cross-sectional case with the panel path
+  bolted on as a caveat under each of 3, 4 and 5, which accumulated as the panel family grew
+  and left a model free to follow a cross-sectional step 3 and confirm an `adjustment_set`
+  that family does not have
 
 - **The effective F is dropped from the plan, and Shea's partial R-squared with it.** No
   Python package implements Montiel Olea and Pflueger's effective F; the canonical

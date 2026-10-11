@@ -4,9 +4,11 @@ The order exists for a reason. Do not skip. Each step below suggests how to ask.
 
 ---
 
-## 1. Ask what they want to know, then read the schema
+## 1. The question, the shape, and how the treatment was assigned
 
-### Read the schema freely; just do not hand the user a menu
+### 1a. The question, before any column names
+
+#### Read the schema freely; just do not hand the user a menu
 
 The failure this step guards against is the data supplying the question, "oh, there's
 a length-of-stay column, shall we look at that too?" It happens two ways, and neither
@@ -28,7 +30,7 @@ In order:
    column looks like a timestamp, which columns plausibly match what they said.
 3. Come back with specifics.
 
-### Then fix the question
+#### Then fix the question
 
 **What to ask** (one per turn):
 
@@ -41,14 +43,16 @@ case `effect_modifiers` is central.
 
 Write it into the spec, each field carrying the user's own words, `status: confirmed`.
 
-### What the shape tells you
+### 1b. The shape, which the file usually answers
+
+#### What the shape tells you
 
 If every unit appears once and there are no time columns, the data is cross-sectional.
 Say so and move on. Do not ask a clinician to classify their own treatment as static or
 time-varying in the abstract, that is hard to answer cold, and the file has often
 answered it already.
 
-### When the treatment might be time-varying
+#### When the treatment might be time-varying
 
 Having read the schema, ask concretely:
 
@@ -94,16 +98,64 @@ Do not go into fixed windows, landmark analysis or g-methods unless they ask. Re
 `dynamic-lag-dml.md` before describing the lag profile: it answers one question and four
 that sound like it are outside it.
 
-**Once the panel path is chosen, steps 3 to 5 below change.** They describe the
-cross-sectional path. The panel equivalents are in `dynamic-lag-dml.md` and
-`spec-fields.md`: the conditioning set is `state` and there is no separate W; the
-identification strategy is fixed by the family rather than chosen; and the estimand is
-`lag_profile` or `lag_cate`, with modifiers restricted to variables the treatment cannot
-move. Steps 1, 2, 6, 7 and 8 are the same on both paths.
+**Once the panel path is chosen, steps 3 to 5 change**, and 1c below still applies.
 
 **A wide table does not settle this.** One row per patient can still be a flattened
 "ever treated during the stay". The schema lets you ask concretely; it does not answer
 for you.
+
+---
+
+### 1c. How the treatment was assigned
+
+Asked before the columns are mapped, because it decides which identification questions are
+worth asking at all.
+
+> "Did anything random decide who got dialysis, or was it a judgement each time? A trial, a
+> staged rollout, an A/B test, a lottery for access?"
+
+**If something random decided and nearly everyone complied**, say what that buys them, because
+most users do not expect the answer to be this short:
+
+> "Then the comparison is already fair by design. I'll still adjust for the covariates,
+> because that narrows the interval and lets us look at who benefits more, but the adjustment
+> isn't rescuing anything. And the assumption that usually needs your judgement, that nothing
+> unmeasured drove who got treated, is given to you by the randomisation."
+
+**If something random decided but compliance was partial**, the design has handed them an
+instrument and they may not know it:
+
+> "Then we have something better than adjustment. Which arm someone was offered was random,
+> so we can use that as an instrument for what they actually received. The answer it gives is
+> about the patients whose treatment changed because of the offer, which is a narrower group
+> than everyone, and the report will say so."
+
+**If a person decided case by case**, ask this, and not "what are your confounders":
+
+> "What did the clinicians have in front of them when they decided? And is there anything
+> that mattered to that decision which the data doesn't record?"
+
+A clinician can answer what they looked at. They cannot reliably answer which variables
+satisfy a backdoor criterion, and asking the second question gets a worse answer to the first.
+The gap between what they used and what the file holds is the unmeasured-confounding question,
+asked concretely enough to get a concrete answer.
+
+Record it in `assignment_mechanism` with their words. Two things to keep straight whatever
+they answer:
+
+- Randomisation makes the **assignment** unconfounded, not the treatment received. Under
+  partial compliance the unconfounded thing is the assignment, which is why an instrument
+  applies and adjustment does not.
+- A randomised study can still be broken by differential dropout or a leaky rollout, so the
+  quality checks still run and still block. "It was a trial" is not a pass.
+
+---
+
+**Steps 3 to 5 depend on the shape.** What follows is the cross-sectional path, one row per
+unit. For one row per unit per period, read `dynamic-lag-dml.md` instead: there is no separate
+adjustment set, the conditioning set is the state at the start of each period, the modifiers
+are restricted to variables the treatment cannot move, and the identification strategy comes
+with the family rather than being chosen. Steps 1, 2, 6, 7 and 8 are the same on both.
 
 ---
 
@@ -139,8 +191,13 @@ adjustment set.
 ## 4. Identification strategy and assumptions
 
 **Cross-sectional path.** On the panel path the strategy comes with the family, and what
-to ask instead is the horizon pair from step 1, plus whether the state recorded at the
+to ask instead is the horizon pair from step 1b, plus whether the state recorded at the
 start of a period accounts for why treatment was given in it.
+
+Much of this is already answered by 1c. A randomised design with full compliance leaves
+nothing to ask here; a randomised design with partial compliance has already chosen the
+instrument and leaves only monotonicity. The question below is for the case where a person
+decided case by case.
 
 The key question:
 

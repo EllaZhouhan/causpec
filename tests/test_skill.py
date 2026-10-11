@@ -285,14 +285,65 @@ def test_mcp_is_not_claimed_to_exist(skill_text: str) -> None:
 # ---- both paths are described, not just the one the skill grew up with ----
 
 
-def test_the_panel_path_is_visible_in_the_step_list(skill_text: str) -> None:
-    """The eight steps were written for one row per unit. A model on the panel path that
-    followed step 3 literally would confirm an adjustment_set that family does not have."""
-    assert "Two paths run through these steps" in skill_text
-    for step in ("### 3.", "### 4.", "### 5."):
-        index = skill_text.index(step)
-        section = skill_text[index : index + 700]
-        assert "panel" in section.lower(), f"{step} does not say which path it describes"
+def test_the_two_paths_have_their_own_steps(skill_text: str) -> None:
+    """The steps used to be one list written for one row per unit, with the panel path bolted
+    on as a caveat under each of steps 3 to 5. A model on the panel path that followed step 3
+    literally would confirm an adjustment_set that family does not have.
+
+    The fork now sits where the fork actually is: a shared opening, a per-path middle, a
+    shared ending. What this pins is that the middle is genuinely duplicated rather than
+    annotated.
+    """
+    for marker in (
+        "## Path A, one row per unit: steps 3 to 5",
+        "## Path B, one row per unit per period: steps 3 to 5",
+        "### A3.",
+        "### A4.",
+        "### A5.",
+        "### B3.",
+        "### B4.",
+        "### B5.",
+    ):
+        assert marker in skill_text, marker
+    # The shared steps are shared, not duplicated into each path.
+    for shared in ("Step 1, shared.", "Step 2, shared.", "Step 6, shared.", "Step 7, shared."):
+        assert skill_text.count(shared) == 1, shared
+    # And the panel block says what not to borrow from the other one.
+    panel = skill_text[skill_text.index("## Path B") : skill_text.index("## Step 6, shared.")]
+    assert "no separate W" in panel
+    assert "cannot move" in panel
+
+
+def test_the_workflow_asks_how_the_treatment_was_assigned(skill_text: str) -> None:
+    """Without it, a randomised trial or an A/B test is treated as observational: the user is
+    asked to justify exchangeability by judgement when the design justifies it, and an A/B
+    test with non-compliance never gets offered the instrument that its assignment is.
+
+    It has to come before the columns are mapped, because it decides which identification
+    questions are worth asking at all.
+    """
+    assert "How the treatment was assigned" in skill_text
+    for phrase in ("randomised", "A/B test", "did not comply", "assignment_mechanism"):
+        assert phrase in skill_text, phrase
+    assert skill_text.index("How the treatment was assigned") < skill_text.index(
+        "## Step 2, shared."
+    )
+
+
+def test_randomisation_is_distinguished_from_the_treatment_received(skill_text: str) -> None:
+    """The precision that makes the branch correct: randomisation makes the assignment
+    unconfounded, not the treatment received, which is exactly why imperfect compliance calls
+    for an instrument rather than adjustment."""
+    assert "makes the **assignment** unconfounded" in skill_text
+
+
+def test_candidate_confounders_come_from_asking_what_was_in_front_of_them(
+    skill_text: str,
+) -> None:
+    """A clinician can answer what they looked at. They cannot reliably answer which variables
+    satisfy a backdoor criterion, and asking the second gets a worse answer to the first."""
+    assert "What did the clinicians have in front of them" in skill_text
+    assert 'not "what are your confounders"' in skill_text
 
 
 def test_the_panel_fields_are_documented_where_a_spec_gets_written() -> None:
@@ -324,3 +375,25 @@ def test_no_reference_claims_only_two_designs_are_supported(skill_text: str) -> 
     assert "Only two identification strategies" not in skill_text
     for path in REFERENCES.glob("*.md"):
         assert "Only two identification strategies" not in path.read_text(encoding="utf-8")
+
+
+def test_randomisation_is_not_treated_as_just_another_judgement() -> None:
+    """`untestable` means no diagnostic can establish it. It does not mean every justification
+    for one is equally weak, and a workflow that treats a trial like observational data asks
+    the user to argue for something their design already gives them."""
+    text = (REFERENCES / "claim-levels.md").read_text(encoding="utf-8")
+    assert "Randomisation is the one justification that is not a judgement" in text
+    # And the three things that keep it honest.
+    assert "not the treatment received" in text
+    assert "can still be broken" in text
+    assert "still approves the wording" in text
+
+
+def test_an_association_is_not_called_evidence_of_confounding(skill_text: str) -> None:
+    """Both directions. A variable correlated with treatment and outcome may be a confounder,
+    a mediator, a collider or a consequence; and covariates balancing after weighting says
+    nothing about the variables nobody has."""
+    assert "An association is not evidence of confounding" in skill_text
+    assert "mediator, a collider" in skill_text
+    collapsed = " ".join(skill_text.split())
+    assert "only that the variables you happen to have are balanced" in collapsed

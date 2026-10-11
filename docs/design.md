@@ -256,6 +256,7 @@ causal_design:
   analysis_type: hte | panel
   estimand: ...
   treatment / outcome / time_zero / instrument / adjustment_set / effect_modifiers
+  assignment_mechanism: randomised | randomised_with_noncompliance | decided
   # optional, and read only by the temporal layer (8.1). Times may be timestamps or numbers;
   # outcome_horizon is in whatever unit the columns already use, because converting it on the
   # user's behalf is how a 28-day horizon becomes 28 hours.
@@ -581,6 +582,19 @@ references/reporting.md (MIT).
    columns, the question can be skipped entirely. A wide table does not settle it, since
    one row per patient can still be a flattened "ever treated". The schema makes the
    question concrete, it does not answer it.
+   Step 1 also settles **how the treatment was assigned**, which is asked here rather than at
+   step 4 because it decides which identification questions are worth asking at all, and
+   asking it after the columns are mapped means reopening them. Three answers and three
+   different worlds: randomised with full compliance, where exchangeability holds by design
+   and the user's justification for it is the randomisation rather than a judgement;
+   randomised with partial compliance, where the assignment is an instrument for the
+   treatment received, which is the shape of dataset D and the answer a workflow without this
+   question cannot propose; and decided case by case, where the follow-up is what the
+   decider had in front of them, since a clinician can answer that and cannot reliably answer
+   which variables satisfy a backdoor criterion. Recorded in `assignment_mechanism`.
+   Randomisation makes the **assignment** unconfounded and not the treatment received, which
+   is why partial compliance calls for an instrument rather than adjustment, and a randomised
+   study can still be broken by differential dropout, so the quality checks still gate.
 2. Map concepts onto columns; settle the mapping.
 3. Variable roles and key_non_edges (7.5).
 4. Identification strategy and assumption categories.
@@ -588,6 +602,11 @@ references/reporting.md (MIT).
 6. Quality checks.
 7. The user confirms the spec.
 8. Estimate and report.
+
+Steps 1, 2 and 6 to 8 run the same way whatever the data looks like; steps 3 to 5 depend on
+the shape and the skill writes them out once per path rather than annotating a single list,
+because a model following a cross-sectional step 3 on panel data would confirm an
+`adjustment_set` that family does not have.
 
 Steps 1-5 complete field-level confirmation; at step 7 confirm_spec computes and records
 a spec_hash over the whole spec, used to lock the primary analysis (7.4) and for gate

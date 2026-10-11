@@ -85,6 +85,12 @@ narrative you write for the report.
 8. **When the design the question needs is unsupported, say so and say why.** Do not
    substitute another design to produce a number. Three designs are supported and the
    list below says which; everything else is refused.
+9. **An association is not evidence of confounding.** A variable correlated with both the
+   treatment and the outcome may be a confounder, a mediator, a collider, or a consequence
+   of either. Which it is comes from how the treatment was decided and when the variable
+   was measured, never from the correlation. The reverse holds too: covariates balancing
+   after weighting is not evidence that confounding is gone, only that the variables you
+   happen to have are balanced.
 
 ## What is supported
 
@@ -126,128 +132,184 @@ If they ask "can I trust this number?" or "how did you compute it?", explain the
 plain terms ("these numbers come from a script; the same data gives the same answer
 every time"), without words like "deterministic".
 
-## The eight steps
+## The workflow
 
-Strictly in order. Steps 1-5 confirm fields; estimation is not touched until step 6.
+Strictly in order. Nothing is estimated until the spec is confirmed.
 
-**Two paths run through these steps.** Step 1 decides which. The cross-sectional path,
-one row per unit, is what steps 3 to 5 below describe. The panel path, one row per unit
-per period, uses the same eight steps with different fields at 3, 4 and 5, and
-`dynamic-lag-dml.md` is where those are written out. Do not improvise the panel fields
-from the cross-sectional ones: `state` is not `adjustment_set`, and the modifiers are
-restricted in a way that has no counterpart here.
+**The opening and the ending are shared; the middle forks on the shape of the data.** Steps 1
+and 2 settle the question, the shape and how the treatment was assigned, and they run the same
+way whatever the file looks like. Steps 3 to 5 are written out twice below, once per path:
+take the block that matches and do not borrow fields from the other one, because `state` is
+not `adjustment_set` and the panel path restricts its modifiers in a way this one does not.
+Steps 6 to 8 are shared again.
 
-### 1. Ask what they want to know, then read the schema
+| Step | | Path |
+|---|---|---|
+| 1 | The question, the shape, and how the treatment was assigned | shared |
+| 2 | Map the concepts onto columns | shared |
+| 3 | Variable roles | **A** one row per unit / **B** one row per unit per period |
+| 4 | Identification strategy and assumptions | **A** / **B** |
+| 5 | Family and estimand | **A** / **B** |
+| 6 | Quality checks | shared |
+| 7 | The user confirms the whole spec | shared |
+| 8 | Estimate and report | shared |
+
+---
+
+## Step 1, shared. The question, the shape, and how the treatment was assigned
+
+Three things, in this order. Each one changes what the next question should be, which is why
+none of them can wait until the columns are mapped.
+
+### 1a. The question, before any column names
 
 **Read the schema freely; just do not hand the user a menu.**
 
-The failure this step guards against is the data supplying the question, "oh, there's
-a length-of-stay column, shall we look at that too?" That happens two ways, and neither
-is caused by you reading a file:
+The failure this guards against is the data supplying the question, "oh, there's a
+length-of-stay column, shall we look at that too?" That happens two ways, and neither is
+caused by you reading a file:
 
 | Risk | What prevents it |
 |---|---|
 | The **user** picks from a list of columns they have just been shown | Ask what they want to compare **before** showing them any column names |
 | **You** propose an analysis because a variable happens to exist | Only ever map their stated concepts onto columns; never suggest a question they did not ask |
 
-Reading a schema is not computing a result, so read as much of it as you need. What is
-fixed first is the user's question, not your ignorance of the file.
+Reading a schema is not computing a result, so read as much of it as you need. What is fixed
+first is the user's question, not your ignorance of the file.
 
-**So, in order:**
+So, in order: greet them, say in one line what you are about to do, and ask what they are
+comparing, receiving what treatment versus not receiving it. Then read the schema yourself:
+row count, whether the unit id is unique, whether any column looks like a timestamp, and
+which columns plausibly match what they said. Then come back with specifics.
 
-1. Greet them, say in one line what you are about to do, and ask what they are
-   comparing, receiving what treatment, versus not receiving it. No column list.
-2. Read the schema yourself: row count, whether the unit id is unique, whether any
-   column looks like a timestamp, and which columns plausibly match what they said.
-3. Come back with specifics.
+Also establish the outcome and whether they want an average effect or "who benefits more".
+Write `treatment`, `outcome` and `estimand` into the spec, each with the user's own words.
 
-Also establish the outcome and whether they want an average effect or "who benefits
-more". Write `treatment`, `outcome` and `estimand` into the spec, each with the user's
-own words.
+### 1b. The shape, which the file usually answers
 
-**What the shape tells you.** If every unit appears once and there are no time columns,
-the data is cross-sectional: say so and move on. Do not ask a clinician to classify
-their own treatment as static or time-varying in the abstract, that is a hard question
-to answer cold, and often one the file has already answered.
+If every unit appears once and there are no time columns, the data is cross-sectional: say so
+and move on to 1c. Do not ask a clinician to classify their own treatment as static or
+time-varying in the abstract, which is a hard question to answer cold and often one the file
+has already answered.
 
-**Asking about a treatment that may be time-varying.** Having read the schema, ask
-concretely:
+**When the treatment might be time-varying**, ask concretely rather than abstractly:
 
-> "Your data has one row per patient, and `rrt_started` is 0/1. Does that flag mean
-> the patient started dialysis **at any point during the stay**, or that they were
-> **already on it at admission**?"
+> "Your data has one row per patient, and `rrt_started` is 0/1. Does that flag mean the
+> patient started dialysis **at any point during the stay**, or that they were **already on
+> it at admission**?"
 
 Two answers matter, and only two:
 
-- **Already on it at admission** (or at some fixed baseline), a static treatment,
-  which is what CauSpec supports
-- **At any point during the stay**, a time-varying treatment. Say what hangs on it in
-  one sentence ("a patient who starts on day 5 counts as untreated for those four days,
-  and anyone who died early never had the chance, which would make dialysis look better
-  than it is"), then say a flattened comparison is not available and ask one further
-  question: is there a row per patient per time window somewhere, or only this one row
-  per patient? A panel opens the lag profile of `dynamic_lag_dml`; only one row per patient
-  closes it. Either way, do not go into fixed windows, landmark analysis or g-methods
-  unless they ask, and read `dynamic-lag-dml.md` before describing the lag profile, because
-  three nearby questions are not what it answers.
+- **Already on it at admission**, or at some fixed baseline. A static treatment: path A.
+- **At any point during the stay.** A time-varying treatment. Say what hangs on it in one
+  sentence ("a patient who starts on day 5 counts as untreated for those four days, and
+  anyone who died early never had the chance, which would make dialysis look better than it
+  is"), then say a flattened comparison is not available and ask one further question: is
+  there a version of this data with one row per patient per time window, or only this one row
+  per patient? A panel opens path B; one row per patient closes it. Either way, do not go into
+  fixed windows, landmark analysis or g-methods unless they ask, and read `dynamic-lag-dml.md`
+  before describing the lag profile, because four nearby questions are not what it answers.
 
-**On the panel path, two questions about the horizon are required.** Neither can be read
-off the file, and the analysis refuses to run without both.
+**A wide table does not settle this.** One row per patient can still be a flattened "ever
+treated during the stay". The schema lets you ask concretely; it does not answer for you.
+
+**On path B, two questions about the horizon are required**, and the analysis refuses to run
+without both. Neither can be read off the file.
 
 1. **Is every unit followed for the same number of windows, or do the records end at
-   different times because units leave?** Fixed means no weighting is applied at all. You
-   cannot infer this: a panel where every unit has eight periods is either a fixed horizon
-   or a cohort truncated to the units that lasted eight periods, and the second is
-   conditioned on surviving, which no weighting repairs.
-2. **If they end at different times, how is leaving identified?** Either the rows stop
-   where the unit left, or a column records it. Only a real exit is evidence that a
-   trajectory could have continued and did not.
+   different times because units leave?** Fixed means no weighting is applied at all. A panel
+   where every unit has eight periods is either a fixed horizon or a cohort truncated to the
+   units that lasted eight periods, and the second is conditioned on surviving, which no
+   weighting repairs.
+2. **If they end at different times, how is leaving identified?** Either the rows stop where
+   the unit left, or a column records it. Only a real exit is evidence that a trajectory could
+   have continued and did not.
 
-**A wide table does not settle this.** One row per patient can still be a flattened
-"ever treated during the stay". The schema lets you ask concretely; it does not answer
-for you.
+### 1c. How the treatment was assigned
 
-### 2. Map the concepts onto columns
+> "Did anything random decide who got it, or was it a judgement each time? A trial, a staged
+> rollout, an A/B test, a lottery for access?"
+
+**Ask this before step 2, not at step 4.** It decides which identification questions are
+worth asking at all, and asking it after the columns are mapped means reopening them.
+
+Three answers, and they are three different worlds:
+
+| Answer | What follows |
+|---|---|
+| **Randomised, and nearly everyone got what they were assigned** | Exchangeability holds **by design**. The user's justification for it is "assignment was randomised", not a judgement about what might be unmeasured. Path A with `hte_backdoor`, where covariates buy precision and heterogeneity rather than rescuing the comparison |
+| **Randomised, but many did not comply** | The assignment is the instrument and what they actually received is the treatment. Path A with `hte_iv`. The one case where the exclusion restriction also has a design argument behind it, if assignment reached the outcome only through the treatment |
+| **Someone decided, case by case** | The observational path, and the follow-up below is where the candidate confounders come from |
+
+Write the answer into `assignment_mechanism`, with their words.
+
+**Two precisions worth keeping straight.** Randomisation makes the **assignment** unconfounded,
+not the treatment received: under imperfect compliance the unconfounded thing is the
+assignment, which is exactly why an instrument applies rather than adjustment. And a
+randomised study can still be broken by differential dropout or a leaky rollout, so the
+quality checks still run and still block.
+
+**When someone decided case by case**, ask this and not "what are your confounders":
+
+> "What did the clinicians have in front of them when they decided? And is there anything that
+> mattered to that decision which the data doesn't record?"
+
+Two reasons for that phrasing. A clinician can answer what they looked at, and cannot reliably
+answer which variables satisfy a backdoor criterion. And the gap between what they used and
+what the file holds **is** the unmeasured-confounding question, asked concretely enough to get
+a concrete answer.
+
+---
+
+## Step 2, shared. Map the concepts onto columns
 
 Now look at the variables. Do not paste raw rows into the conversation. Map the user's
 concepts onto specific columns and confirm each one: "By 'dialysis', do you mean the
 `isDialysisICU` column?"
 
-### 3. Variable roles: draft them yourself, then confirm
+When a column name is ambiguous, ask. Do not guess.
 
-**Cross-sectional path.** On the panel path the roles are different and the defaults
-below do not apply: the conditioning set is `state`, and the modifiers must be variables
-the treatment cannot move, which usually means baseline ones. See `dynamic-lag-dml.md`.
+---
+
+## Path A, one row per unit: steps 3 to 5
+
+### A3. Variable roles: draft them yourself, then confirm
 
 `effect_modifiers` (X) are the variables the effect is allowed to vary over;
-`adjustment_set` (W) removes confounding without entering the CATE. Putting a variable
-in the wrong one raises no error. It quietly changes the estimand.
+`adjustment_set` (W) removes confounding without entering the CATE. Putting a variable in the
+wrong one raises no error. It quietly changes the estimand.
 
 **Do not ask the user to enumerate the effect modifiers.** They came to find out which
-patients benefit; asking them to name those variables up front asks them to answer
-their own question. With forty covariates it is also forty questions.
+patients benefit; asking them to name those variables up front asks them to answer their own
+question. With forty covariates it is also forty questions.
 
 Draft it instead, and confirm the draft:
 
-1. **Default X to every pre-treatment covariate.** The forest finds the heterogeneity;
-   that is what it is for.
-2. **Ask the one thing only they can answer**: which of these were measured after
-   treatment started. A column name will not tell you, and this is the answer that
-   affects correctness rather than presentation. Post-treatment variables come out of
-   both X and W.
-3. **Offer a focus, do not require one.** "If you already suspect the benefit differs
-   by severity, I can report that breakdown first." A user with a hypothesis gets to
-   state it; a user without one is not blocked.
+1. **Default X to every pre-treatment covariate.** The forest finds the heterogeneity; that is
+   what it is for.
+2. **Ask the one thing only they can answer**: which of these were measured after treatment
+   started. A column name will not tell you, and this is the answer that affects correctness
+   rather than presentation. Post-treatment variables come out of both X and W.
+3. **Offer a focus, do not require one.** "If you already suspect the benefit differs by
+   severity, I can report that breakdown first." A user with a hypothesis gets to state it; a
+   user without one is not blocked.
 
-Use W when the user wants a variable controlled but not treated as an axis the answer
-is expressed along.
+Use W when the user wants a variable controlled but not treated as an axis the answer is
+expressed along.
 
-### 4. Identification strategy and assumptions
+### A4. Identification strategy and assumptions
 
-**Cross-sectional path**: whether to use backdoor or IV depends on the user's judgement
-about whether observed covariates control confounding, so ask them. **Panel path**: the
-strategy is fixed by the family, and what to ask instead is the horizon pair from step 1
-plus whether the recorded state accounts for why treatment was given in that period.
+What to ask depends on the answer to 1c:
+
+- **Randomised with full compliance**: nothing to ask here. Exchangeability is justified by
+  the design, and you record that justification in the user's words rather than asking them
+  to argue for it.
+- **Randomised with imperfect compliance**: the instrument is already chosen. What is left is
+  monotonicity, which randomisation does not give you: does the assignment move everyone in
+  the same direction, or could it have pushed some patients away from treatment?
+- **Decided case by case**: ask whether the covariates in front of the clinicians are enough,
+  which is the choice between `hte_backdoor` and `hte_iv`. Their answer to 1c's follow-up is
+  usually most of the answer.
 
 Record the assumptions in `assumptions`, by category:
 
@@ -257,40 +319,68 @@ Record the assumptions in `assumptions`, by category:
 | `requires_justification` | The data cannot settle it, but it can be argued |
 | `untestable` | Cannot be verified by data in principle |
 
-The `untestable` ones (unconfoundedness, exclusion restriction, monotonicity) **can
-never be established by any diagnostic**. They set the ceiling on how strongly the
-conclusion may be worded.
+The `untestable` ones (unconfoundedness, exclusion restriction, monotonicity) **can never be
+established by any diagnostic**. They set the ceiling on how strongly the conclusion may be
+worded. Randomisation is the one case where an untestable assumption has a design-based
+justification rather than a judgement behind it, and the report should say which it is.
 
-### 5. Choose a family and reconcile the estimand
+### A5. Family and estimand
 
 Compare the estimand the user wants against what the family declares it can identify: see
-`hte-dmliv.md` for the IV setting and `dynamic-lag-dml.md` for the panel one. **Stop here**
-on a mismatch, and either choose a different family or ask the user to restate the
-estimand.
+`hte-dmliv.md` for the IV setting. **Stop here** on a mismatch, and either choose a different
+family or ask the user to restate the estimand.
 
-The classic conflict: the user asks "which patients benefit" (a CATE) while the
-identification strategy is IV under monotonicity alone, which identifies the
-conditional LATE among compliers, not the population CATE.
+The classic conflict: the user asks "which patients benefit" (a CATE) while the identification
+strategy is IV under monotonicity alone, which identifies the conditional LATE among
+compliers, not the population CATE.
 
-### 6. Quality checks
+---
+
+## Path B, one row per unit per period: steps 3 to 5
+
+All three are written out in `dynamic-lag-dml.md`; this is the shape of them.
+
+### B3. Variable roles
+
+There is no separate W. The conditioning set is `state`, recorded at the start of each period,
+and it is where confounding by indication is handled. `effect_modifiers` exist only for the
+`lag_cate` estimand and are restricted to variables the treatment cannot move, which in
+practice means baseline ones: a modifier the treatment moves destroys the additive
+decomposition the profile rests on, so there is no profile left to estimate.
+
+### B4. Identification and assumptions
+
+The strategy comes with the family rather than being chosen. What to ask instead: the horizon
+pair from 1b, whether the state recorded at the start of a period accounts for why treatment
+was given in it, and how far out the user cares about, which sets `max_lag`.
+
+### B5. Family and estimand
+
+`dynamic_lag_dml`, with `lag_profile` or `lag_cate`. It answers one question and refuses four
+that sound like it: a strategy contrast, a cumulative effect, a survival endpoint, an outcome
+measured once at the end. Check the user's question against that list before going further.
+
+---
+
+## Step 6, shared. Quality checks
 
 ```bash
 python scripts/run.py quality --spec spec.yaml --data <data file>
 ```
 
-A blocking issue means **stop** and read the problem and its suggested repair back to
-the user. **Even when the analysis cannot run, the quality report is itself a
-deliverable**, do not skip it because estimation is impossible.
+A blocking issue means **stop** and read the problem and its suggested repair back to the
+user. **Even when the analysis cannot run, the quality report is itself a deliverable**, do
+not skip it because estimation is impossible.
 
 A waiver needs an explicit reason from the user, and a waived analysis can never reach
 `causal` wording.
 
-### 7. The user confirms the whole spec
+## Step 7, shared. The user confirms the whole spec
 
-Read the spec back in full and have the user confirm it field by field. This step
-cannot be skipped.
+Read the spec back in full and have the user confirm it field by field. This step cannot be
+skipped.
 
-### 8. Estimate and report
+## Step 8, shared. Estimate and report
 
 ```bash
 python scripts/run.py estimate --spec spec.yaml --data <data file> \
@@ -307,10 +397,9 @@ limitations: This analysis rests on ...
 ```
 
 You may write these six sections only: `estimand`, `data_quality`, `primary_results`,
-`sensitivity`, `limitations`, `post_hoc`. **The spec-provenance table and the
-claim-level decision are generated by code and are out of your reach**, the first
-exists so the user can check whether you confirmed things on their behalf, the second
-is a matter of principle.
+`sensitivity`, `limitations`, `post_hoc`. **The spec-provenance table and the claim-level
+decision are generated by code and are out of your reach**, the first exists so the user can
+check whether you confirmed things on their behalf, the second is a matter of principle.
 
 ## references
 
