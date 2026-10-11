@@ -247,8 +247,9 @@ is expressed along.
 **Cross-sectional path**: whether to use backdoor or IV depends on the user's judgement
 about whether observed covariates control confounding, so ask them. **Panel path**: the
 strategy is fixed by the family, and what to ask instead is the horizon pair from step 1
-plus whether the recorded state accounts for why treatment was given in that period. Record the assumptions in `assumptions`,
-by category:
+plus whether the recorded state accounts for why treatment was given in that period.
+
+Record the assumptions in `assumptions`, by category:
 
 | category | Meaning |
 |---|---|
@@ -262,9 +263,10 @@ conclusion may be worded.
 
 ### 5. Choose a family and reconcile the estimand
 
-Compare the estimand the user wants against what the family declares it can identify
-(see `hte-dmliv.md` for the IV setting, `dynamic-lag-dml.md` for the panel one). **Stop here** on a mismatch: either choose a different
-family or ask the user to restate the estimand.
+Compare the estimand the user wants against what the family declares it can identify: see
+`hte-dmliv.md` for the IV setting and `dynamic-lag-dml.md` for the panel one. **Stop here**
+on a mismatch, and either choose a different family or ask the user to restate the
+estimand.
 
 The classic conflict: the user asks "which patients benefit" (a CATE) while the
 identification strategy is IV under monotonicity alone, which identifies the
