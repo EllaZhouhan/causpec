@@ -298,28 +298,36 @@ that answer your question?" is wrong whenever they were answering yours, which a
 in the conversation they usually were, and it reads as though you had lost track of who asked
 what. Say "is that what you meant by survival?" instead.
 
-**Their outcome is a concept; the column is a measurement. Confirm wherever the two differ**,
-in one sentence, and then move on. The user names what they care about, and the column fixes
-things they did not mention, so this is not a formality: a difference here is written into the
-report as the outcome and nothing downstream ever questions it.
+**Always read the outcome column back to them, whatever word they used.** Not when it looks
+vague, not when you suspect a mismatch: always. `outcome` is a critical field, so it cannot be
+confirmed by inference anyway, and a rule that fires on some answers and not others is a rule
+with a list of phrasings in it that nobody can keep complete. One sentence, in the turn where
+you map it, and then move on.
 
-Three kinds of gap, and the first two come up constantly:
+The sentence states **what the column actually holds**, not what it is called:
 
-| They said | What the column fixes and they did not | The sentence |
-|---|---|---|
-| "mortality" | **The window.** `death` is 0/1 with no date, so it means death at some point inside this record, not at 28 days or any other horizon | "The column is death yes or no, with no date on it, so it means they died at some point in what this record covers, rather than within 28 days or any other window. Is that the outcome you want?" |
-| "survival" | **The shape.** Whether, not how long | "It records whether each of them died, not when. So the outcome is death yes or no, rather than how long they lasted. Is that what you meant by survival?" |
-| "cost", "instability", "engagement" | **The aggregation.** A maximum over a stay, a total, a daily mean and an ever-happened flag are four different outcomes | "`max_lactate` is the highest value recorded, not an average. Is the peak what you want?" |
+> "The column is `death`, 0 or 1, with no date on it. So the outcome is whether they died at
+> some point in what this record covers, not within 28 days or any other window. Is that the
+> outcome you want?"
 
-Do not re-explain the file's lack of timestamps if the shape step has already said so: the
-sentence above adds what the column means, which is new.
+Three things are worth stating because they are what a column fixes and a word usually leaves
+out. Mention whichever apply:
 
-If they wanted a survival curve or a hazard, say that this tool does not do time-to-event and
-that the binary version is what is on offer, in one sentence. **Do not propose a workaround
-with a cut-off nobody asked for**: a 28-day flag invented here is a new definition of the
-outcome, and it would be yours rather than theirs. If they want 28-day mortality and the file
-cannot give it, that is worth one sentence too, because the thing they asked for is not the
-thing available.
+| | What to say |
+|---|---|
+| **The window** | No date on the column means death at some point inside this record, not at 28 days. "Mortality", "death", "deaths" and "did they die" all leave this out equally |
+| **The shape** | Whether, not how long. The one that matters when they said "survival", because a curve or a hazard is a different question with different methods |
+| **The aggregation** | A peak over a stay, a total, a daily mean and an ever-happened flag are four different outcomes of "cost" or "instability" or "engagement" |
+
+**A column whose name matches their word is the case to be most careful about, not the one to
+wave through.** When they say death and the column is called `death`, the match is on the
+name and says nothing about what the column holds: still no date, still no window. Agreement
+on a word reads like agreement on a definition.
+
+If what they want is not what the file holds, say so in one sentence. **Do not invent a
+cut-off to bridge the gap**: a 28-day flag made up here is a new definition of the outcome and
+it would be yours rather than theirs. If they wanted a survival curve or a hazard, say that
+this tool does not do time-to-event and that the binary version is what is on offer.
 
 ### 1b. The shape, which the file answers
 

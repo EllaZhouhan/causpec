@@ -38,6 +38,17 @@ def frontmatter(skill_text: str) -> dict[str, str]:
 # ---- structure ----
 
 
+def flat(text: str) -> str:
+    """The text with every run of whitespace collapsed to one space.
+
+    Prose in these documents wraps at 90 characters, so a sentence worth asserting usually
+    spans a line break. Three tests have failed on the wrap rather than on the content, which
+    teaches the author to assert shorter and weaker things. Collapsing first means the
+    assertion can be the phrase that matters.
+    """
+    return " ".join(text.split())
+
+
 def test_frontmatter_has_name_and_description(frontmatter) -> None:
     assert frontmatter["name"] == "causpec-analyst"
     assert len(frontmatter["description"]) > 80  # a short description triggers poorly
@@ -552,24 +563,29 @@ def test_neutralising_a_sentence_must_not_empty_it(skill_text: str) -> None:
     assert "do not remove the idea and leave the grammar" in skill_text.lower()
 
 
-def test_the_outcome_is_confirmed_wherever_the_column_fixes_what_they_left_out(
-    skill_text: str,
-) -> None:
-    """A concept against a measurement, and the gap goes into the report unquestioned.
+def test_the_outcome_column_is_always_read_back(skill_text: str) -> None:
+    """Unconditionally, whatever word they used.
 
-    The rule used to fire only when the outcome was "vaguer than the column", which caught
-    "survival" and missed "mortality". A `death` column of 0/1 with no date means death at
-    some point inside the record, so a user who said mortality and meant 28-day mortality
-    gets the wrong number with nothing anywhere complaining: the window is the part their
-    word left out.
+    This rule went through two conditional forms and both leaked. First it fired only when
+    the outcome was "vaguer than the column", which caught "survival" and missed "mortality",
+    whose gap is the window rather than the shape. Then it fired off a table of words, which
+    would have missed "death", "deaths" and "did they die".
 
-    Three gaps are named, because the third generalises past this project's own data: the
-    window, the shape, and the aggregation.
+    The conditions were the mistake. `outcome` is a critical field, so it cannot be confirmed
+    by inference in the first place, and any rule that fires on some phrasings carries a list
+    of phrasings nobody can keep complete. Always reading the column back needs no list.
+
+    The three kinds of gap survive as a checklist of what to say, which is what they are good
+    for, rather than as a trigger for whether to speak at all.
     """
-    lowered = skill_text.lower()
-    assert "their outcome is a concept; the column is a measurement" in lowered
-    assert "the window" in lowered
-    assert "within 28 days or any other window" in lowered
-    assert "the aggregation" in lowered
+    lowered = flat(skill_text).lower()
+    assert "always read the outcome column back to them, whatever word they used" in lowered
+    assert "not when it looks vague, not when you suspect a mismatch: always" in lowered
+    assert "critical field" in lowered
+    for item in ("the window", "the shape", "the aggregation"):
+        assert item in lowered, item
+    # The trap where the column's name matches their word, which looks settled and is not.
+    assert "most careful about, not the one to wave through" in lowered
+    assert "agreement on a word reads like agreement on a definition" in lowered
     # And inventing a horizon to bridge the gap stays forbidden.
-    assert "cut-off nobody asked for" in lowered
+    assert "do not invent a cut-off" in lowered

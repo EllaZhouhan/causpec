@@ -47,23 +47,27 @@ case `effect_modifiers` is central.
 
 Write it into the spec, each field carrying the user's own words, `status: confirmed`.
 
-**The outcome they name is a concept; the column is a measurement.** Confirm wherever the two
-differ, in one sentence, because the difference is written into the report as the outcome and
-nothing downstream questions it again.
+**Always read the outcome column back to them, whatever word they used.** `outcome` is a
+critical field, so it cannot be confirmed by inference, and a rule that fires on some
+phrasings carries a list of phrasings nobody keeps complete. One sentence, in the turn where
+you map it:
 
-- "mortality" leaves out the **window**. A `death` column of 0/1 with no date means death at
-  some point inside this record, not within 28 days: "The column is death yes or no, with no
-  date on it, so it means they died at some point in what this record covers, rather than
-  within 28 days or any other window. Is that the outcome you want?"
-- "survival" leaves out the **shape**, whether against how long: "It records whether each of
-  them died, not when. So the outcome is death yes or no, rather than how long they lasted.
-  Is that what you meant by survival?"
-- "cost", "instability" or "engagement" leaves out the **aggregation**. A peak over a stay, a
-  total, a daily mean and an ever-happened flag are four different outcomes.
+> "The column is `death`, 0 or 1, with no date on it. So the outcome is whether they died at
+> some point in what this record covers, not within 28 days or any other window. Is that the
+> outcome you want?"
+
+State what the column holds, not what it is called. Three things a word usually leaves out,
+so mention whichever apply: the **window** (no date means any point in the record, not 28
+days), the **shape** (whether, not how long, which is what "survival" leaves open), and the
+**aggregation** (a peak, a total, a daily mean and an ever-happened flag are four different
+outcomes of "cost" or "engagement").
+
+A column whose name matches their word is the case to be most careful about. Agreement on a
+word reads like agreement on a definition, while the window is still unstated.
 
 If what they want is not what the file holds, say so in one sentence. Do not invent a cut-off
 to bridge the gap: a 28-day flag made up here is a new definition of the outcome and it would
-be yours rather than theirs. SKILL.md has the table.
+be yours rather than theirs. SKILL.md has the checklist.
 
 ### 1b. The shape, which the file answers
 
