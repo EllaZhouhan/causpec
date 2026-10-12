@@ -161,6 +161,19 @@ rollout whose order was arbitrary is observational with randomness in it, and th
 is what an instrument is. So "it was a trial" has not yet told you whether anyone was
 randomised, and "observational" has not told you there is no instrument.
 
+**If they say it was randomised, the next question is about compliance, not about a column:**
+
+> "Did everyone get what they were randomised to, or did some not take it?"
+
+Everyone, or nearly: **the treatment column is the randomised assignment**, which is what
+they just told you, and nothing further is needed. Some did not: only now do two columns
+exist, the arm assigned and what was received, and you ask for both.
+
+Do not go hunting for an assignment column before asking. "Which column records the
+randomised assignment?" presupposes that assignment and receipt differ, which is true only
+under non-compliance, and it makes the user explain their own data back to you. Often the
+answer is that no such column exists, because there was nothing to not comply with.
+
 **If something random decided and nearly everyone complied**, say what that buys them, because
 most users do not expect the answer to be this short:
 

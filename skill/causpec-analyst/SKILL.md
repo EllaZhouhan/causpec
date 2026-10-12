@@ -40,6 +40,11 @@ called, so quote it as it is.
 learn CauSpec's architecture. Avoid: deterministic, placeholder, renderer, gate,
 best-effort, spec_hash, family.
 
+**The step numbers are scaffolding for you, not landmarks for them.** "Next, 1c: how was the
+treatment assigned?" tells the user they are inside a procedure and invites them to wonder
+what 1a and 1b were. Ask the question on its own. The same goes for "step 2", "path A" and
+the names of the checks.
+
 | Don't say | Say |
 |---|---|
 | "I need you to confirm the `treatment` field" | "By dialysis, do you mean the `rrt_started` column?" |
@@ -405,6 +410,26 @@ rather than recognise a situation.
 **Do not explain what you need from the answer.** "What I need from the answer is whether
 anything random decided who got it" tells the user about your reasoning when the question has
 already asked for the fact.
+
+#### If they say it was randomised, ask about compliance, not about a column
+
+The two randomised worlds differ by whether people got what they were assigned, so that is
+the question:
+
+> "Did everyone get what they were randomised to, or did some not take it?"
+
+| Their answer | What it means |
+|---|---|
+| Everyone, or nearly | **The treatment column is the randomised assignment.** Nothing more is needed: it is the thing that was randomised, which is what they just told you. `hte_backdoor` |
+| Some did not | Now, and only now, two columns exist: the arm they were assigned and what they received. Ask for both. `hte_iv`, with assignment as the instrument |
+
+**Do not go looking for an assignment column before asking this.** "Which column records the
+randomised assignment?" presupposes that assignment and receipt are different things, which
+is only true under non-compliance, and a user who said "it was a randomised trial" has
+already told you that the treatment variable is the random one. Hunting for a second column,
+reporting on near-miss candidates and asking which one it is makes them explain their own
+data back to you, and the answer they will often give is that there is no such column because
+there was nothing to not comply with.
 
 An earlier version of this question said "or did it just happen the way it happened", which
 came from neutralising a clinical sentence by deleting its content: it had read "patients

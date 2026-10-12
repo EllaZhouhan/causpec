@@ -606,3 +606,31 @@ def test_the_outcome_column_is_always_read_back(skill_text: str) -> None:
     assert "agreement on a word reads like agreement on a definition" in lowered
     # And inventing a horizon to bridge the gap stays forbidden.
     assert "do not invent a" in lowered and "cut-off to bridge the gap" in lowered
+
+
+def test_a_randomised_answer_is_followed_by_compliance_not_by_a_column_hunt(
+    skill_text: str,
+) -> None:
+    """The two randomised worlds differ by whether people got what they were assigned.
+
+    Told "it is a random trial", the model asked which column recorded the randomised
+    assignment, reported on two near-miss candidates, and asked the user to identify it. The
+    question presupposes that assignment and receipt are different things, which holds only
+    under non-compliance, and a user who says it was a randomised trial has already said the
+    treatment variable is the random one. 1c named the two worlds and never said how to tell
+    them apart, so the model went looking in the data for something that exists only in one
+    of them.
+    """
+    lowered = flat(skill_text).lower()
+    assert "did everyone get what they were randomised to, or did some not take it" in lowered
+    assert "the treatment column is the randomised assignment" in lowered
+    assert "do not go looking for an assignment column before asking this" in lowered
+
+
+def test_the_step_numbers_stay_out_of_the_conversation(skill_text: str) -> None:
+    """ "Next, 1c: how was the treatment assigned?" tells the user they are inside a procedure.
+
+    The banned-vocabulary list covered the tool's nouns and not its scaffolding.
+    """
+    lowered = flat(skill_text).lower()
+    assert "the step numbers are scaffolding for you, not landmarks for them" in lowered
