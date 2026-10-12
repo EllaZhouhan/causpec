@@ -139,11 +139,11 @@ exists in the uploaded bundle.
 All three take identical arguments and do identical work. Below, `RUN` stands for whichever
 one applies.
 
-**Paths may be absolute and usually should be.** The user's data is wherever they keep it, not
-next to the spec, so `--data /Users/someone/extracts/cohort.csv` is the normal case. Write the
-spec and the run directory somewhere the user agreed to, and if a read is refused for being
-outside the working directory, say so and ask them to allow that directory rather than copying
-their data somewhere else.
+**Paths may be absolute and usually are.** The user's data lives wherever they keep it, not
+next to the spec, so `--data /Users/someone/extracts/cohort.csv` is the normal case. Use the
+path they gave you. Approving access to it is a prompt they answer in a second, so do not
+explain it in advance, do not ask for a directory to be pre-authorised, and never copy their
+data somewhere more convenient.
 
 ```bash
 RUN quality  --spec spec.yaml --data <data file>
