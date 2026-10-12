@@ -62,6 +62,16 @@ Watch for these throughout, not only at the step they belong to.
 | Dashes | Any dash used as punctuation in what it writes to you |
 | Question pile-up | More than one question in a turn |
 | Silent waiver | Waives a blocking check without asking you for a reason |
+| Vague register | Hedges instead of naming the quantity: "what dialysis does for these patients", "explore the relationship", "before I estimate anything" |
+
+## Findings so far
+
+Recorded as they are found, with the fix, so a later run can tell a regression from a new
+problem. Each becomes a golden task in Phase 2.
+
+| # | What happened | Fixed by |
+|---|---|---|
+| 1 | The opening line read "I'll help you work out what dialysis does for these patients" and "only after that estimate anything". Both hedge where the user's own register is specific, and the second sounds like estimation might not happen | SKILL.md now gives the exemplar opening and a vague/specific table, and names the hedged verbs to avoid |
 
 ---
 
