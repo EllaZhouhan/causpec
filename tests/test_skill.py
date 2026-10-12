@@ -431,19 +431,25 @@ def test_an_association_is_not_called_evidence_of_confounding(skill_text: str) -
 def test_skill_names_experiment_versus_observation_and_the_fact_it_needs(
     skill_text: str,
 ) -> None:
-    """Two questions in one sentence, because they come apart in both directions.
+    """Two branches, one example, and the example is where the work happens.
 
-    An earlier version asked only "did anything random decide who got it", which is the
-    operative fact but not the frame a clinician or an analyst thinks in. Naming the
-    distinction they already use gets a faster and more accurate answer, and the second half
-    is still needed: a single-arm trial is an experiment with nothing randomised, and a
-    staged rollout is observational with randomness in it, which is what an instrument is.
+    This went through three forms. "Did anything random decide who got it" is the operative
+    fact in a frame nobody thinks in. "Did chance play any part in who got it, as in a trial,
+    a staged rollout, an A/B test, a lottery for access" asks them to recognise a mechanism
+    and then recites three nouns irrelevant to whatever they brought. What works is the
+    familiar question with one example drawn from their own setting, which is also what
+    carries the randomisation: a user with a single-arm trial answers "it was a trial, but
+    nobody was randomised".
+
+    So the assertion is on the branches and on the instruction to pick the example, not on
+    any list of categories.
     """
     lowered = skill_text.lower()
-    assert "experiment" in lowered
-    assert "observational" in lowered
-    assert "whether anything random decided" in lowered
-    # And the two cases where design and randomisation come apart are spelled out.
+    assert "was this an experiment of any kind" in lowered
+    assert "did someone decide case" in lowered
+    assert "one example, taken from their setting" in lowered
+    # The two cases where design and randomisation come apart are still spelled out, as the
+    # reason the example has to mention randomisation.
     assert "single-arm trial" in lowered
     assert "staged rollout" in lowered
 

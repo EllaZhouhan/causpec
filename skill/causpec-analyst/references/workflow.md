@@ -126,9 +126,11 @@ for you.
 Asked before the columns are mapped, because it decides which identification questions are
 worth asking at all.
 
-> "How was it decided? Did chance play any part in who got it, as in a trial or any other
-> experiment, a staged rollout, an A/B test, a lottery for access? Or did someone decide
-> case by case?"
+> "Was this an experiment of any kind, such as a trial where patients were randomised to
+> RRT? Or did someone decide case by case?"
+
+One example, taken from their setting and naming their own treatment. SKILL.md has the
+table of which example fits what.
 
 Both halves are asked because they come apart in each direction, and only the second one
 identifies anything. A single-arm trial is an experiment with nothing randomised. A staged

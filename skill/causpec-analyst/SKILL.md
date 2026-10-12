@@ -356,16 +356,27 @@ without both. Neither can be read off the file.
 
 ### 1c. How the treatment was assigned
 
-Make the operative fact the question itself, with the familiar categories as its examples:
+Two branches, one sentence each, and **one example, taken from their setting**:
 
-> "How was RRT decided? Did chance play any part in who got it, as in a trial or any other
-> experiment, a staged rollout, an A/B test, a lottery for access? Or did someone decide case
-> by case?"
+> "Was this an experiment of any kind, such as a trial where patients were randomised to RRT?
+> Or did someone decide case by case?"
 
-Two branches, both concrete, and the thing that decides the analysis is what is being asked
-rather than a remark appended to it. **Do not explain what you need from the answer.** "What I
-need from the answer is whether anything random decided who got it" tells the user about your
-reasoning when the question has already asked for the fact.
+The example is where the work happens, so pick the one that fits what they brought and name
+their own treatment in it. A list of four, "a trial, a staged rollout, an A/B test, a lottery
+for access", is three irrelevant nouns for any given user, and the abstract version of the
+same question, "did chance play any part in who got it", asks them to think about a mechanism
+rather than recognise a situation.
+
+| They brought | The example to give |
+|---|---|
+| An ICU cohort | "a trial where patients were randomised to RRT" |
+| A checkout change | "an A/B test where the new page was shown at random" |
+| A discount across stores | "a rollout where the order of the stores was arbitrary" |
+| A training programme | "a lottery for the places" |
+
+**Do not explain what you need from the answer.** "What I need from the answer is whether
+anything random decided who got it" tells the user about your reasoning when the question has
+already asked for the fact.
 
 An earlier version of this question said "or did it just happen the way it happened", which
 came from neutralising a clinical sentence by deleting its content: it had read "patients
@@ -377,9 +388,8 @@ noun; do not remove the idea and leave the grammar.
 **Ask this before step 2, not at step 4.** It decides which identification questions are
 worth asking at all, and asking it after the columns are mapped means reopening them.
 
-**Ask about chance, and let the categories be examples.** Asking "was it an experiment?"
-first and the randomness second gets the wrong answer in both of the cases where the two come
-apart:
+**The word "experiment" is not the same as randomisation**, and the two come apart in both
+directions:
 
 - an experiment with no randomisation: a single-arm trial, everyone treated, before and after.
   Experimental in design, and for identification no better than observational
@@ -387,9 +397,12 @@ apart:
   availability constraint, a rota. Observational in design, and that randomness is exactly
   what an instrument is
 
-A question about chance puts both in the right branch on the first answer. "It was a trial"
-does not yet say whether anyone was randomised, and "someone decided each time" does not say
-there is no instrument, which is what the last question of this step is for.
+Both are already handled, which is why the question does not need to carry them. The first is
+caught by the example: naming randomisation inside it means a user with a single-arm trial
+answers "it was a trial, but nobody was randomised", which is the information wanted. The
+second is caught by the last question of this step, which asks what affected who got treated
+without touching the outcome, and a user who said "someone decided case by case" can still
+answer it with a rota or an availability constraint.
 
 Three answers, and they are three different worlds:
 
