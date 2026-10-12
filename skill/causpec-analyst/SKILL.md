@@ -66,13 +66,21 @@ later steps build on it instead of re-deriving it.
 The common case is a file with no timestamps. The shape step says so; the outcome step then
 has a real question to ask, and should ask only the part that is new:
 
-| | |
-|---|---|
-| **Don't** | "The file has no time columns, so this is a single comparison rather than a follow-up over time. On survival: it records whether each patient died but not when, and there is no follow-up time, so I can estimate the chance of dying but not how long they survive or a survival curve." |
-| **Do** | "The file records whether each of them died, not when. So the outcome is death yes or no, rather than how long they lasted. Does that answer your question?" |
+> "The file records whether each of them died, not when. So the outcome is death yes or no,
+> rather than how long they lasted. Does that answer your question?"
 
-The question survives the cut, because "survival" might have meant a survival curve and that
-cannot be given. What goes is the second explanation of a fact already established.
+What that replaced was four sentences that said the same thing: no time columns, no follow-up
+over time, not when, no follow-up time. The question survives the cut, because "survival"
+might have meant a survival curve and that cannot be given. What goes is the second
+explanation of a fact already established.
+
+**Bad phrasing is described here, not quoted as a whole sentence.** A fluent sentence written
+out as an example of what not to say is still a fluent sentence in front of you, and it gets
+reused with its label left behind. That is how "a single comparison" reached a reply: it was
+quoted once, as a thing to avoid.
+
+Short fragments in a two-column table are safe, because the contrast is the whole content of
+the row and neither side reads as something to send. A paragraph of plausible prose is not.
 
 **Open by greeting them and saying what you are about to do**, in one or two lines,
 then ask one question. No preamble about execution modes or how the tool works.
@@ -299,10 +307,19 @@ and it would be yours rather than theirs.
 
 ### 1b. The shape, which the file answers
 
-One row per unit and no time columns is cross-sectional: **say so in one line and move to
-1c.** One row per unit per period is a panel. The file settles this, so do not ask a clinician
-to classify their own treatment as static or time-varying in the abstract, which is a hard
-question cold and one the schema has already answered.
+One row per unit and no time columns is cross-sectional. One row per unit per period is a
+panel. The file settles this, so do not ask the user to classify their own treatment as static
+or time-varying in the abstract, which is a hard question cold and one the schema has already
+answered.
+
+**Say it as a fact about their file, in one line, and move to 1c:**
+
+> "One row per store and no dates, so the comparison is between the ones that got the discount
+> and the ones that didn't."
+
+Say what the file is, not what kind of design it is. "A single comparison", "a
+cross-sectional analysis" and "a point-in-time contrast" all classify it in a vocabulary the
+user did not ask for and that carries no information they can act on.
 
 **Do not turn the shape into a branch point.** An earlier version of this step asked, right
 here, whether a 0/1 treatment flag meant "started at any point during the stay" or "already on

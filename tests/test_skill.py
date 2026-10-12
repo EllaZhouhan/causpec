@@ -464,13 +464,11 @@ def test_the_skill_does_not_put_clinical_vocabulary_in_the_models_mouth(
     than domain-free.
     """
     spoken = [line for line in skill_text.splitlines() if line.startswith(">")]
-    clinical = [
-        line
-        for line in spoken
-        if any(
-            word in line.lower() for word in ("patient", "clinician", "consultant", "ward", "icu ")
-        )
-    ]
+    # Whole words only: the first version matched "ward" inside "afterwards" and reported a
+    # perfectly neutral sentence as clinical. A guard with a false positive gets switched off,
+    # which is worse than not having one.
+    pattern = re.compile(r"\b(patients?|clinicians?|consultants?|wards?|icu)\b", re.I)
+    clinical = [line for line in spoken if pattern.search(line)]
     assert len(clinical) <= 1, f"clinical vocabulary in what the model says: {clinical}"
     assert "Follow the user's domain too" in skill_text
     # And "unit" is the tool's word, not anyone's.
@@ -491,3 +489,16 @@ def test_the_skill_says_each_limitation_once(skill_text: str) -> None:
     # And the survival case, which is where it was found.
     assert "not when" in skill_text
     assert "time-to-event" in skill_text
+
+
+def test_the_shape_is_stated_as_a_fact_not_classified(skill_text: str) -> None:
+    """ "A single comparison" tells the user nothing they can act on.
+
+    1b used to say only "say so in one line" without saying what the line was, so the model
+    improvised a classification: "this is a single comparison rather than a follow-up over
+    time". The phrase then survived into the skill, inside the example of what not to say,
+    where it was available to be reused. The line is now given, and the vocabulary to avoid
+    is named rather than quoted as a sentence.
+    """
+    assert "Say what the file is, not what kind of design it is" in skill_text
+    assert "not quoted as a whole sentence" in skill_text
