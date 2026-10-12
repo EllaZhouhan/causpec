@@ -1,5 +1,8 @@
 # The eight steps
 
+> `RUN` is `python scripts/run.py` in the packaged skill and `uv run causpec` in the
+> repository. `ls scripts/run.py` tells you which, once per session. SKILL.md has the table.
+
 The order exists for a reason. Do not skip. Each step below suggests how to ask.
 
 ---
@@ -235,7 +238,7 @@ design, and **do not force it into backdoor adjustment**.
 ## 6. Quality checks
 
 ```bash
-python scripts/run.py quality --spec spec.yaml --data <data file>
+RUN quality --spec spec.yaml --data <data file>
 ```
 
 A blocking issue means stop, and read `impact_on_analysis` and `recommended_repair`
@@ -263,7 +266,7 @@ Without both, the ceiling for an automatic decision is `suggestive`.
 ## 8. Estimate and report
 
 ```bash
-python scripts/run.py estimate --spec spec.yaml --data <data file> \
+RUN estimate --spec spec.yaml --data <data file> \
     --report --narrative narrative.yaml --run-dir runs/
 ```
 

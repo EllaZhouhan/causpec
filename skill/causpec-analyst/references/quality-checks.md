@@ -1,7 +1,10 @@
 # Quality checks
 
+> `RUN` is `python scripts/run.py` in the packaged skill and `uv run causpec` in the
+> repository. `ls scripts/run.py` tells you which, once per session. SKILL.md has the table.
+
 ```bash
-python scripts/run.py quality --spec spec.yaml --data <data file>
+RUN quality --spec spec.yaml --data <data file>
 ```
 
 **Even when estimation cannot run, this report is a deliverable.** Do not skip it
@@ -58,7 +61,7 @@ For a failed overlap check:
 When the user insists on proceeding despite a blocking issue:
 
 ```bash
-python scripts/run.py estimate ... \
+RUN estimate ... \
     --waive "backdoor_overlap=restricted to the sub-population with common support, see protocol 3.2"
 ```
 

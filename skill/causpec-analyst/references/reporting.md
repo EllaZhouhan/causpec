@@ -1,5 +1,8 @@
 # Reporting
 
+> `RUN` is `python scripts/run.py` in the packaged skill and `uv run causpec` in the
+> repository. `ls scripts/run.py` tells you which, once per session. SKILL.md has the table.
+
 ## The structure is fixed
 
 ```
@@ -52,7 +55,7 @@ limitations: >
 ```
 
 ```bash
-python scripts/run.py estimate --spec spec.yaml --data <data> \
+RUN estimate --spec spec.yaml --data <data> \
     --report --narrative narrative.yaml --run-dir runs/
 ```
 

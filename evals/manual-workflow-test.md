@@ -9,23 +9,38 @@ Play the clinician. Do not use the vocabulary of the tool: no "estimand", no "sp
 
 ## Setup
 
-Data lives in `data/testdata/`, which is gitignored. Regenerate it with:
+Data lives in `data/testdata/`, which is gitignored. All six files, including the three
+derived ones that carry a defect on purpose, come from one script:
 
 ```bash
-uv run python data/generators/dataset_a.py --out data/testdata/cross_sectional.csv \
-    --preset realistic --n 4000 --seed 7
-uv run python data/generators/dataset_a_panel.py --out data/testdata/panel_good.csv \
-    --n 5000 --seed 31
-uv run python data/generators/dataset_a_panel.py --out data/testdata/panel_small.csv \
-    --n 900 --seed 12
+uv run python data/generators/build_testdata.py
 ```
 
-`panel_truncated.csv`, `panel_gap.csv` and `wide_ever_treated.csv` are derived from those;
-the script that builds them and strips the truth columns is in the session notes. The true
-values are in `data/testdata/ANSWERS.md`, **which the session under test must not see**.
+It strips every truth column and asserts that none survived, because a session that can read
+`tau_true` is not being tested on anything. Regenerating changes the row counts of the derived
+files, since they are built from a fresh draw; the true lag profile does not change, being the
+generator's own parameters, so the answer key's numbers stay valid while its counts may not.
 
-Start a fresh session per scenario. A session that has already been told the answer to one
-scenario is not testing the next.
+**Move the answer key out of the repository before testing.**
+
+```bash
+mv data/testdata/ANSWERS.md ~/causpec-answers.md
+```
+
+It is the key to judging what comes back, not a hint for the session, and a session that can
+list `data/testdata/` can read it. The sentence at the top of that file is for a person, and
+stops nothing.
+
+**Which scenarios need a fresh session.** Scenarios 1, 3, 6 and 7 test whether the workflow
+*asks* something unprompted, and that cannot be judged in a session that has already been
+told the answer: you would not be able to tell "it forgot" from "it already knew". The rest
+can share a session. What never needs isolating is whether it computes a number itself, uses
+tool vocabulary, piles up questions or overstates a claim, none of which depend on context.
+
+**Running the commands.** In this repository the skill's own `scripts/run.py` is not on the
+path that SKILL.md's packaged layout assumes, so the command is `uv run causpec`. The skill
+works this out itself with `ls scripts/run.py`; if you see it reach for `python
+scripts/run.py` and fail, that is a finding worth recording.
 
 ## What counts as a failure in every scenario
 

@@ -1,5 +1,8 @@
 # The lag profile: treatment given period by period
 
+> `RUN` is `python scripts/run.py` in the packaged skill and `uv run causpec` in the
+> repository. `ls scripts/run.py` tells you which, once per session. SKILL.md has the table.
+
 Read this when the treatment is not a one-off. If the patient can be on it in one period
 and off it in the next, a cross-sectional comparison cannot say what it did, and this
 family can, for one specific question.
@@ -180,8 +183,8 @@ only the user can say that is the case.
 ## Running it
 
 ```bash
-python scripts/run.py quality  --spec spec.yaml --data <panel file>
-python scripts/run.py estimate --spec spec.yaml --data <panel file>
+RUN quality  --spec spec.yaml --data <panel file>
+RUN estimate --spec spec.yaml --data <panel file>
 ```
 
 The spec fields this family needs: `unit_id`, `period_index`, `period_length`, `state`,

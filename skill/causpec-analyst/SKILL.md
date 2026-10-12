@@ -116,9 +116,24 @@ the question calls for that design, do not force it into backdoor adjustment.
 
 Currently only the **scripts form** is available; the MCP server is not implemented yet.
 
+**Work out the command once, on your first script call, and reuse it.** The skill runs in
+two layouts and the command differs:
+
 ```bash
-python scripts/run.py quality  --spec spec.yaml --data <data file>
-python scripts/run.py estimate --spec spec.yaml --data <data file> --report --narrative narrative.yaml
+ls scripts/run.py        # present: the packaged bundle. absent: the repository
+```
+
+| Layout | Command |
+|---|---|
+| `scripts/run.py` is there (claude.ai, the packaged skill) | `python scripts/run.py ...` |
+| It is not (the repository, where the skill is a symlink under `.claude/skills/`) | `uv run causpec ...` |
+
+Both take identical arguments and do identical work. Below, `RUN` stands for whichever one
+applies.
+
+```bash
+RUN quality  --spec spec.yaml --data <data file>
+RUN estimate --spec spec.yaml --data <data file> --report --narrative narrative.yaml
 ```
 
 The report header automatically notes that this is the skill form (best-effort).
@@ -416,7 +431,7 @@ measured once at the end. Check the user's question against that list before goi
 ## Step 6, shared. Quality checks
 
 ```bash
-python scripts/run.py quality --spec spec.yaml --data <data file>
+RUN quality --spec spec.yaml --data <data file>
 ```
 
 A blocking issue means **stop** and read the problem and its suggested repair back to the
@@ -446,7 +461,7 @@ skipped.
 ## Step 8, shared. Estimate and report
 
 ```bash
-python scripts/run.py estimate --spec spec.yaml --data <data file> \
+RUN estimate --spec spec.yaml --data <data file> \
     --report --narrative narrative.yaml --run-dir runs/
 ```
 
