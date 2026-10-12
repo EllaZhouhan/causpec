@@ -126,10 +126,9 @@ for you.
 Asked before the columns are mapped, because it decides which identification questions are
 worth asking at all.
 
-> "Was this an experiment of any kind, a trial, a staged rollout, an A/B test, a lottery for
-> access? Or did it just happen the way it happened, with whoever was deciding doing what
-> seemed best at the time? What I need from the answer is whether anything random decided
-> who got it."
+> "How was it decided? Did chance play any part in who got it, as in a trial or any other
+> experiment, a staged rollout, an A/B test, a lottery for access? Or did someone decide
+> case by case?"
 
 Both halves are asked because they come apart in each direction, and only the second one
 identifies anything. A single-arm trial is an experiment with nothing randomised. A staged

@@ -523,3 +523,24 @@ def test_a_confirmation_asks_about_their_word_not_about_their_question(
     assert not [line for line in spoken if "answer your question" in line.lower()]
     assert "Confirm their word, not your question" in skill_text
     assert "what you meant by survival" in skill_text
+
+
+def test_neutralising_a_sentence_must_not_empty_it(skill_text: str) -> None:
+    """Replace the domain noun; do not delete the idea and keep the grammar.
+
+    "Patients treated as the team judged best at the time" was made domain-neutral by
+    rewriting it as "did it just happen the way it happened", which says nothing at all. The
+    observational branch has content and it is that someone decided case by case, which is as
+    true of a manager approving discounts as of a clinician at a bedside.
+
+    The second half of the same question explained itself: "what I need from the answer is
+    whether anything random decided who got it" tells the user about the model's reasoning
+    when the question has already asked for the fact.
+    """
+    spoken = [line for line in skill_text.splitlines() if line.startswith(">")]
+    for dead in ("happen the way it happened", "what I need from the answer"):
+        assert not [line for line in spoken if dead in line.lower()], dead
+    # The phrase spans a line break in the source, so the check is on the words that carry it.
+    assert "did someone decide case" in skill_text
+    assert "someone decided case by case" in skill_text  # the rule, in prose
+    assert "do not remove the idea and leave the grammar" in skill_text.lower()

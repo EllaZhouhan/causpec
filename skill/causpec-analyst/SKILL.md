@@ -356,29 +356,40 @@ without both. Neither can be read off the file.
 
 ### 1c. How the treatment was assigned
 
-Name the distinction they already think in, then land on the fact that decides the analysis:
+Make the operative fact the question itself, with the familiar categories as its examples:
 
-> "Was this an experiment of any kind, a trial, a staged rollout, an A/B test, a lottery for
-> access? Or did it just happen the way it happened, with whoever was deciding doing what
-> seemed best at the time? What I need from the answer is whether anything random decided who
-> got it."
+> "How was RRT decided? Did chance play any part in who got it, as in a trial or any other
+> experiment, a staged rollout, an A/B test, a lottery for access? Or did someone decide case
+> by case?"
+
+Two branches, both concrete, and the thing that decides the analysis is what is being asked
+rather than a remark appended to it. **Do not explain what you need from the answer.** "What I
+need from the answer is whether anything random decided who got it" tells the user about your
+reasoning when the question has already asked for the fact.
+
+An earlier version of this question said "or did it just happen the way it happened", which
+came from neutralising a clinical sentence by deleting its content: it had read "patients
+treated as the team judged best at the time". The observational branch has real content, and
+it is **someone decided case by case**, which is as true of a manager approving discounts as
+of a clinician at a bedside. When a sentence here has to lose a domain, replace the domain
+noun; do not remove the idea and leave the grammar.
 
 **Ask this before step 2, not at step 4.** It decides which identification questions are
 worth asking at all, and asking it after the columns are mapped means reopening them.
 
-**Both halves of that question earn their place**, because the two come apart in each
-direction and only the second one identifies anything:
+**Ask about chance, and let the categories be examples.** Asking "was it an experiment?"
+first and the randomness second gets the wrong answer in both of the cases where the two come
+apart:
 
 - an experiment with no randomisation: a single-arm trial, everyone treated, before and after.
-  Experimental in design, observational for identification
+  Experimental in design, and for identification no better than observational
 - randomness without an experiment: a staged rollout whose order was arbitrary, an
-  availability constraint, a rota. Observational in design, and the randomness is exactly what
-  an instrument is
+  availability constraint, a rota. Observational in design, and that randomness is exactly
+  what an instrument is
 
-So ask which it was, and then ask what was random about it. A user who says "it was a trial"
-has not yet told you whether anyone was randomised, and a user who says "observational" may
-still be sitting on an instrument, which is what the consultant-preference question at the end
-of this step is for.
+A question about chance puts both in the right branch on the first answer. "It was a trial"
+does not yet say whether anyone was randomised, and "someone decided each time" does not say
+there is no instrument, which is what the last question of this step is for.
 
 Three answers, and they are three different worlds:
 
