@@ -33,10 +33,12 @@ from causpec.core.quality import (
     check_basic,
     check_feasibility,
     check_population,
+    check_roles,
     check_temporal,
 )
 from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
+from causpec.core.reporting import diagram
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
 from causpec.core.reporting.render import RenderError
 from causpec.core.reporting.report import ReportError
@@ -141,6 +143,11 @@ def _persist_run(
             run.write_json("waivers.json", waivers)
         if rendered is not None:
             run.write_text("report.md", rendered)
+        if spec.variable_roles:
+            # The same graph the report embeds as mermaid, in DOT, for anyone who has
+            # graphviz and wants an SVG. Derived from the same roles, so the two cannot
+            # disagree.
+            run.write_text("variable_roles.dot", diagram.dot(spec))
 
         run.audit(
             "estimate",
@@ -212,6 +219,7 @@ def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
             *check_temporal(data, spec).issues,
             *check_feasibility(data, spec).issues,
             *check_assumptions(data, spec).issues,
+            *check_roles(data, spec).issues,
         ]
     )
     if core.blocking:

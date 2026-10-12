@@ -37,6 +37,7 @@ from typing import Any
 from causpec.core.contracts.manifest import ExecutionMode
 from causpec.core.contracts.quality import QualityReport, Severity
 from causpec.core.contracts.spec import AssumptionCategory, Spec
+from causpec.core.reporting import diagram
 from causpec.core.reporting.claim_level import ClaimLevelDecision, load_rules
 from causpec.core.reporting.render import render
 
@@ -240,6 +241,45 @@ def _quality_section(
     return "\n".join(lines)
 
 
+def _roles_section(spec: Spec) -> str:
+    """The derived diagram, the roles it came from, and what it cannot say.
+
+    Derived rather than drawn: the user declares a role per variable or group and the edges
+    follow, which is what lets `roles_match_adjustment` compare the picture with the analysis.
+    A full DAG over forty ICU covariates is a formality nobody reads (design.md 7.5).
+    """
+    if not spec.variable_roles:
+        return _not_implemented(
+            "No variable roles were declared, so no diagram could be derived. This",
+            "design.md 7.5",
+        )
+    lines = [
+        "Each variable or group was given a role at confirmation, and the diagram below is "
+        "derived from those roles: the edges are not drawn by hand, so the picture and the "
+        "analysis cannot disagree without `roles_match_adjustment` saying so.",
+        "",
+        diagram.mermaid(spec),
+        "",
+        "| Variable or group | Role |",
+        "|---|---|",
+    ]
+    for variable, role in sorted(spec.variable_roles.items()):
+        lines.append(f"| `{variable}` | {role.replace('_', ' ')} |")
+    if spec.key_non_edges:
+        lines += ["", "Assumed absent, and the identification rests on each:"]
+        lines += [f"- {statement}" for statement in spec.key_non_edges]
+    lines += [
+        "",
+        "**What this diagram cannot express.** Causal relations among the covariates "
+        "themselves, for example a variable declared as a confounder that is really a "
+        "mediator of another confounder. That needs a full DAG over every column, which is "
+        "not asked for here: over dozens of covariates it produces a formality rather than a "
+        "statement anyone has checked. What is checked is the part that decides "
+        "identification, which is each variable's role and the few assumed-absent edges.",
+    ]
+    return "\n".join(lines)
+
+
 def _claim_level_section(decision: ClaimLevelDecision) -> str:
     """Claim level and reasoning. Code-generated, principle 5: no self-upgrading."""
     wording = load_rules()["wording"][decision.level.value]
@@ -387,9 +427,7 @@ def build(
         Section.ASSUMPTIONS: _assumptions_section(spec),
         Section.DATA_QUALITY: _quality_section(quality, preprocessing or [], exclusions or []),
         Section.CLAIM_LEVEL: _claim_level_section(decision),
-        Section.VARIABLE_ROLES: _not_implemented(
-            "The variable-role diagram", "plan.md Phase 1 task 3"
-        ),
+        Section.VARIABLE_ROLES: _roles_section(spec),
         Section.SENSITIVITY: _not_implemented(
             "Sensitivity and refutation testing", "plan.md Phase 1 task 9"
         ),

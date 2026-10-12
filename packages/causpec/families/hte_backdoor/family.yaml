@@ -44,7 +44,6 @@ estimator:
   primary: econml.dml.CausalForestDML       # EconML, MIT
   cate_interval_method: blb                 # bootstrap of little bags, within one fit
   ate_interval_method: blb                  # unlike hte_iv, the ATE interval is analytic too
-  calibration: econml.validate.DRTester     # EconML, MIT
   note: >
     The final model is the forest itself, so econml can derive a variance and no
     resampling is needed. hte_iv's NonParamDMLIV can only bootstrap, because its final

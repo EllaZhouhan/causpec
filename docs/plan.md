@@ -72,7 +72,7 @@ so longitudinal IPCW can be delivered complete, with estimation.
 ### Phase 1 (W2-W3)
 
 1. csv/parquet adapter, the derived snapshot (parquet), the normalised fingerprint
-2. Lightweight mapping, the population, and the variable catalogue. `population.filters`
+2. Lightweight mapping and the population. `population.filters`
    with a closed operator set, applied after preprocessing and before every check, with an
    exclusion ledger in the report and two checks pricing what each filter removed. This closed
    the hole where the missing-value refusal recommended an exclusion the spec had no way to
@@ -85,7 +85,13 @@ so longitudinal IPCW can be delivered complete, with estimation.
    reveals rather than repairs, which is why accepting the sentinel recode moves the refusal
    from the NULL-encoding check to the missingness check rather than clearing it
 3. Estimand declarations in family.yaml, route_family and estimand reconciliation;
-   rendering the variable-role diagram (optionally cross-checked with DoWhy)
+   rendering the variable-role diagram. The diagram is in: roles and key_non_edges are
+   declared in the spec, the edges are derived from the role rather than drawn, one node per
+   group with a count and two examples, mermaid in the report and DOT in the run directory.
+   `roles_match_adjustment` compares the declaration with what the analysis conditions on,
+   which is the reason for deriving it. No DoWhy and no graph library: the derived graph has a
+   fixed shape, so the backdoor criterion over it reduces to a rule per role. Still open:
+   `route_family` and the estimand reconciliation
 4. Basic-layer quality checks, written here rather than with pandera (ADR-0003): types,
    uniqueness, missingness, NULL-encoding variants, zero spikes, isolated extremes and
    impossible signs, run before the design-level checks for every family. Plus the counting
@@ -107,8 +113,11 @@ so longitudinal IPCW can be delivered complete, with estimation.
    layers. A defect caught by the wrong check is worse than one caught by none, so the test
    checks both directions
 7. The hte_backdoor family ([reuse] EconML CausalForestDML)
-8. HTE calibration (hte_backdoor: [reuse] EconML DRTester; hte_iv: an IV-appropriate
-   score written here) and rank stability
+8. **Dropped.** HTE calibration (DRTester, an IV-appropriate score, rank stability). The
+   question it answers, is the estimated heterogeneity real or noise, is worth asking, and
+   the counting half of the feasibility layer already refuses the designs where the answer
+   is certainly noise. Carrying a second, heavier apparatus for the same question was not
+   worth it, and a declaration naming a validator nobody calls is worse than no declaration
 9. Sensitivity and refutation ([reuse] DoWhy refuters, DoubleML sensitivity_analysis;
    the E-value written here with a numerical regression test)
 10. Runtime: RunContext, atomic writes, audit, manifest

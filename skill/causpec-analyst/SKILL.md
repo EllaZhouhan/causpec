@@ -297,6 +297,17 @@ Draft it instead, and confirm the draft:
 Use W when the user wants a variable controlled but not treated as an axis the answer is
 expressed along.
 
+**Write the answers into `variable_roles`, including the ones you are leaving out.** The
+report draws a diagram from that field, so the roles are not paperwork: the edges come from
+the role, and `roles_match_adjustment` refuses an analysis that adjusts for a mediator, a
+collider, a post-treatment variable or the instrument. A column the user told you was measured
+after treatment belongs on the record as `post_treatment` rather than quietly dropped, so the
+report shows a deliberate exclusion instead of an oversight.
+
+Ask in groups, not column by column. "Are these seven all measured before the decision, and
+could each have influenced it?" is one question, and the diagram draws them as one node with a
+count and two examples. `spec-fields.md` has the six roles and what each is drawn as.
+
 ### A4. Identification strategy and assumptions
 
 What to ask depends on the answer to 1c:

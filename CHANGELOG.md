@@ -7,6 +7,34 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The variable-role diagram, derived from the declarations** (design.md 7.5).
+  `variable_roles` and `key_non_edges` are confirmed spec fields, the edges come from the role
+  with no freedom, and the report embeds mermaid while the run directory gets the same graph as
+  DOT. No graph library and no DoWhy, which is not a dependency of this project: the derived
+  graph has a fixed shape, so the backdoor criterion over it reduces to one rule per role
+- **Deriving it rather than drawing it is what makes it worth having.**
+  `roles_match_adjustment` compares the same declaration against the variables the analysis
+  conditions on, and refuses, not waivably, an analysis that adjusts for a mediator, a
+  collider, a post-treatment variable or the instrument. `effect_modifiers` counts as
+  adjustment too, because both fields are conditioned on and the field name does not sound
+  like adjustment. A declared confounder left unadjusted warns instead: it may be a column the
+  extract does not have, which is a limitation to report. A hand-drawn picture cannot be wrong
+  in a way anyone notices
+- **One node per group, with a count and two examples**: "7 confounders (max_creatinine,
+  max_urea, ...)". Seven boxes is where a derived diagram turns back into the formality
+  design.md 7.5 refuses to ask for. Only one non-edge is drawn, the exclusion restriction from
+  instrument to outcome, because it joins two nodes that are both on the diagram; the
+  free-text assumptions are listed beneath, since an arrow from nowhere reads as an edge that
+  exists
+- **The variable catalogue is dropped**, with the reasoning kept in design.md 6.2. Its only
+  consumer with teeth was a post-treatment check that is not being built, and what it would
+  have stored is already in the spec in the user's own words: `said` on a confirmed covariate
+  carries "the maximum over the first 24 hours", and the report prints it. A second home for
+  the same fact, with nothing keeping the two in agreement, drifts while people still trust it
+- **HTE calibration is dropped**, including the `calibration: econml.validate.DRTester` line
+  in `hte_backdoor/family.yaml` that named a validator nothing called. The question it answers
+  is worth asking, and the counting half of the feasibility layer already refuses the designs
+  where the answer is certainly noise
 - **Four imputations the user chooses from, with the price charged automatically.**
   `impute_constant`, `impute_median`, `impute_iterative` and `impute_locf`, plus
   `add_missing_indicator`, all ordinary preprocessing steps on the working copy. The

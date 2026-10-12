@@ -1,6 +1,9 @@
 """Checks that compare one part of the spec with another.
 
-One check so far, and it exists because of a design mistake worth recording. An earlier
+Two checks. `imputation_assumption_declared` exists because of a design mistake worth
+recording, below. `roles_match_adjustment` is what makes the derived diagram more than an
+illustration: a picture cannot be wrong in a way anyone notices, but the declaration it is
+drawn from can be compared with the variables the analysis actually conditions on. An earlier
 version made any imputation force `interval_calibration: exploratory`, so no result in such a
 run could be called significant. That was not defensible: excluding the units with a missing
 column distorts the estimate too, through selection rather than through variance, and it kept
@@ -21,8 +24,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from causpec.core.contracts.quality import QualityIssue, QualityReport, Suggestion
-from causpec.core.contracts.spec import Spec
+from causpec.core.contracts.quality import QualityIssue, QualityReport, Severity, Suggestion
+from causpec.core.contracts.spec import ROLES_BARRED_FROM_ADJUSTMENT, Spec
 from causpec.core.quality.basic import _issue, load_config
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -161,4 +164,136 @@ def _imputation_assumption(spec: Spec, config: dict) -> QualityIssue:
                 ),
             )
         ],
+    )
+
+
+def check_roles(data: pd.DataFrame, spec: Spec, config_path: Path | None = None) -> QualityReport:
+    """Whether the declared roles agree with the variables the analysis actually adjusts for.
+
+    This is why the diagram is derived rather than drawn. A picture cannot be wrong in a way
+    anyone notices; a declaration can, because the same roles that produce the edges can be
+    compared with `adjustment_set` and `effect_modifiers`.
+
+    The backdoor criterion over a role-derived graph needs no graph library. The graph's shape
+    is fixed, so the criterion reduces to: every confounder adjusted, and nothing adjusted
+    that the treatment could have caused or that the design depends on. `data` is read only to
+    confirm a declared variable is present.
+    """
+    config = load_config(config_path)
+    return QualityReport(issues=[_roles_vs_adjustment(data, spec, config)])
+
+
+def _adjusted_columns(spec: Spec) -> list[str]:
+    """Everything that enters a nuisance model: the adjustment set and the modifiers.
+
+    Both are conditioned on, so both are subject to the same rule. Putting a mediator in
+    `effect_modifiers` rather than `adjustment_set` does not make it safe, and that mistake
+    is easier to make because the field name does not sound like adjustment.
+    """
+    names: list[str] = []
+    for field_name in ("adjustment_set", "effect_modifiers"):
+        entry = spec.fields.get(field_name)
+        if entry is None or entry.value is None:
+            continue
+        value = entry.value
+        items = value if isinstance(value, (list, tuple)) else [value]
+        names.extend(str(item) for item in items)
+    return names
+
+
+def _roles_vs_adjustment(data: pd.DataFrame, spec: Spec, config: dict) -> QualityIssue:
+    check_id = "roles_match_adjustment"
+    if not spec.variable_roles:
+        return _issue(
+            config,
+            check_id,
+            passed=True,
+            summary="no variable roles are declared, so there is nothing to compare",
+            evidence={"assessed": False, "n_roles": 0},
+            impact=(
+                "Without declared roles the diagram cannot be drawn and this comparison "
+                "cannot run. Its absence is not evidence that the adjustment set is right."
+            ),
+        )
+
+    adjusted = set(_adjusted_columns(spec))
+    barred: list[str] = []
+    reasons: list[str] = []
+    for variable, role in sorted(spec.variable_roles.items()):
+        if variable in adjusted and role in ROLES_BARRED_FROM_ADJUSTMENT:
+            barred.append(f"{variable} ({role})")
+            reasons.append(f"{variable} is a {role}: {ROLES_BARRED_FROM_ADJUSTMENT[role]}")
+
+    confounders = spec.variables_in_role("confounder")
+    unadjusted = [name for name in confounders if name not in adjusted]
+    missing_from_data = [name for name in spec.variable_roles if name not in data.columns]
+
+    evidence: dict[str, float | int | str | bool] = {
+        "assessed": True,
+        "n_roles": len(spec.variable_roles),
+        "n_adjusted": len(adjusted),
+        "n_confounders": len(confounders),
+        "barred_but_adjusted": ", ".join(barred) or "none",
+        "confounders_not_adjusted": ", ".join(unadjusted) or "none",
+        "declared_but_absent_from_data": ", ".join(sorted(missing_from_data)) or "none",
+    }
+
+    if barred:
+        return _issue(
+            config,
+            check_id,
+            passed=False,
+            summary=f"the analysis adjusts for {', '.join(barred)}",
+            evidence=evidence,
+            columns=[name.split(" ")[0] for name in barred],
+            impact=(
+                "Each of these distorts the estimate in a direction the interval does not "
+                "show, because the arithmetic is working correctly on the wrong quantity. "
+                + " ".join(reasons)
+            ),
+            repair=(
+                "Remove them from adjustment_set and effect_modifiers, or change the "
+                "declared role if the role is what is wrong. A variable that belongs in "
+                "neither place can still be reported as a descriptive characteristic."
+            ),
+        )
+
+    if unadjusted:
+        return _issue(
+            config,
+            check_id,
+            passed=False,
+            severity=Severity(config.get(check_id, {}).get("severity_unadjusted", "warning")),
+            summary=(
+                f"{len(unadjusted)} variable(s) declared as confounders are not adjusted "
+                f"for: {', '.join(unadjusted)}"
+            ),
+            evidence=evidence,
+            columns=unadjusted,
+            impact=(
+                "A confounder the analysis does not condition on leaves its path from the "
+                "treatment to the outcome open, so the estimate keeps the bias the "
+                "declaration says is there. The diagram will show the open path."
+            ),
+            repair=(
+                "Add them to adjustment_set, or change the role if they are not confounders "
+                "after all. If the column does not exist in this extract, say so: an "
+                "unmeasured confounder is a limitation to report, not a field to leave blank."
+            ),
+        )
+
+    return _issue(
+        config,
+        check_id,
+        passed=True,
+        summary=(
+            f"{len(spec.variable_roles)} declared role(s) agree with the adjustment set: "
+            f"every confounder is adjusted and nothing barred is"
+        ),
+        evidence=evidence,
+        impact=(
+            "The comparison is structural, over the graph the roles imply. It cannot speak "
+            "to whether the roles themselves are right, which is what the untestable "
+            "assumptions are for."
+        ),
     )

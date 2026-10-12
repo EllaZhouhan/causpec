@@ -278,3 +278,45 @@ Each family needs more:
 Only the `untestable` ones gate `causal` wording. While any of them lacks a user
 justification, the ceiling for an automatic decision is `suggestive`, see
 `claim-levels.md`.
+
+## `variable_roles` and `key_non_edges`, which produce the diagram
+
+A role per variable or group, confirmed like any other field. The report draws a diagram from
+them, so these are not paperwork: the edges come from the role, and
+`roles_match_adjustment` compares the result with what the analysis conditions on.
+
+```yaml
+variable_roles:
+  max_creatinine: confounder
+  max_urea: confounder
+  bed_availability: instrument
+  post_dialysis_creatinine: mediator
+  urine_output_day2: post_treatment
+key_non_edges:
+  - no unmeasured factor drives both the dialysis decision and death
+```
+
+| Role | What it means | Drawn as |
+|---|---|---|
+| `confounder` | Affects both the treatment and the outcome | Arrows to both |
+| `instrument` | Affects the treatment only | Arrow to the treatment, dashed crossed arrow to the outcome |
+| `mediator` | The treatment acts through it | Treatment to it to the outcome |
+| `effect_modifier` | The effect differs across it | A label on the treatment-outcome edge |
+| `suspected_collider` | The treatment and the outcome both affect it | An arrow in from each |
+| `post_treatment` | The treatment could have changed it | Arrow in from the treatment |
+
+**Four of these are refused in the adjustment set**, and the refusal cannot be waived:
+`mediator`, `suspected_collider`, `post_treatment` and `instrument`. `effect_modifiers`
+counts as adjustment too, because both fields are conditioned on, and that mistake is easier
+to make there because the field name does not sound like adjustment.
+
+**Declaring a variable you are leaving out is useful, not punished.** Putting
+`urine_output_day2: post_treatment` on the record with the column absent from every field is
+how the report shows a deliberate exclusion rather than an oversight.
+
+**A declared confounder that is not adjusted for warns rather than blocks.** It may be a
+column this extract does not have, which is a limitation to report.
+
+**Ask for roles in groups, not column by column.** "Are these seven all things that were
+measured before the decision and could have influenced it?" is one question. The diagram draws
+them as one node with a count and two examples, so a group is what it expects.

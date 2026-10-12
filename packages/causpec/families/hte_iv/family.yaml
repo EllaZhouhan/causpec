@@ -49,7 +49,6 @@ bootstrap:
   adequate_threshold: 100     # below this, res:estimation.bootstrap_adequate is flagged
   parallel_param: bootstrap_n_jobs
 
-calibration: null    # TODO: an IV-appropriate DR score, written by hand (design.md section 9)
 
 # Both binary and continuous instruments are supported; the identified estimand
 # differs, hence the two entries below. The adapter infers discrete_instrument from

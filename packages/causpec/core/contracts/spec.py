@@ -305,6 +305,39 @@ class Population(BaseModel):
     filters: list[PopulationFilter] = Field(default_factory=list)
 
 
+# The roles a variable can play (design.md 7.5). The set is closed because the diagram's
+# edges are derived from it: a role nobody can draw is a role that means nothing.
+VARIABLE_ROLES = (
+    "confounder",
+    "instrument",
+    "mediator",
+    "effect_modifier",
+    "suspected_collider",
+    "post_treatment",
+)
+
+# Roles that must never enter the adjustment set, and why in one phrase each. Read by the
+# structural check, so the reason reaches the user rather than living in a comment.
+ROLES_BARRED_FROM_ADJUSTMENT = {
+    "mediator": (
+        "adjusting for a mediator removes the part of the effect that travels through it, "
+        "so the total effect shrinks towards zero"
+    ),
+    "suspected_collider": (
+        "conditioning on a common consequence of the treatment and the outcome creates an "
+        "association that is not there, which can reverse the sign"
+    ),
+    "post_treatment": (
+        "a variable the treatment could have changed is partly an outcome, so adjusting for "
+        "it conditions away the thing being measured"
+    ),
+    "instrument": (
+        "adjusting for the instrument closes the only path it has to the treatment, which "
+        "is the path the design relies on"
+    ),
+}
+
+
 class Spec(BaseModel):
     """An analysis specification."""
 
@@ -329,6 +362,23 @@ class Spec(BaseModel):
     # a check should describe the population being analysed rather than one nobody asked
     # about. It changes who the answer is about, so it enters spec_hash.
     population: Population = Field(default_factory=Population)
+    # design.md 7.5. A role per variable or per group, drafted by the agent from the user's
+    # answers and confirmed. The diagram is derived from this rather than drawn by hand: a
+    # full DAG over forty ICU covariates is a formality nobody reads, and a derived one can
+    # be checked against the adjustment set, which a picture cannot.
+    variable_roles: dict[str, str] = Field(default_factory=dict)
+    # The few "no edge" assumptions that decide whether identification holds, in words. They
+    # appear as dashed crossed-out edges in the diagram, because an assumption drawn is an
+    # assumption someone can object to.
+    key_non_edges: list[str] = Field(default_factory=list)
+
+    def role_of(self, variable: str) -> str | None:
+        """The declared role of one variable, or None."""
+        return self.variable_roles.get(variable)
+
+    def variables_in_role(self, role: str) -> list[str]:
+        """Every variable declared in one role, in declaration order."""
+        return [name for name, value in self.variable_roles.items() if value == role]
 
     def imputed_columns(self) -> list[str]:
         """Columns holding filled values, in the order they were filled.
@@ -339,6 +389,20 @@ class Spec(BaseModel):
         interval looks like every other interval.
         """
         return [step.column for step in self.preprocessing if step.imputes]
+
+    @model_validator(mode="after")
+    def _known_roles(self) -> Spec:
+        unknown = {
+            name: role for name, role in self.variable_roles.items() if role not in VARIABLE_ROLES
+        }
+        if unknown:
+            listed = ", ".join(f"{name}={role}" for name, role in sorted(unknown.items()))
+            raise ValueError(
+                f"unknown variable role(s): {listed}. Available: {', '.join(VARIABLE_ROLES)}. "
+                f"The diagram's edges are derived from the role, so a role that cannot be "
+                f"drawn is a role that means nothing."
+            )
+        return self
 
     def param(self, name: str, default: Any) -> Any:
         """Read one estimator hyper-parameter, falling back to a default."""

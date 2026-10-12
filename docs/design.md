@@ -157,11 +157,22 @@ In practice, complex joins and derivations should be implemented by the data own
 SQL views and reviewed by a person; CauSpec reads the views and builds no ETL of its
 own. That is also how the division of labour usually runs on a customer site.
 
-### 6.2 The variable catalogue
+### 6.2 The variable catalogue, dropped
 
-Each variable records: its source column, its unit, its measurement window relative to
-time zero, and its aggregation. Without timing information, the post-treatment check can
-only report `suspected`.
+The plan was a record per variable: source column, unit, measurement window relative to
+time zero, aggregation. It is not being built, for two reasons that are worth keeping
+because they apply to any similar proposal.
+
+**Its only consumer with teeth was a check that is not being built.** The measurement
+window existed to let a post-treatment check compare a column's window against time zero.
+Without that check the catalogue is documentation, and documentation drifts from the data
+while people still trust it, which is worse than its absence.
+
+**What it would have stored is already in the spec, in the user's own words.** When a user
+confirms a covariate, `said` carries "the maximum over the first 24 hours" and the report
+prints it in the spec table. A second home for the same fact, with nothing keeping the two
+in agreement, is a liability rather than a record. Units are already where they matter, on
+`outcome_horizon`, which is deliberately never converted on the user's behalf.
 
 ### 6.3 Canonical schema
 
@@ -416,17 +427,44 @@ The user is not asked to draw a full DAG. EHR settings routinely have dozens of
 covariates, and forcing a complete diagram produces a formality. Two things are used
 instead:
 
-- variable_roles: a role for each variable or group, drafted by the agent from the
-  measurement windows in the variable catalogue and confirmed by the user.
+- variable_roles: a role for each variable or group, drafted by the agent from the user's
+  answers and confirmed. The set is closed, `confounder | instrument | mediator |
+  effect_modifier | suspected_collider | post_treatment`, because the diagram's edges are
+  derived from the role: a role nobody can draw is a role that means nothing.
 - key_non_edges: the few "no edge" assumptions that decide whether identification holds,
   written out explicitly. Under IV these must at least include: the instrument does not
   affect the outcome except through the treatment (the exclusion restriction), and the
   instrument is independent of unmeasured confounders.
 
-From these roles the system renders a diagram at the level of variable groups and puts
-it in the report. Optionally, that coarse diagram can be given to DoWhy for
-identification, to check whether the adjustment set satisfies the backdoor criterion.
-[reuse] DoWhy (MIT) CausalModel and identify_effect; rendering via graphviz.
+**The diagram is derived, not drawn**, and that is what makes it worth having. The same
+declaration that produces the edges is compared with the variables the analysis actually
+conditions on, so `roles_match_adjustment` refuses an analysis that adjusts for a mediator, a
+collider, a post-treatment variable or the instrument, and warns when a declared confounder is
+left unadjusted. A hand-drawn picture cannot be wrong in a way anyone notices.
+
+Each role implies its edges with no freedom: a confounder points at both the treatment and the
+outcome, an instrument at the treatment only, a mediator sits between them, a collider takes an
+arrow from each, a post-treatment variable takes one from the treatment, and effect modifiers
+label the treatment-outcome edge rather than becoming nodes.
+
+**One node per group**, carrying a count and two examples: "7 confounders (max_creatinine,
+max_urea, ...)". Seven boxes is where a derived diagram turns back into the formality this
+section refuses to ask for, and an honest diagram that fits on a screen is worth more than a
+complete one that does not.
+
+**Only one non-edge is drawn**: the exclusion restriction, instrument to outcome, as a dashed
+arrow, because it joins two nodes that are both on the diagram and a reader can object to it.
+The free-text assumptions are listed beneath. Drawn as arrows from nowhere they read as edges
+that exist, which is the opposite of what they mean.
+
+Output is mermaid in the report, which renders in GitHub, VS Code and most markdown viewers,
+plus the same graph as DOT in the run directory for anyone who has graphviz. **No graph
+library and no DoWhy**: the derived graph has a fixed shape, so the backdoor criterion over it
+reduces to the per-role rules above, and DoWhy is not a dependency of this project.
+
+What a derived diagram cannot express, and the report says so: causal relations among the
+covariates themselves, such as a declared confounder that is really a mediator of another
+confounder. That needs the full DAG this section declines to ask for.
 
 Being pre-treatment is necessary but not sufficient for inclusion in the adjustment set:
 a pre-treatment variable can still be a collider on a backdoor path (M-bias). The usual

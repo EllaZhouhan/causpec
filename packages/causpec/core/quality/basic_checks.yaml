@@ -238,3 +238,17 @@ imputation_assumption_declared:
   # That was wrong because the alternative, excluding the units with a missing column,
   # distorts the estimate through selection and kept its calibrated interval. Penalising one
   # and not the other is a judgement dressed as arithmetic.
+
+roles_match_adjustment:
+  layer: identification
+  severity: blocking
+  waivable: false
+  # Adjusting for a mediator, a collider, a post-treatment variable or the instrument. Not
+  # waivable: each distorts the estimate in a direction the interval does not show, because
+  # the arithmetic is working correctly on the wrong quantity. There is no reading of the data
+  # under which it is the analysis that was asked for.
+  #
+  # A declared confounder that is not adjusted for is a warning instead: it may be a column
+  # this extract does not have, which is a limitation to report rather than an error to
+  # refuse. The diagram shows the open path either way.
+  severity_unadjusted: warning
