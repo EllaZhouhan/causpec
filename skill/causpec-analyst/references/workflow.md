@@ -163,7 +163,8 @@ randomised, and "observational" has not told you there is no instrument.
 
 **If they say it was randomised, the next question is about compliance, not about a column:**
 
-> "Did everyone get what they were randomised to, or did some not take it?"
+> "Did everyone receive the treatment they were randomised to, or did some end up with
+> something else?"
 
 Everyone, or nearly: **the treatment column is the randomised assignment**, which is what
 they just told you, and nothing further is needed. Some did not: only now do two columns

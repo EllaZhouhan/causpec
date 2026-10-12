@@ -416,7 +416,13 @@ already asked for the fact.
 The two randomised worlds differ by whether people got what they were assigned, so that is
 the question:
 
-> "Did everyone get what they were randomised to, or did some not take it?"
+> "Did everyone receive the treatment they were randomised to, or did some end up with
+> something else?"
+
+"Receive the treatment they were randomised to" rather than "get what they were randomised
+to": the second asks about a thing with no name, and non-compliance runs in both directions,
+someone assigned the treatment who never had it and someone assigned the control who did.
+"End up with something else" covers both; "not take it" covers one.
 
 | Their answer | What it means |
 |---|---|

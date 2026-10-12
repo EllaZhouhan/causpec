@@ -39,14 +39,18 @@ def frontmatter(skill_text: str) -> dict[str, str]:
 
 
 def flat(text: str) -> str:
-    """The text with every run of whitespace collapsed to one space.
+    """The text with blockquote markers removed and whitespace collapsed to one space.
 
     Prose in these documents wraps at 90 characters, so a sentence worth asserting usually
-    spans a line break. Three tests have failed on the wrap rather than on the content, which
-    teaches the author to assert shorter and weaker things. Collapsing first means the
-    assertion can be the phrase that matters.
+    spans a line break, and the sentences most worth asserting are the ones the model says
+    out loud, which are blockquotes: every continuation line of those starts with "> ".
+    Collapsing alone left that marker in the middle of the sentence.
+
+    Four tests have now failed on the formatting rather than on the content, which teaches
+    the author to assert shorter and weaker things than they mean.
     """
-    return " ".join(text.split())
+    unquoted = re.sub(r"^\s*>\s?", " ", text, flags=re.MULTILINE)
+    return " ".join(unquoted.split())
 
 
 def test_frontmatter_has_name_and_description(frontmatter) -> None:
@@ -622,7 +626,10 @@ def test_a_randomised_answer_is_followed_by_compliance_not_by_a_column_hunt(
     of them.
     """
     lowered = flat(skill_text).lower()
-    assert "did everyone get what they were randomised to, or did some not take it" in lowered
+    assert "did everyone receive the treatment they were randomised to" in lowered
+    # Both directions of non-compliance: assigned the treatment and never had it, assigned
+    # the control and had it anyway. "Did some not take it" covers only the first.
+    assert "or did some end up with something else" in lowered
     assert "the treatment column is the randomised assignment" in lowered
     assert "do not go looking for an assignment column before asking this" in lowered
 
