@@ -1,7 +1,8 @@
 # The lag profile: treatment given period by period
 
-> `RUN` is `python scripts/run.py` in the packaged skill and `uv run causpec` in the
-> repository. `ls scripts/run.py` tells you which, once per session. SKILL.md has the table.
+> `RUN` is `causpec` when it is installed for the whole machine, `python scripts/run.py` in
+> the packaged skill, and `uv run causpec` inside the repository. Probe in that order, once
+> per session. SKILL.md has the table.
 
 Read this when the treatment is not a one-off. If the patient can be on it in one period
 and off it in the next, a cross-sectional comparison cannot say what it did, and this

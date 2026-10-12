@@ -1,7 +1,8 @@
 # Quality checks
 
-> `RUN` is `python scripts/run.py` in the packaged skill and `uv run causpec` in the
-> repository. `ls scripts/run.py` tells you which, once per session. SKILL.md has the table.
+> `RUN` is `causpec` when it is installed for the whole machine, `python scripts/run.py` in
+> the packaged skill, and `uv run causpec` inside the repository. Probe in that order, once
+> per session. SKILL.md has the table.
 
 ```bash
 RUN quality --spec spec.yaml --data <data file>

@@ -14,15 +14,38 @@ traces back to a computation. Data sources are read-only throughout.
 The workflow is an agent skill. It drives the library, so the agent is what you talk to
 and the library is what computes.
 
-**In Claude Code**, nothing to install: `.claude/skills/causpec-analyst` is a symlink to
-`skill/causpec-analyst`, so a clone has it immediately and an edit to `SKILL.md` takes
-effect on the next message.
+**In Claude Code, for your own data anywhere on the machine.** Two things: the command on
+your PATH, and the skill in your personal skill directory.
 
 ```bash
 git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
-uv sync --extra hte          # the estimators; omit for spec and checks only
-claude                       # then ask a causal question, or type /causpec-analyst
+uv tool install --from . --with 'causpec[hte]' causpec     # puts `causpec` on PATH
+ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
 ```
+
+Now any `claude` session in any directory has it. Ask a causal question and it should
+trigger on its own; `/causpec-analyst` invokes it explicitly. Data paths can be absolute
+and usually are, since your extract lives wherever you keep it:
+
+> I have ICU data at `/Users/me/extracts/cohort.csv`, one row per patient. Does dialysis
+> change 28-day mortality, and are there patients who benefit more?
+
+A symlink rather than a copy, so editing `SKILL.md` in the clone takes effect on the next
+message. If you move the clone, redo the link. Re-run `uv tool install` after pulling, since
+the installed command is a snapshot rather than a live link to the source.
+
+**In Claude Code, inside this repository only.** Nothing to install:
+`.claude/skills/causpec-analyst` is already a symlink to `skill/causpec-analyst`, so a clone
+has it immediately.
+
+```bash
+uv sync --extra hte          # the estimators; omit for spec and checks only
+claude
+```
+
+Here the command is `uv run causpec`, because the package lives in the repository's own
+environment rather than on your PATH. The skill works out which form applies with one probe
+and the three cases are in `SKILL.md`.
 
 **On claude.ai**, upload the packaged skill:
 

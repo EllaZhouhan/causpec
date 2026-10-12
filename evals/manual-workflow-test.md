@@ -37,10 +37,16 @@ told the answer: you would not be able to tell "it forgot" from "it already knew
 can share a session. What never needs isolating is whether it computes a number itself, uses
 tool vocabulary, piles up questions or overstates a claim, none of which depend on context.
 
-**Running the commands.** In this repository the skill's own `scripts/run.py` is not on the
-path that SKILL.md's packaged layout assumes, so the command is `uv run causpec`. The skill
-works this out itself with `ls scripts/run.py`; if you see it reach for `python
-scripts/run.py` and fail, that is a finding worth recording.
+**Running the commands.** The skill probes for its command in three places and the right one
+depends on how you installed it: `causpec` if it is on your PATH, `python scripts/run.py` in
+the uploaded bundle, `uv run causpec` inside this repository. If you see it reach for a form
+that does not exist and fail rather than trying the next, that is a finding worth recording.
+
+**Testing from inside the repository is the harder case, and that is the point.** With
+`causpec` installed globally the data can be anywhere and the paths in these scenarios would
+be absolute. Run the scenarios as written, from the repository, with relative paths: it
+exercises the awkward form, and a skill that only works when the command happens to be on
+PATH is one that will fail on someone else's machine.
 
 ## What counts as a failure in every scenario
 

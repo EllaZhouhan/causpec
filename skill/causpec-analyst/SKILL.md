@@ -117,19 +117,33 @@ the question calls for that design, do not force it into backdoor adjustment.
 Currently only the **scripts form** is available; the MCP server is not implemented yet.
 
 **Work out the command once, on your first script call, and reuse it.** The skill runs in
-two layouts and the command differs:
+three places and the command differs. Probe in this order and stop at the first that works:
 
 ```bash
-ls scripts/run.py        # present: the packaged bundle. absent: the repository
+causpec --version          # 1. installed for the whole machine, works from any directory
+ls scripts/run.py          # 2. the packaged bundle on claude.ai
+# 3. otherwise: uv run causpec --version, inside the causpec repository
 ```
 
-| Layout | Command |
+| Where | Command |
 |---|---|
-| `scripts/run.py` is there (claude.ai, the packaged skill) | `python scripts/run.py ...` |
-| It is not (the repository, where the skill is a symlink under `.claude/skills/`) | `uv run causpec ...` |
+| `causpec --version` answers | `causpec ...` |
+| `scripts/run.py` is in the working directory | `python scripts/run.py ...` |
+| Neither, and a `pyproject.toml` naming causpec is here | `uv run causpec ...` |
 
-Both take identical arguments and do identical work. Below, `RUN` stands for whichever one
-applies.
+The order matters: a globally installed command is the only one that works whatever directory
+the user is in, and that is the ordinary case for someone analysing their own data. The
+repository's `uv run` form only works from inside the repository, and `scripts/run.py` only
+exists in the uploaded bundle.
+
+All three take identical arguments and do identical work. Below, `RUN` stands for whichever
+one applies.
+
+**Paths may be absolute and usually should be.** The user's data is wherever they keep it, not
+next to the spec, so `--data /Users/someone/extracts/cohort.csv` is the normal case. Write the
+spec and the run directory somewhere the user agreed to, and if a read is refused for being
+outside the working directory, say so and ask them to allow that directory rather than copying
+their data somewhere else.
 
 ```bash
 RUN quality  --spec spec.yaml --data <data file>
