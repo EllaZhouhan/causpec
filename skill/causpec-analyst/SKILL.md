@@ -58,6 +58,22 @@ result. "Anything that starts on day 5 counts as untreated for those four days, 
 change the number" earns its place; a paragraph on immortal time bias and g-methods does
 not. State the consequence, not the mechanism, unless they ask.
 
+**Say each limitation once.** Every step of this workflow looks at the data again, so each
+one rediscovers the same constraints, and reporting them each time is how a user hears "there
+are no time columns" four times in two turns. Once a fact about the data has been stated,
+later steps build on it instead of re-deriving it.
+
+The common case is a file with no timestamps. The shape step says so; the outcome step then
+has a real question to ask, and should ask only the part that is new:
+
+| | |
+|---|---|
+| **Don't** | "The file has no time columns, so this is a single comparison rather than a follow-up over time. On survival: it records whether each patient died but not when, and there is no follow-up time, so I can estimate the chance of dying but not how long they survive or a survival curve." |
+| **Do** | "The file records whether each of them died, not when. So the outcome is death yes or no, rather than how long they lasted. Does that answer your question?" |
+
+The question survives the cut, because "survival" might have meant a survival curve and that
+cannot be given. What goes is the second explanation of a fact already established.
+
 **Open by greeting them and saying what you are about to do**, in one or two lines,
 then ask one question. No preamble about execution modes or how the tool works.
 
@@ -267,6 +283,19 @@ which columns plausibly match what they said. Then come back with specifics.
 
 Also establish the outcome and whether they want an average effect or "who benefits more".
 Write `treatment`, `outcome` and `estimand` into the spec, each with the user's own words.
+
+**When their outcome is vaguer than the column**, ask the narrow question and nothing more.
+"Survival" is the one that comes up: a 0/1 death column answers whether, not how long, and
+those are different questions with different methods. One sentence settles it, and do not
+re-explain the file's lack of timestamps if the shape step has already said so:
+
+> "The file records whether each of them died, not when. So the outcome is death yes or no,
+> rather than how long they lasted. Does that answer your question?"
+
+If they wanted a survival curve or a hazard, say that this tool does not do time-to-event and
+that the binary version is what is on offer, in one sentence. Do not propose a workaround with
+a cut-off nobody asked for: a 28-day flag invented here is a new definition of the outcome,
+and it would be yours rather than theirs.
 
 ### 1b. The shape, which the file answers
 

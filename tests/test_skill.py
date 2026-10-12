@@ -475,3 +475,19 @@ def test_the_skill_does_not_put_clinical_vocabulary_in_the_models_mouth(
     assert "Follow the user's domain too" in skill_text
     # And "unit" is the tool's word, not anyone's.
     assert "do not say" in skill_text.lower()
+
+
+def test_the_skill_says_each_limitation_once(skill_text: str) -> None:
+    """Every step looks at the data again, so each one rediscovers the same constraints.
+
+    In a manual run the absence of timestamps was explained four times across two turns: the
+    shape step said there were no time columns, then the outcome step re-derived it from
+    scratch before asking its question. The question was worth asking; the second explanation
+    was not. Pinned because the failure is structural rather than a slip: nothing in a
+    step-by-step workflow stops a later step repeating what an earlier one established.
+    """
+    assert "Say each limitation once" in skill_text
+    assert "re-deriving it" in skill_text
+    # And the survival case, which is where it was found.
+    assert "not when" in skill_text
+    assert "time-to-event" in skill_text
