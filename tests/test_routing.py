@@ -25,9 +25,14 @@ import pandas as pd
 import pytest
 
 from causpec.core import registry
-from causpec.core.contracts.quality import Severity
+from causpec.core.contracts.quality import QualityReport, Severity
 from causpec.core.contracts.spec import Source, Spec, SpecField, Status
-from causpec.core.gates import GateError, check_family_supports_spec
+from causpec.core.gates import (
+    GateError,
+    check_all,
+    check_family_supports_spec,
+    check_report_matches_run,
+)
 from causpec.core.quality import check_routing
 
 COVARIATES = ["max_creatinine", "max_potassium", "min_ArterialPressure"]
@@ -239,3 +244,57 @@ def test_the_shape_is_checked_before_the_assignment() -> None:
     issue = check_routing(data, spec).get("family_matches_the_question")
     assert issue.severity is Severity.WARNING
     assert "one row per unit per period" in issue.summary
+
+
+# ---- condition 2's other half: the report has to be about this run ----
+
+
+def stamped_report(spec: Spec, fingerprint: str = "aaaa111122223333") -> QualityReport:
+    return QualityReport(issues=[]).stamped(
+        spec_hash=spec.spec_hash(), snapshot_fingerprint=fingerprint
+    )
+
+
+def test_a_report_about_another_run_is_refused() -> None:
+    """What this defends is not the CLI, where the checks and the estimation happen in one
+    process on one frame. The skill form runs two scripts and the MCP server takes a report
+    from a client, so a report computed on yesterday's extract, or before a preprocessing step
+    was agreed, can arrive at an estimation it says nothing about, with every check reading as
+    passed."""
+    spec = make_spec()
+    stale = stamped_report(spec, fingerprint="bbbb444455556666")
+    with pytest.raises(GateError) as caught:
+        check_report_matches_run(stale, spec, "aaaa111122223333")
+    assert caught.value.code == "QUALITY_REPORT_STALE"
+    assert "do not describe this analysis" in caught.value.reason
+
+
+def test_a_report_for_another_spec_is_refused() -> None:
+    """The spec half of the pair. Agreeing a preprocessing step changes the numbers, so a
+    report from before it describes a different table under a different plan."""
+    report = stamped_report(make_spec(estimand="att"))
+    with pytest.raises(GateError, match="QUALITY_REPORT_STALE|does not"):
+        check_report_matches_run(report, make_spec(), "aaaa111122223333")
+
+
+def test_an_unstamped_report_is_refused_rather_than_trusted() -> None:
+    """Accepting it is the hole: an unverifiable report and a verified one would be treated
+    alike, and the one that matters is the one nobody stamped."""
+    with pytest.raises(GateError) as caught:
+        check_report_matches_run(QualityReport(issues=[]), make_spec(), "aaaa111122223333")
+    assert caught.value.code == "QUALITY_REPORT_UNVERIFIABLE"
+
+
+def test_the_matching_report_passes() -> None:
+    spec = make_spec()
+    check_report_matches_run(stamped_report(spec), spec, "aaaa111122223333")
+
+
+def test_check_all_skips_the_comparison_when_it_has_nothing_to_compare() -> None:
+    """A caller without the fingerprint gets conditions 1 and 3 and the blocking-issue half of
+    2. Stated rather than silently assumed: the staleness check is the whole reason the
+    fingerprint is passed at all."""
+    spec = make_spec()
+    check_all(spec, QualityReport(issues=[]))
+    with pytest.raises(GateError, match="QUALITY_REPORT_UNVERIFIABLE"):
+        check_all(spec, QualityReport(issues=[]), snapshot_fingerprint="aaaa111122223333")

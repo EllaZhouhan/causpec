@@ -80,13 +80,29 @@ estimands:
       applies to is harder to describe than in the binary case; the report must give
       the weight distribution.
 
-  # TODO(design.md 7.6): only under the further assumption that the effect does not
-  # vary by compliance type given covariates can either of the above be read as a
-  # population CATE. Whether to adopt that assumption, and how to argue for it, is for
-  # the author to fill in.
-  # - id: cate
-  #   label: Conditional average treatment effect (whole population)
-  #   requires_assumptions: [..., no_effect_heterogeneity_by_compliance]
+  # A population CATE is deliberately **not** offered here, and the reason is the whole of
+  # what this family can and cannot say.
+  #
+  # Reading either estimand above as an effect for the whole population needs one more
+  # assumption: that the effect does not vary by compliance type given the covariates. It is
+  # untestable in the strongest sense, worse than unconfoundedness, because compliance type is
+  # not observed for anyone. A patient's type is defined by what they would have done under
+  # both values of the instrument, and only one of those happened, so no diagnostic can
+  # compare compliers with never-takers on anything the assumption is about.
+  #
+  # It is also usually false in the direction that matters. In the ICU application the
+  # instrument is bed availability, and compliers are the patients whose dialysis decision a
+  # free bed could swing: borderline cases. Always-takers are the patients so sick that
+  # dialysis happened regardless, never-takers the ones so stable that it did not. If the
+  # effect of dialysis is largest in the borderline group, which is the premise of asking the
+  # question at all, then the complier effect is exactly the quantity that does not generalise.
+  #
+  # So the decision is to refuse rather than to offer it with a caveat. A caveat in a report is
+  # read once and the number is carried away; an estimand that does not exist cannot be
+  # requested. A user who wants a population effect is routed to hte_backdoor, which needs
+  # unconfoundedness instead, and that is a trade to be made in the open rather than inside a
+  # sentence about compliance types. unsupported_questions carries this refusal in the words a
+  # user would ask it in.
 
 requires:
   # Unconditional requirements only, enforced by gate condition 3. `adjustment_set` is
@@ -215,3 +231,30 @@ sensitivity:
   primary_ci_lower: res:primary.ate_ci_lower
   primary_ci_upper: res:primary.ate_ci_upper
   control_risk_address: res:sample.outcome_rate_control
+
+# Questions this family cannot answer, in the words a user would ask them in, so the agent
+# refuses with a reason instead of estimating the nearest available thing.
+unsupported_questions:
+  - id: population_effect
+    example: what is the average effect of dialysis across all these patients
+    reason: >
+      this family identifies the effect among compliers, the patients whose treatment changed
+      because the instrument changed. Reading it as a population effect needs the assumption
+      that the effect does not vary by compliance type given the covariates, which is
+      untestable in the strongest sense: compliance type is never observed for anyone, since
+      it is defined by what a patient would have done under both values of the instrument and
+      only one of those happened. Route to hte_backdoor, which needs unconfoundedness
+      instead. That is a trade to make in the open.
+  - id: effect_for_this_patient
+    example: would this patient benefit from dialysis
+    reason: >
+      compliers cannot be identified individually, so no row in the data can be labelled as
+      one. The estimate is an average over a subgroup whose membership is unknown, which is
+      why it is neither a per-patient effect nor a population CATE.
+  - id: who_benefits_most
+    example: which kinds of patient benefit most from dialysis
+    reason: >
+      the effect may vary over covariates among compliers, and hte_backdoor's `gate` estimand
+      is the one that reports named groups with an interval each. Under IV the same breakdown
+      describes compliers only, and since who is a complier varies with the covariates being
+      split on, the groups are not comparable in the way a reader will assume.

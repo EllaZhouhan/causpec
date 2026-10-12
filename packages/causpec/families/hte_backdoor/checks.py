@@ -123,6 +123,36 @@ def _groups_declared(data: pd.DataFrame, spec: Spec, config: dict[str, Any]) -> 
     entry = spec.fields.get("estimand")
     estimand = str(entry.value) if entry is not None and entry.value is not None else ""
 
+    if estimand == "cate":
+        # Not a defect, so not a warning: `cate` is a declared estimand and a legitimate
+        # request. But it is the one whose output a reader misreads by default, so the check
+        # that would otherwise say "not applicable" says which question it answers instead.
+        # In the report this sits beside the per-patient summary it is about.
+        return QualityIssue(
+            check_id=check_id,
+            layer=layer,
+            severity=Severity.INFO,
+            waivable=waivable,
+            summary=(
+                "the estimand is cate, which reports a per-patient effect for every row and "
+                "names no group"
+            ),
+            evidence={"assessed": False, "passed": True, "estimand": estimand},
+            impact_on_analysis=(
+                "A per-patient effect distribution says the effect varies and says of whom. "
+                "The usual misreading is to take one patient's number as an estimate for that "
+                "patient, which the interval around it does not support: these are fitted "
+                "values from a forest, not individual effects."
+            ),
+            recommended_repair=(
+                "If the question is who benefits more, ask for the `gate` estimand instead: "
+                "read the importance table to see which covariates the effect varies along, "
+                "then declare groups in effect_groups and get one effect and one interval per "
+                "named group. `cate` stays the right request when the per-patient spread "
+                "itself is the object of interest."
+            ),
+        )
+
     if estimand != "gate":
         return QualityIssue(
             check_id=check_id,

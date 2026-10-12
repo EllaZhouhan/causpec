@@ -329,7 +329,7 @@ def test_run_dir_persists_everything(workspace, tmp_path, capsys) -> None:
         "audit.jsonl",
         "spec.yaml",
         "claim_level.json",
-        "quality/issues.json",
+        "quality/report.json",
         "results/results.json",
         "report.md",
         # The table every number above came from, after the preprocessing steps and the
@@ -585,3 +585,28 @@ def test_no_sensitivity_says_so_rather_than_leaving_the_section_blank(
     out = capsys.readouterr().out
     assert "No refutation test ran" in out
     assert "not evidence that the estimate would have survived one" in out
+
+
+def test_the_persisted_quality_report_carries_the_pair_it_describes(
+    workspace, tmp_path, capsys
+) -> None:
+    """So the verdicts can be proved to be about this run later, which is what the skill form
+    needs: it runs the checks and the estimation as two scripts, and a list of issues on its
+    own cannot be checked against anything."""
+    runs = tmp_path / "runs"
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--run-dir",
+        str(runs),
+    )
+    capsys.readouterr()
+    directory = next(runs.iterdir())
+    persisted = json.loads((directory / "quality" / "report.json").read_text(encoding="utf-8"))
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert persisted["spec_hash"] == manifest["spec_hash"]
+    assert persisted["snapshot_fingerprint"] == manifest["snapshot_fingerprint"]
+    assert persisted["issues"]

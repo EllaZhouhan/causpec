@@ -112,11 +112,30 @@ class QualityIssue(BaseModel):
 
 
 class QualityReport(BaseModel):
-    """All results from one quality-check run."""
+    """All results from one quality-check run.
+
+    A report can carry **what it was computed from**, as the pair design.md 11.2 names: the
+    spec's hash and the fingerprint of the analysed table. Without that pair a report is a
+    list of verdicts about nothing in particular, and the gate has no way to tell a report
+    about this run from one about a different dataset. It matters for the forms where the
+    checks and the estimation are separate calls, which is every form except the CLI: the
+    skill runs two scripts, and the MCP server takes a report from a client.
+
+    Optional because the `quality` command's report is a deliverable in its own right, with no
+    estimation to gate. `stamped` is how a caller that knows the pair attaches it.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     issues: list[QualityIssue] = Field(default_factory=list)
+    spec_hash: str = ""
+    snapshot_fingerprint: str = ""
+
+    def stamped(self, *, spec_hash: str, snapshot_fingerprint: str) -> QualityReport:
+        """A copy recording which spec and which table these verdicts were computed from."""
+        return self.model_copy(
+            update={"spec_hash": spec_hash, "snapshot_fingerprint": snapshot_fingerprint}
+        )
 
     def by_severity(self, severity: Severity) -> list[QualityIssue]:
         return [issue for issue in self.issues if issue.severity is severity]

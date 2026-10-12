@@ -718,7 +718,7 @@ borrowed (see 7.3, 7.4, 11.2).
 ### 10.1 Addresses and placeholders
 
 Every computed artefact has an address: `res:primary.estimate`, `res:primary.ci`,
-`qc:overlap_extreme_propensity`, `fig:cate_distribution`. Report prose written by the
+`qc:overlap_extreme_propensity`, `claim:level`. Report prose written by the
 model may reference numbers only through placeholders, e.g.
 `{{res:primary.estimate}}`; the renderer substitutes by address. An unknown address, or
 a bare number anywhere in the prose, fails the render, and the error goes back to the
@@ -726,6 +726,21 @@ model to rewrite.
 
 [reuse] The mechanism of "a judgement must cite an existing address, or be refused and
 asked again" follows Causal desk ADR-0002 (ideas only).
+
+**There is no `fig:` namespace, and no raster figure in the report.** An earlier draft of this
+section listed `fig:cate_distribution` among the addresses. It is gone because it contradicts
+principle 3: a number inside a PNG cannot be traced back to an address, so a chart is the one
+place in a report where a figure could disagree with the table beside it and nobody would
+notice. What the figures were for is served instead by two things that are text:
+
+- **Tables whose every cell is an address**, declared in family.yaml and rendered by core: the
+  lag profile, the importance ranking, the group effects. A reader can check any cell against
+  the address map, which is not true of a plotted point.
+- **Mermaid for structure rather than numbers**, which is what the variable-role diagram is
+  (7.5). It carries edges, not quantities, so there is nothing in it to disagree with.
+
+Both render in GitHub, VS Code and ordinary markdown viewers with no dependency and no binary,
+which also means the report is one file.
 
 ### 9.1 What sensitivity and refutation each answer
 

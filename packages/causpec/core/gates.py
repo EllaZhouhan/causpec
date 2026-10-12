@@ -7,9 +7,10 @@ around them.
 Conditions 1 (spec confirmed), 2 (no unwaived blocking quality issues) and 3
 (the family can run this spec and can identify this estimand) are implemented.
 
-Still missing: binding the quality report to a specific (snapshot_fingerprint, spec_hash)
-pair. Both halves of that pair now exist and are recorded in the manifest; what is not
-built is a gate refusing a report computed from a different pair.
+Condition 2 has two halves and both are implemented: no unwaived blocking issues, and the
+report being the one computed for this run's (snapshot_fingerprint, spec_hash) pair. The
+second half is what stops a report from a different extract, or from before a spec change,
+being used to clear a run it never looked at.
 """
 
 from __future__ import annotations
@@ -96,15 +97,22 @@ def check_all(
     spec: Spec,
     report: QualityReport | None = None,
     waived: Mapping[str, str] | None = None,
+    snapshot_fingerprint: str | None = None,
 ) -> None:
     """Run every gate. Any failure raises GateError.
 
-    Omitting ``report`` checks spec confirmation only, the slice path. Once quality
-    checks are wired up the report must be passed.
+    Omitting ``report`` checks spec confirmation and family support only, the slice path.
+
+    Omitting ``snapshot_fingerprint`` skips the staleness check, because there is nothing to
+    compare the report against. A caller that has the fingerprint must pass it: without it the
+    gate cannot tell a report about this run from one about a different dataset, and that is
+    the whole of what the check is for.
     """
     check_spec_confirmed(spec)
     check_family_supports_spec(spec)
     if report is not None:
+        if snapshot_fingerprint is not None:
+            check_report_matches_run(report, spec, snapshot_fingerprint)
         check_no_blocking_issues(report, waived)
 
 
@@ -172,3 +180,58 @@ def check_family_supports_spec(spec: Spec) -> None:
         ),
         details={"family": spec.family, "asked": asked, "declared": declared},
     )
+
+
+def check_report_matches_run(report: QualityReport, spec: Spec, snapshot_fingerprint: str) -> None:
+    """The remaining half of design.md 11.2's condition 2: the right report for this run.
+
+    Condition 2 asks for a quality report with no unwaived blocking issues **for the current
+    (snapshot_fingerprint, spec_hash) pair**. The first half was implemented; this is the
+    pair.
+
+    In the CLI it cannot currently go wrong, because the checks and the estimation happen in
+    one process on one frame. It is not the CLI this defends. The skill form runs the checks
+    and the estimation as two scripts, and the MCP server takes a report from a client, so in
+    both a report computed on yesterday's extract, or before a preprocessing step was agreed,
+    can arrive at an estimation that it says nothing about. Every check would read as passed
+    and none of them would have looked at this data.
+
+    A report with no stamp is refused here rather than accepted. Accepting it is exactly the
+    hole: an unverifiable report and a verified one would be treated alike, and the one that
+    matters is the one nobody stamped.
+    """
+    if not report.spec_hash or not report.snapshot_fingerprint:
+        raise GateError(
+            code="QUALITY_REPORT_UNVERIFIABLE",
+            reason=(
+                "The quality report does not record which spec and which table it was "
+                "computed from, so it cannot be shown to describe this run."
+            ),
+            remediation=(
+                "Stamp the report with the spec hash and the snapshot fingerprint when the "
+                "checks are run (QualityReport.stamped), or run the checks and the estimation "
+                "in one call."
+            ),
+            details={"expected_spec_hash": spec.spec_hash()},
+        )
+    expected = spec.spec_hash()
+    if report.spec_hash != expected or report.snapshot_fingerprint != snapshot_fingerprint:
+        raise GateError(
+            code="QUALITY_REPORT_STALE",
+            reason=(
+                f"The quality report was computed for spec {report.spec_hash} on table "
+                f"{report.snapshot_fingerprint}, and this run is spec {expected} on table "
+                f"{snapshot_fingerprint}. Its verdicts do not describe this analysis."
+            ),
+            remediation=(
+                "Re-run the quality checks on the data and spec being estimated. A report "
+                "from before a spec change or a different extract says nothing about this one, "
+                "however many of its checks passed."
+            ),
+            details={
+                "report_spec_hash": report.spec_hash,
+                "run_spec_hash": expected,
+                "report_snapshot_fingerprint": report.snapshot_fingerprint,
+                "run_snapshot_fingerprint": snapshot_fingerprint,
+            },
+        )

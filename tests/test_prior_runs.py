@@ -43,7 +43,7 @@ def write_run(
         "created_at": "2026-10-12T10:00:00Z",
         "spec_hash": spec_hash,
         "source_fingerprint": source_fingerprint,
-        "artifacts": {RESULTS_ARTIFACT: "deadbeef"} if completed else {"quality/issues.json": "x"},
+        "artifacts": {RESULTS_ARTIFACT: "deadbeef"} if completed else {"quality/report.json": "x"},
     }
     (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 

@@ -5,8 +5,46 @@ field; assess whether the data can support that question before estimating anyth
 run the estimation in deterministic code; and produce a report whose every number
 traces back to a computation. Data sources are read-only throughout.
 
-> Status: early development (v0.0). The repository is private for now and goes public
-> after v0.3.
+> Status: the library and the agent workflow are built and tested (632 tests). The MCP
+> server, the database adapter and the demo deployment are declared and not implemented,
+> and this README says so where it matters. The repository is private until v0.3.
+
+## Loading the agent
+
+The workflow is an agent skill. It drives the library, so the agent is what you talk to
+and the library is what computes.
+
+**In Claude Code**, nothing to install: `.claude/skills/causpec-analyst` is a symlink to
+`skill/causpec-analyst`, so a clone has it immediately and an edit to `SKILL.md` takes
+effect on the next message.
+
+```bash
+git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
+uv sync --extra hte          # the estimators; omit for spec and checks only
+claude                       # then ask a causal question, or type /causpec-analyst
+```
+
+**On claude.ai**, upload the packaged skill:
+
+```bash
+./scripts/build_skill.sh     # builds the wheel into the bundle, emits the zip
+# then: Settings -> Capabilities -> Skills -> upload dist/causpec-analyst-skill.zip
+```
+
+That environment cannot install a local package, which is why the bundle carries the
+wheel. The wheel is a build product and is not committed: a committed wheel drifts
+silently from the source it claims to be.
+
+**Without an agent**, the library has a CLI and the same gates apply:
+
+```bash
+uv run causpec quality  --spec spec.yaml --data cohort.csv
+uv run causpec estimate --spec spec.yaml --data cohort.csv --report --run-dir runs/
+```
+
+The skill is marked **best-effort** for one honest reason: an agent is technically able
+to bypass `scripts/run.py` and read the data itself, so in this form "only code produces
+numbers" rests on the agent following its own rules. Every report says so in its header.
 
 ## What it is for
 
@@ -26,17 +64,72 @@ Four principles:
 4. **The claim level is decided by code from the diagnostics** (causal / suggestive /
    associational / descriptive) and the model may not upgrade it.
 
+## What a run actually does
+
+Eight steps, the first five with the user, the last three in code. A question becomes a
+spec field by field; the data is checked against that spec before anything is estimated;
+the estimate is computed and then attacked; the report is assembled by code with the
+model allowed to write only the interpretation.
+
+```
+1  the question, the data's shape, how the treatment was assigned
+2  map the concepts onto columns
+3  variable roles, which become the diagram and get checked against the adjustment set
+4  identification strategy and the assumptions it rests on
+5  the estimand: which question the number answers, and for whom
+6  quality checks: 4 core layers, then the family's own; blocking issues stop here
+7  the user confirms the whole spec
+8  estimate, refute, and render
+```
+
+What the report contains, all of it generated from an address map rather than written:
+
+- the spec with each field's **source, status and the user's own words**, and the data's
+  content fingerprint
+- an **exclusion ledger** if any population filter ran, and the preprocessing steps applied
+- the **variable-role diagram**, derived from the declared roles rather than drawn
+- the **quality table**, every check with its verdict and what it means
+- the **primary result**, then where the effect varies, then the effect by named group
+- **sensitivity and refutation**: an E-value, and a placebo treatment, a random common
+  cause and subset stability
+- the **claim level** (causal / suggestive / associational / descriptive) with the reasons
+  code used to decide it. Code can only lower it; `causal` needs a person to justify every
+  untestable assumption and say so
+
 ## Supported analyses
 
-| family | Notes |
-|---|---|
-| `hte_iv` | Heterogeneous treatment effects under an IV design; binary and continuous instruments |
-| `hte_backdoor` | Heterogeneous treatment effects under backdoor adjustment |
-| `dynamic_lag_dml` | The lag profile of one treatment period on per-period outcomes, with continuation weighting for an informative horizon |
+| family | Estimands | Notes |
+|---|---|---|
+| `hte_backdoor` | `ate`, `att`, `cate`, `gate` | Backdoor adjustment with a causal forest. `gate` reports the effect for named groups, which is the answer to "who benefits"; `cate` reports a per-patient cloud that names nobody |
+| `hte_iv` | `conditional_late`, `weighted_conditional_late` | Binary and continuous instruments. A population effect and a per-patient effect are **refused** with reasons: compliers cannot be identified individually |
+| `dynamic_lag_dml` | `lag_profile`, `lag_cate` | The lag profile of one treatment period on per-period outcomes, with continuation weighting for an informative horizon |
+
+The estimand is reconciled against the family at the gate. It is a label no estimator
+reads, so `conditional_late` on `hte_backdoor` would otherwise print the words for an
+effect among compliers over an average across everyone.
 
 Designs outside that range (difference-in-differences, regression discontinuity,
 synthetic control) are refused explicitly, with a reason given for each excluded
-family.
+family, as are questions a supported family cannot answer.
+
+## What the checks cover
+
+Four layers in `core`, which run for every family, then the family's own design checks.
+Thresholds live in `core/quality/basic_checks.yaml` and every one of them was measured
+against this project's own data rather than picked.
+
+| layer | Examples |
+|---|---|
+| basic | types, duplicate keys, missingness, **NULL-encoding variants** (a `-999` creatinine is a number, so nothing downstream fails), zero spikes, isolated extremes, impossible signs |
+| temporal | treatment before time zero (immortal time), outcome before treatment, interval inversion, follow-up shorter than the outcome window |
+| identification | prevalence, overlap, SMD, instrument relevance and endogeneity, the declared roles against the adjustment set, the family against the question, population filters |
+| feasibility | per-arm sizes and event counts, extreme weights and effective sample size |
+
+Two properties the checks are built around. **A check that could not run says so** rather
+than passing: a clean report on a table nobody could read is worse than no report. And
+**a suggested fix is offered, never applied**: when a check can name the exact operation
+that would address what it found, the agent offers it and the user agrees in their own
+words before anything runs.
 
 ## Installing
 
@@ -45,7 +138,16 @@ behind an extra:
 
 | extra | Pulls in | Needed by |
 |---|---|---|
-| `hte` | EconML, scikit-learn, statsmodels, scipy, joblib | `hte_iv`, `hte_backdoor` |
+| `hte` | EconML, linearmodels, scikit-learn, statsmodels, scipy, joblib | `hte_iv`, `hte_backdoor` |
+| `dynamic` | scikit-learn, scipy, joblib | `dynamic_lag_dml` |
+
+`dynamic_lag_dml` needs no EconML: its estimator is written here, and what it uses is
+gradient boosting for the continuation model, a linear model for the two orthogonal
+nuisances, and joblib for the bootstrap. `linearmodels` is in `hte` for exactly one
+statistic, the robust overidentification test, and [ADR-0004](docs/decisions/0004-linearmodels-for-overidentification-only.md)
+records why a hand-written version was rejected: it got the degrees of freedom wrong,
+k instead of k-1, while agreeing with the package's verdict on every design it was tried
+on, which is how that ships unnoticed.
 
 ```bash
 # spec, quality checks and report rendering only
@@ -68,35 +170,48 @@ $ causpec estimate --spec spec.yaml --data cohort.csv
 
 ## Repository layout
 
-Three deliverables live in one repository: the **library** is the thick part, the **MCP
-server** and the **skill** are two thin shells that call it. Both forms call the same
-`causpec` functions and produce the same run-directory layout.
+The **library** is the thick part and holds every computation. The **skill** is a thin
+shell that drives it. An **MCP server** is designed as the primary form and is not built.
 
 ```
-packages/causpec/          the library; all computation lives here
+packages/causpec/          the library, 10k lines; all computation lives here
   core/                      core never imports a family (enforced by import-linter in CI)
-    contracts/                 Spec, QualityIssue, Result, Manifest
-    adapters/                  csv, parquet, postgres (read-only)
-    mapping/                   lightweight mapping and the variable catalogue
-    quality/                   the four check layers
-    runtime/                   RunContext, atomic writes, audit log, manifest
-    reporting/                 address resolution, placeholder rendering, claim level
+    contracts/                 Spec, QualityIssue, Result, Manifest, Suggestion
+    quality/                   the four check layers, ~30 checks, thresholds in yaml
+    sensitivity/               the E-value and the three refutation tests
+    reporting/                 addresses, placeholder rendering, claim level, the DAG
+    runtime/                   RunContext, atomic writes, audit log, manifest, snapshot
+    mapping/                   preprocessing steps applied to a working copy
+    grouping.py                cutting a covariate into the groups an effect is reported for
+    fingerprint.py             content fingerprints, normalised so a re-export still matches
+    population.py              the population filters and the exclusion ledger
+    gates.py                   the three gate conditions, as `if` statements
     registry.py                the family registry: core's only interface to a family
+    adapters/                  declared, not implemented: csv and parquet are read in cli.py
   families/                  plugins; a new analysis is a directory and one registration
-    hte_iv/  hte_backdoor/  dynamic_lag_dml/
-  cli.py                     causpec quality / estimate / report
+    hte_backdoor/  hte_iv/  dynamic_lag_dml/
+      family.yaml                what it identifies, needs, assumes, refuses, and tabulates
+  cli.py                     causpec quality / estimate
 
-server/causpec_mcp/        the MCP server (primary form): holds credentials, runs the gates
-skill/causpec-analyst/     the skill (secondary form): SKILL.md, references, scripts
-evals/                     numerical, quality-check, robustness, reporting, agent, regression
-data/generators/           synthetic data generators (what they produce is never committed)
-examples/deployments/      demo-hospital and demo-retail configuration examples
-deploy/                    a local Postgres demo (read-only account plus views)
-docs/                      design.md, plan.md, decisions/
+tests/                     8k lines, 632 tests; each file documents a property, not a function
+skill/causpec-analyst/     SKILL.md, 8 reference files, scripts/run.py
+docs/                      design.md, plan.md, decisions/ (four ADRs)
+data/generators/           synthetic data with ground truth (output is never committed)
+evals/                     the manual workflow test; the golden tasks are Phase 2
+server/causpec_mcp/        a stub. The MCP server is Phase 3
+examples/  deploy/         configuration sketches; the Postgres demo is Phase 3
 ```
 
-Outside the skeleton most of this is still empty; it fills in stage by stage, per
-[plan.md](docs/plan.md).
+A family is a directory. `family.yaml` is where it declares the estimands it can
+identify, the spec fields it needs, the assumptions each estimand rests on, the questions
+it refuses, its check thresholds, the result tables the report should render, and which
+number the refutation tests should compare. Core reads all of that and knows nothing about
+what a lag or a complier is: a CI test asserts the string `lag` does not appear in the
+reporting module.
+
+What is declared and not implemented, stated here rather than discovered: the MCP server,
+the Postgres adapter, the example deployments, and the golden-task evals. [plan.md](docs/plan.md)
+has the order.
 
 ## Estimators and confidence intervals
 
@@ -142,11 +257,23 @@ report has to surface it.
 
 ```bash
 uv sync --all-extras --dev   # everything
-uv run pytest                # tests
+uv run pytest                # 632 tests
 uv run ruff check .          # lint
+uv run pyright               # types; CI pins Python 3.11
 uv run lint-imports          # the architecture contract: core must not import a family
 pre-commit install           # enable the pre-commit checks, including the data-file block
 ```
+
+**Real patient data must never enter this repository.** Three things enforce it: a
+`.gitignore`, a pre-commit hook, and `scripts/check_no_data_files.py`. Synthetic data is
+generated on demand and its output is gitignored.
+
+**The tests are written to document properties, not to cover functions.** Each file opens
+with what it is defending and why that matters, and several pin a mistake that was made
+and corrected, so it cannot come back quietly: that a fill's spread statistic has to be
+measured among the filled values rather than over the column, that a snapshot's
+fingerprint has to be recomputable from the snapshot, that rounding a hash moves the
+instability rather than removing it.
 
 ## Synthetic data
 
@@ -161,35 +288,39 @@ mortality) and is what demos and quality checks use. `high_power` raises the com
 share and event rate for numerical evals, at the realistic scale an IV analysis has a
 standard error larger than the truth itself, and numerical tests drown in noise.
 
-## The skill
+## Inside the skill
 
-`skill/causpec-analyst/` is the form used on claude.ai (best-effort). To package it:
+Loading it is at the top of this file. What is in it:
 
-```bash
-./scripts/build_skill.sh     # build the wheel into assets, emit dist/causpec-analyst-skill.zip
+```
+skill/causpec-analyst/
+  SKILL.md                 the eight steps, the two paths, and the rules that are not negotiable
+  references/
+    workflow.md              the long form of the steps
+    spec-fields.md           every spec field, what it means, and what it costs to get wrong
+    quality-checks.md        how to explain a failed check to a user
+    claim-levels.md          what each level permits in prose, and sensitivity wording
+    variable-roles.md        X versus W, and what can never enter the adjustment set
+    hte-dmliv.md             the IV backends and their intervals
+    dynamic-lag-dml.md       the panel family's estimand and its checks
+    reporting.md             the report's structure and which sections the model may write
+  scripts/run.py           the only way the skill reaches the data
 ```
 
-The wheel is a build product and is not committed, a committed wheel drifts silently
-from the source, and the wheel is what the skill runs.
-
-**Trying it in Claude Code**: `.claude/skills/causpec-analyst` is a symlink to
-`skill/causpec-analyst`, so a clone has it immediately with no packaging step, and an
-edit to SKILL.md takes effect at once.
-
-**Trying it on claude.ai**: upload `dist/causpec-analyst-skill.zip` (Settings ->
-Capabilities -> Skills). That environment cannot install a local package, so it needs
-the wheel.
-
-**Why best-effort**: an agent is technically able to bypass `scripts/run.py` and read
-the data itself, so in skill form "only code produces numbers" rests on the agent
-following the rules. The report header notes this. MCP form does not have the problem:
-there the model can only reach the data through declared tools (not implemented yet).
+The references exist because `SKILL.md` has to stay short enough to be read in full. A CI
+test asserts that every check declared in a family's `family.yaml` is explained in
+`quality-checks.md`, and that every blocking one is marked as blocking: documentation that
+drifts from the code is worse than none, so the drift is a test failure.
 
 ## Documentation
 
-- [Design](docs/design.md)
-- [Plan](docs/plan.md)
-- [Decision records](docs/decisions/)
+- [Design](docs/design.md), the authority on what the system is and why each decision went
+  the way it did, including the ones that were reversed
+- [Plan](docs/plan.md), the order of work and what is done
+- [Decision records](docs/decisions/), four ADRs: the ADR policy, the data-source boundary,
+  writing the basic checks without pandera, and linearmodels for one statistic
+- [Changelog](CHANGELOG.md), which records why each change was made and not only what
+  changed
 
 ## Licence
 

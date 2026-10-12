@@ -211,7 +211,11 @@ def _persist_run(
     """
     with RunContext.create(args.run_dir, ExecutionMode.CLI) as run:
         run.write_text("spec.yaml", args.spec.read_text(encoding="utf-8"))
-        run.write_json("quality/issues.json", [i.model_dump(mode="json") for i in report.issues])
+        # The whole report, not just its issues: it carries the spec hash and the snapshot
+        # fingerprint it was computed for, and that pair is what lets whatever reads it later
+        # prove the verdicts describe the run being estimated. A list of issues alone cannot
+        # be checked against anything.
+        run.write_json("quality/report.json", report.model_dump(mode="json"))
         run.write_json("results/results.json", result.model_dump(mode="json"))
         run.write_json("claim_level.json", decision.model_dump(mode="json"))
         if waivers:
@@ -348,14 +352,20 @@ def cmd_quality(args: argparse.Namespace) -> int:
     is why this subcommand stands alone and does not require a confirmed spec.
     """
     spec = _load_spec(args.spec)
-    data, applied = _preprocess(_load_data(args.data), spec)
+    source = _load_data(args.data)
+    key = _key_columns(spec, source)
+    data, applied = _preprocess(source, spec)
     for record in applied:
         print(f"~ [applied  ] {record.describe()}")
     data, ledger, population = _select_population(data, spec)
     for record in ledger:
         print(f"- [excluded ] {record.describe()}")
     _require_family_support(spec)
-    report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues])
+    # Stamped here too, so a report written out by `quality` can be verified later by
+    # whatever estimates from it.
+    report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues]).stamped(
+        spec_hash=spec.spec_hash(), snapshot_fingerprint=fingerprint(data, key)
+    )
     for issue in report.issues:
         mark = {"blocking": "✗", "warning": "!", "info": "·"}[issue.severity.value]
         print(f"{mark} [{issue.severity.value:8}] {issue.check_id}: {issue.summary}")
@@ -382,9 +392,15 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     # code, not a rule in a prompt. Condition 1 checks spec confirmation, condition 2
     # checks for unwaived blocking quality issues.
     waivers = _parse_waivers(args.waive)
-    report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues])
+    # Stamped with what it was computed from, so the gate can refuse a report that describes
+    # a different run. Here the two cannot diverge, both being computed from `data` in one
+    # process; the skill form runs two scripts and the MCP server takes a report from a
+    # client, and in both they can.
+    report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues]).stamped(
+        spec_hash=spec.spec_hash(), snapshot_fingerprint=snapshot_fingerprint
+    )
     try:
-        check_all(spec, report, waivers)
+        check_all(spec, report, waivers, snapshot_fingerprint=snapshot_fingerprint)
     except GateError as error:
         print(error, file=sys.stderr)
         return 2

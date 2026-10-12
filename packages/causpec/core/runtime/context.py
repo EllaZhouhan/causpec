@@ -5,7 +5,7 @@ Mirrors the run-directory layout of design.md section 14:
     runs/<run_id>/
       manifest.json    provenance record and artefact checksums
       spec.yaml
-      quality/issues.json
+      quality/report.json
       results/results.json
       report.md
       audit.jsonl

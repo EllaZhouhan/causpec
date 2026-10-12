@@ -7,6 +7,39 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Gate condition 2's other half: the report has to be about this run** (design.md 11.2).
+  The condition asks for a report with no unwaived blocking issues *for the current
+  (snapshot_fingerprint, spec_hash) pair*, and only the first half was built. In the CLI it
+  cannot go wrong, the checks and the estimation happening in one process on one frame, and
+  the CLI is not what this defends: the skill form runs two scripts and the MCP server takes a
+  report from a client, so a report computed on yesterday's extract, or from before a
+  preprocessing step was agreed, can arrive at an estimation it says nothing about with every
+  check reading as passed. A report with no stamp is refused rather than trusted, since
+  accepting it treats the unverifiable and the verified alike
+- **The persisted quality report is the whole report, not a list of issues**, so the pair
+  survives serialisation and whatever estimates from it later can prove the verdicts describe
+  the run. `quality/issues.json` becomes `quality/report.json`
+- **No `fig:` namespace, and no raster figure in the report.** An earlier draft listed
+  `fig:cate_distribution` among the addresses; it contradicted principle 3, because a number
+  inside a PNG cannot be traced to an address, which makes a chart the one place a figure
+  could disagree with the table beside it unnoticed. What figures were for is served by
+  tables whose every cell is an address, and by mermaid for structure rather than numbers
+- **`hte_iv` refuses a population effect, with the reason filled in** where a TODO stood.
+  Reading a complier effect as a population one needs the effect not to vary by compliance
+  type given covariates, which is untestable in the strongest sense: compliance type is never
+  observed for anyone, being defined by what a patient would have done under both values of
+  the instrument. It is also usually false in the direction that matters, since compliers are
+  the borderline patients and the premise of asking the question is that the effect is largest
+  there. Refused rather than offered with a caveat: a caveat is read once and the number is
+  carried away. Three questions now have named refusals
+- **`cate` says what it is when it runs.** It stays a legitimate estimand, and the check that
+  would otherwise report "not applicable" instead states that a per-patient distribution says
+  the effect varies and says of whom, names the usual misreading, and points at `gate`
+- **The README now describes the repository that exists.** It claimed a csv/parquet/postgres
+  adapter layer (12 lines of docstring), a variable catalogue (dropped), an MCP server as the
+  primary form (a stub), and that "most of this is still empty" (10k lines of library and 8k
+  of tests). It opens with how to load the agent, and says plainly which four things are
+  declared and not implemented
 - **A `gate` estimand, so "who benefits" has an answer that names someone** (design.md 7.7).
   `cate` reports a per-patient effect for every row and summarises the cloud: it says the
   effect varies and names nobody, and a reader picks a patient out of it. `gate` reports the
