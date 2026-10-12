@@ -7,6 +7,26 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **A `gate` estimand, so "who benefits" has an answer that names someone** (design.md 7.7).
+  `cate` reports a per-patient effect for every row and summarises the cloud: it says the
+  effect varies and names nobody, and a reader picks a patient out of it. `gate` reports the
+  average effect within groups the user declared, one row and one interval each, reached in
+  the order the report now lays out: the average effect, then an importance table over the
+  effect modifiers, then the user's choice of dimensions and cuts into `effect_groups`, then
+  the groups
+- **Choosing a dimension from the importance table is not penalised**, because every covariate
+  was in the forest from the start and interpreting a result does mean looking at the ones
+  carrying the variation. Two things make it safe to report rather than something to correct:
+  every group of every grouping is printed, so cherry-picking has no unshown groups to draw
+  on and no multiplicity adjustment is applied; and `chosen_from: importance_ranking` puts a
+  sentence in the report saying the interval is slightly optimistic
+- **Two things measured rather than assumed, both asserted the wrong way round first.** A
+  group's interval is not always wider than the whole sample's: it reflects estimation noise
+  *and* the spread of fitted effects inside the group, so a homogeneous group can come out
+  tighter, and one did, 0.164 against 0.184. And on this project's own data every group's
+  interval contained the overall average effect, so no group was distinguishable from the
+  average however different the point estimates looked, which is the usual situation and the
+  sentence a report has to carry
 - **Gate condition 3: the family has to be able to run this spec and answer this question**
   (design.md 7.6). `estimand` is a label the estimator never reads, so before this,
   `estimand: conditional_late` on `hte_backdoor` ran to completion and the report described an

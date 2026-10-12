@@ -24,6 +24,7 @@ from econml.dml import CausalForestDML
 from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
+from causpec.core.grouping import group_masks
 from causpec.core.registry import register
 
 if TYPE_CHECKING:
@@ -41,6 +42,85 @@ def _column_names(spec: Spec, field: str) -> list[str]:
 
 def _scalar(value: Any) -> float:
     return float(np.ravel(value)[0])
+
+
+def _importance(estimator: Any, columns: list[str]) -> dict[str, float | int | str]:
+    """Which covariates the forest split on to separate treatment effects, ranked.
+
+    This is step two of the staged answer: the average effect first, then where the effect
+    varies, then the groups the user asks for along those dimensions. Without it, choosing a
+    dimension to report means guessing, and the per-patient effect cloud the forest produces
+    names nobody.
+
+    **What it is not.** A ranking of how strongly each covariate modifies the effect. It
+    counts the splits a forest happened to make, so it favours continuous and high-cardinality
+    columns over binary ones whatever their true importance, and a column correlated with a
+    real modifier inherits some of its rank. It is a shortlist to choose from, which is
+    exactly how the workflow uses it.
+    """
+    raw = getattr(estimator, "feature_importances_", None)
+    if raw is None:
+        return {}
+    weights = np.ravel(np.asarray(raw, dtype=float))
+    if weights.size != len(columns):
+        # A shape this function cannot interpret is better reported as absent than attached to
+        # the wrong column names.
+        return {}
+    order = np.argsort(-weights)
+    values: dict[str, float | int | str] = {"res:importance.last_rank": int(len(order) - 1)}
+    for rank, index in enumerate(order):
+        values[f"res:importance.rank{rank}.variable"] = columns[int(index)]
+        values[f"res:importance.rank{rank}.importance"] = float(weights[int(index)])
+    return values
+
+
+def _group_effects(
+    estimator: Any, data: pd.DataFrame, spec: Spec, x: np.ndarray
+) -> dict[str, float | int | str]:
+    """The average effect within each declared group, with its own interval.
+
+    `ate(X=subset)` averages the fitted effect over the patients in the group and
+    `ate_interval` gives that average an interval, so each row is a statement about a named
+    set of patients rather than about a cloud.
+
+    Every group of every declared grouping is emitted, flattened into one numbered sequence so
+    the report's declarative table mechanism can render a row count it learns from an address.
+    Flattening is also what makes a grouping chosen after seeing the importance ranking safe to
+    report: the striking group cannot appear without the dull ones beside it.
+    """
+    if not spec.effect_groups:
+        return {}
+    values: dict[str, float | int | str] = {}
+    row = 0
+    for group in spec.effect_groups:
+        for label, mask in group_masks(data, group):
+            prefix = f"res:gate.row{row}"
+            values[f"{prefix}.variable"] = group.variable
+            values[f"{prefix}.label"] = label
+            values[f"{prefix}.n"] = int(mask.sum())
+            values[f"{prefix}.chosen_from"] = group.chosen_from
+            if mask.sum() == 0:
+                # Emitted rather than skipped: an empty group means the cut fell outside the
+                # data, which the user should see as a row of zeros rather than as a gap.
+                values[f"{prefix}.effect"] = float("nan")
+                values[f"{prefix}.ci_lower"] = float("nan")
+                values[f"{prefix}.ci_upper"] = float("nan")
+                row += 1
+                continue
+            subset = x[mask]
+            lower, upper = estimator.ate_interval(X=subset, alpha=0.05)
+            values[f"{prefix}.effect"] = _scalar(estimator.ate(X=subset))
+            values[f"{prefix}.ci_lower"] = _scalar(lower)
+            values[f"{prefix}.ci_upper"] = _scalar(upper)
+            row += 1
+    values["res:gate.last_row"] = int(row - 1)
+    values["res:gate.n_groupings"] = len(spec.effect_groups)
+    values["res:gate.any_chosen_from_importance"] = (
+        "yes"
+        if any(group.chosen_from == "importance_ranking" for group in spec.effect_groups)
+        else "no"
+    )
+    return values
 
 
 def _distribution(prefix: str, values: np.ndarray) -> dict[str, float]:
@@ -146,6 +226,8 @@ class HteBackdoor:
             "res:estimation.n_estimators": n_estimators,
         }
         values.update(_distribution("res:cate", cate))
+        values.update(_importance(estimator, effect_modifiers))
+        values.update(_group_effects(estimator, data, spec, x))
         return Result(family=self.id, seed=seed, values=values)
 
 

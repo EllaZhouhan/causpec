@@ -579,6 +579,53 @@ passing. The shape is checked first, being the harder error: a panel analysed on
 answers a question about rows rather than about patients.
 
 
+### 7.7 A conditional effect for whom
+
+`cate` reports a per-patient effect for every row and summarises the cloud. It says the effect
+varies and names nobody, which is the wrong shape for the question people actually ask. A
+reader picks a patient out of the cloud and treats that number as theirs, and the interval
+around it does not stop them.
+
+`gate` reports the average effect within groups the user declared, with an interval each. The
+staged order is the design:
+
+1. **The average effect**, which has the best statistical properties available here
+2. **An importance table** over `effect_modifiers`, saying along which covariates the effect
+   varies. `feature_importances_` from the forest, so it counts splits: it favours continuous
+   and high-cardinality columns whatever their true importance, and a column correlated with a
+   real modifier inherits some of its rank. It is a shortlist to choose from, which is how the
+   workflow uses it
+3. **The user picks the dimensions and the cuts**, into `effect_groups`, with their words.
+   `cuts` for a threshold they can defend, `quantiles` for equal bins when they have none
+4. **One row per group**, each with its own interval, from `ate(X=subset)` and `ate_interval`
+
+**Choosing a dimension from the importance table is legitimate and is not penalised.** Every
+covariate was in the forest from the start, so this is not variable selection, and
+interpreting a result does mean looking at the covariates carrying the variation. Two things
+make it safe to report rather than something to adjust for:
+
+- **Every group of every declared grouping is printed.** Cherry-picking needs the unshown
+  groups; there are none. This is also why no multiplicity correction is applied: a reader
+  seeing one of fifteen intervals exclude zero, with the other fourteen beside it, can judge
+  that for themselves.
+- **The origin is recorded.** `chosen_from: importance_ranking` puts a sentence in the report
+  saying the interval is slightly optimistic, because the dimension with the most visible
+  variation was the one picked. The textbook remedy is sample splitting, which costs power, so
+  the choice stays the user's and the report states it.
+
+Two things measured rather than assumed, both of which were asserted the wrong way round
+first. **A group's interval is not always wider than the whole sample's**: it reflects both
+estimation noise and the spread of fitted effects inside the group, so a homogeneous group can
+come out tighter, and one did, 0.164 against 0.184. The widths are printed per group instead of
+summarised. And on this project's own data **every group's interval contained the overall
+average effect**, meaning no group was distinguishable from the average however different the
+point estimates looked. That is the usual situation with heterogeneity and it is the sentence a
+report has to carry.
+
+Missing values join no group, the same rule the population filters use, so group sizes can
+total less than the sample. No group is dropped or merged for being small: a group of eleven
+patients with an interval four times the others is the finding.
+
 When the design a question needs is outside the supported families (difference-in-
 differences, regression discontinuity, synthetic control), the system says so
 explicitly, lists each excluded family with its reason, and does not force the question

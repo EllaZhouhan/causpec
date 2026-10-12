@@ -20,6 +20,21 @@ estimands:
   - id: cate
     label: Conditional average treatment effect
     requires_assumptions: [unconfoundedness, positivity, consistency]
+    interpretation: >
+      A per-patient effect for every row, summarised as a distribution. It says the effect
+      varies and names nobody, which is what makes it the wrong default for "who benefits
+      more": a cloud of per-patient numbers invites a reader to pick one out. Prefer `gate`,
+      which reports the effect for named groups with an interval each.
+  - id: gate
+    label: Group average treatment effects
+    requires_assumptions: [unconfoundedness, positivity, consistency]
+    interpretation: >
+      The average effect within each group the user declared, with an interval per group. This
+      is the answer to "a conditional effect for whom": one row per group, which is something
+      someone can act on or dispute, where a per-patient cloud is not. Every group of every
+      declared grouping is printed, so a grouping chosen after reading the importance ranking
+      cannot be shown without the dull groups beside it. Needs `effect_groups`, which this
+      family's own check enforces, because the requirement holds only for this estimand.
 
 requires:
   # What the estimator cannot start without, which gate condition 3 enforces. Only the
@@ -96,6 +111,14 @@ checks:
     waivable: true
     min_ess_ratio: 0.20         # Kish effective sample size over actual sample size
 
+  backdoor_effect_groups:
+    layer: feasibility
+    severity: blocking
+    waivable: false
+    # The gate estimand with no groups declared. Not waivable: there is nothing to report.
+    # Enforced here rather than in requires.spec_fields because the requirement holds only
+    # for this one estimand, and a flat list cannot say "required only when".
+
 # What the refutation tests compare, and the interval that sets the scale for "unchanged"
 # (design.md 10.1). Declared rather than discovered, because core must not know that this
 # family's headline is an average effect while another's is a lag.
@@ -106,3 +129,45 @@ sensitivity:
   # The E-value needs a risk ratio, which these two form from the arm risks. A continuous
   # outcome has no risk ratio and the report says so rather than inventing one.
   control_risk_address: res:sample.outcome_rate_control
+
+# Tables core renders from the address map, declared here because core must not know what a
+# covariate or a group is. The order is the order of the staged answer: the average effect in
+# the primary results, then where the effect varies, then the effect by group.
+report_tables:
+  - id: effect_importance
+    title: Where the effect varies
+    rows:
+      variable: rank
+      from: 0
+      through_address: res:importance.last_rank
+    columns:
+      - {header: Covariate, address: "res:importance.rank{rank}.variable"}
+      - {header: Importance, address: "res:importance.rank{rank}.importance", format: ".3f"}
+    note: >
+      How often the forest split on each covariate to separate treatment effects. This is a
+      shortlist for choosing which groups to report, not a ranking of how strongly each
+      covariate modifies the effect: it counts splits, so it favours continuous and
+      high-cardinality columns over binary ones whatever their true importance, and a column
+      correlated with a real modifier inherits some of its rank.
+
+  - id: group_effects
+    title: The effect by group
+    rows:
+      variable: row
+      from: 0
+      through_address: res:gate.last_row
+    columns:
+      - {header: Variable, address: "res:gate.row{row}.variable"}
+      - {header: Group, address: "res:gate.row{row}.label"}
+      - {header: Patients, address: "res:gate.row{row}.n", format: ",d"}
+      - {header: Effect, address: "res:gate.row{row}.effect", format: "+.4f"}
+      - {header: 95% lower, address: "res:gate.row{row}.ci_lower", format: "+.4f"}
+      - {header: 95% upper, address: "res:gate.row{row}.ci_upper", format: "+.4f"}
+    note: >
+      The average effect within each declared group. Every group is listed, including the dull
+      ones: that is what makes a grouping chosen after reading the importance ranking safe to
+      report, since the striking group cannot appear on its own. Group intervals are wide, and
+      a group whose interval spans the average effect is one this data cannot distinguish from
+      the average. Where a grouping was chosen after seeing the ranking, its interval is a
+      little optimistic, because the dimension with the most visible variation was the one
+      picked.

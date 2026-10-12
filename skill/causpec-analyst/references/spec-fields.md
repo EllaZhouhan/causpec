@@ -344,3 +344,41 @@ opposite directions.
 
 The refusal names the family that does declare what was asked, so if the user wants
 `conditional_late`, route to `hte_iv` rather than editing the label.
+
+## `effect_groups`, which turns "who benefits" into an answer
+
+Required when the estimand is `gate`, and the family refuses that estimand without it.
+
+```yaml
+effect_groups:
+  - variable: admission_age
+    cuts: [65]
+    said: 65 is where I would expect frailty to start mattering
+    turn: 11
+    chosen_from: clinical_knowledge
+  - variable: max_potassium
+    quantiles: 3
+    said: split potassium in three, I have no threshold in mind
+    turn: 12
+    chosen_from: importance_ranking
+```
+
+Give **either** `cuts`, thresholds the user can defend, **or** `quantiles`, equal-sized bins
+for when they cannot. Not both, not neither. `said` is required, as everywhere: which patients
+a number describes is the user's judgement.
+
+**`chosen_from` is a disclosure, not a penalty.** `importance_ranking` means they picked the
+dimension after reading the importance table, which is the natural way to interpret a result,
+and the report notes that the interval is slightly optimistic because the dimension showing
+the most variation was the one picked. Nothing is adjusted and no level is capped.
+
+**Every group of every grouping is printed**, including the dull ones. That is what makes a
+data-driven choice safe to report: the striking group cannot appear without its neighbours, so
+there is nothing to cherry-pick, and no multiplicity correction is applied.
+
+**Missing values join no group.** A patient whose age is unknown is not known to be over 65 or
+under it, the same rule the population filters use, so the group sizes can total less than the
+sample.
+
+**No group is dropped or merged for being small.** A group of eleven patients with an interval
+four times the others is the finding.

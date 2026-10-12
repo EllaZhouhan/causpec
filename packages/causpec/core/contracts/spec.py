@@ -338,6 +338,65 @@ ROLES_BARRED_FROM_ADJUSTMENT = {
 }
 
 
+# Where a grouping came from. Not a penalty, a sentence in the report: an interval on a group
+# chosen after seeing the importance ranking on the same data is a little optimistic, because
+# the dimension showing the most variation was the one picked. The honest remedy is sample
+# splitting, which costs power, so the choice stays the user's and the report says which it
+# was.
+GROUP_ORIGINS = ("clinical_knowledge", "importance_ranking")
+
+
+class EffectGroup(BaseModel):
+    """One dimension along which to report the effect, and how to cut it.
+
+    This is the answer to "a CATE for whom". A per-patient effect cloud says the effect
+    varies and names nobody; a grouping says what the effect was among patients over 65, with
+    an interval, which is a statement someone can act on or dispute.
+
+    Every group of every declared grouping is printed, which is what makes a cut chosen after
+    seeing the data harmless to report: the striking group cannot be shown without the dull
+    ones beside it.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    variable: str
+    # Explicit thresholds, e.g. [65] for under and over 65, or [10, 20] for three bands.
+    cuts: list[float] = Field(default_factory=list)
+    # Or equal-sized bins, when the user has no threshold in mind. Exactly one of the two.
+    quantiles: int | None = None
+    said: str
+    turn: int | None = None
+    chosen_from: str = "importance_ranking"
+
+    @model_validator(mode="after")
+    def _one_way_to_cut(self) -> EffectGroup:
+        if not self.said.strip():
+            raise ValueError(
+                "an effect group requires the user's own words in `said`: which patients the "
+                "effect is reported for is their judgement, not a default"
+            )
+        if bool(self.cuts) == (self.quantiles is not None):
+            raise ValueError(
+                f"{self.variable}: give either `cuts` (thresholds you can defend) or "
+                f"`quantiles` (equal-sized bins when you have no threshold in mind), not both "
+                f"and not neither"
+            )
+        if self.quantiles is not None and self.quantiles < 2:
+            raise ValueError(f"{self.variable}: quantiles must be at least 2")
+        if self.cuts and sorted(self.cuts) != list(self.cuts):
+            raise ValueError(f"{self.variable}: cuts must be in increasing order")
+        if self.chosen_from not in GROUP_ORIGINS:
+            raise ValueError(
+                f"chosen_from must be one of {', '.join(GROUP_ORIGINS)}; got {self.chosen_from!r}"
+            )
+        return self
+
+    @property
+    def n_groups(self) -> int:
+        return len(self.cuts) + 1 if self.cuts else int(self.quantiles or 0)
+
+
 class Spec(BaseModel):
     """An analysis specification."""
 
@@ -371,6 +430,9 @@ class Spec(BaseModel):
     # appear as dashed crossed-out edges in the diagram, because an assumption drawn is an
     # assumption someone can object to.
     key_non_edges: list[str] = Field(default_factory=list)
+    # The dimensions the effect is reported along, for the `gate` estimand. Each carries the
+    # user's words, because which patients a number describes is their judgement.
+    effect_groups: list[EffectGroup] = Field(default_factory=list)
 
     def role_of(self, variable: str) -> str | None:
         """The declared role of one variable, or None."""

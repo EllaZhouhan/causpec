@@ -278,3 +278,36 @@ are not about statistics:
 and shifts along the profile, and the reader has to be told rather than protected from it.
 
 Full explanations, and what to say to the user, are in `dynamic-lag-dml.md`.
+
+## Checks about the spec rather than about the data
+
+These compare one part of the spec with another, or with what the analysis actually did. They
+are the ones most likely to catch a mistake you made rather than one the data arrived with.
+
+| Check | What it catches | Severity |
+|---|---|---|
+| `imputation_assumption_declared` | A model-based fill with no missing-at-random assumption on the record | **blocking**, waivable |
+| `roles_match_adjustment` | The analysis adjusts for a mediator, collider, post-treatment variable or the instrument | **blocking, not waivable** |
+| `family_matches_the_question` | The family does not match the data's shape or how the treatment was assigned | warning |
+| `population_filter_variable` | A population filter conditions on the treatment, the outcome, or something the treatment caused | **blocking, not waivable** |
+| `population_exclusion_informative` | The patients a filter removed differ from the ones it kept | warning |
+| `backdoor_effect_groups` | The estimand is `gate` but no groups are declared, or a grouping cannot be formed | **blocking, not waivable** |
+
+Three of these deserve a sentence each when you report them.
+
+**`roles_match_adjustment`** is the one that is hardest to argue with and easiest to cause.
+Adjusting for a mediator removes the part of the effect that travels through it, so the total
+effect shrinks towards zero; conditioning on a collider invents an association that can reverse
+the sign. Both are the arithmetic working correctly on the wrong quantity, so no interval shows
+it. `effect_modifiers` counts as adjustment, which is where this usually happens, because that
+field name does not sound like adjustment.
+
+**`family_matches_the_question`** fires on the case nothing else mentions. A user who says
+"randomised, but uptake was about 60%" and an analysis routed to `hte_backdoor` gets an average
+effect that treats non-compliance as though it never happened, with every other check passing.
+It is a warning because both routes can be defended; say which quantity each one estimates and
+let the user choose.
+
+**`population_exclusion_informative`** is how an exclusion gets priced. "We dropped 200
+patients" and "we dropped 200 of the patients nobody was going to treat" are different
+statements, and the treatment and event rates among the excluded are what tell them apart.

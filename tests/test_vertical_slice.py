@@ -124,7 +124,9 @@ def test_spec_hash_is_stable_and_content_sensitive() -> None:
 
 
 def test_hte_backdoor_declares_backdoor_estimands() -> None:
-    assert set(registry.declared_estimands("hte_backdoor")) == {"ate", "att", "cate"}
+    # `gate` reports the effect for named groups, which is the answer to "who benefits";
+    # `cate` reports a per-patient cloud that names nobody. See design.md 7.7.
+    assert set(registry.declared_estimands("hte_backdoor")) == {"ate", "att", "cate", "gate"}
 
 
 # ---- design.md 10.1: only code puts numbers in the report ----

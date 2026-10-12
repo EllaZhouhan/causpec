@@ -199,7 +199,16 @@ def test_ate_interval_is_present_and_ordered(result) -> None:
 
 
 def test_every_value_is_addressed(result) -> None:
-    prefixes = ("res:primary.", "res:cate.", "res:sample.", "res:design.", "res:estimation.")
+    prefixes = (
+        "res:primary.",
+        "res:cate.",
+        "res:sample.",
+        "res:design.",
+        "res:estimation.",
+        # The staged answer to "who benefits": where the effect varies, then the groups.
+        "res:importance.",
+        "res:gate.",
+    )
     assert all(address.startswith(prefixes) for address in result.values)
 
 

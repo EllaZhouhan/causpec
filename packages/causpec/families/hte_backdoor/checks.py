@@ -108,6 +108,101 @@ def effective_sample_size(weights: np.ndarray) -> float:
     return total**2 / float(np.sum(weights**2))
 
 
+def _groups_declared(data: pd.DataFrame, spec: Spec, config: dict[str, Any]) -> QualityIssue:
+    """The `gate` estimand needs groups, and the groups have to be formable from this data.
+
+    Enforced here rather than in the gate's required-fields list because the requirement holds
+    only for this estimand, and a flat `requires.spec_fields` cannot say "required only when".
+    The family knows the condition and can state it, which is the same split the panel family
+    uses for `termination` and `effect_modifiers`.
+    """
+    from causpec.core.grouping import GroupingError, group_masks
+
+    check_id = "backdoor_effect_groups"
+    layer, severity, waivable = _issue_settings(config, check_id)
+    entry = spec.fields.get("estimand")
+    estimand = str(entry.value) if entry is not None and entry.value is not None else ""
+
+    if estimand != "gate":
+        return QualityIssue(
+            check_id=check_id,
+            layer=layer,
+            severity=Severity.INFO,
+            waivable=waivable,
+            summary=f"not applicable: the estimand is {estimand or '(none)'}, not gate",
+            evidence={"assessed": False, "passed": True},
+        )
+
+    if not spec.effect_groups:
+        return QualityIssue(
+            check_id=check_id,
+            layer=layer,
+            severity=severity,
+            waivable=waivable,
+            summary="the estimand is gate but no effect_groups are declared",
+            evidence={"assessed": True, "passed": False, "n_groupings": 0},
+            impact_on_analysis=(
+                "A group effect is an effect for a named set of patients. With no groups "
+                "declared there is nothing to name, and the per-patient effect cloud that "
+                "would be reported instead says the effect varies and says of whom."
+            ),
+            recommended_repair=(
+                "Report the average effect first, read the importance table to see which "
+                "covariates the effect varies along, and ask the user which of them to split "
+                "on and where. Their threshold, in their words."
+            ),
+        )
+
+    problems: list[str] = []
+    counts: dict[str, int] = {}
+    for group in spec.effect_groups:
+        try:
+            masks = group_masks(data, group)
+        except GroupingError as error:
+            problems.append(str(error))
+            continue
+        for label, mask in masks:
+            counts[f"{group.variable} {label}"] = int(mask.sum())
+
+    if problems:
+        return QualityIssue(
+            check_id=check_id,
+            layer=layer,
+            severity=severity,
+            waivable=waivable,
+            summary="; ".join(problems),
+            evidence={"assessed": True, "passed": False, "n_groupings": len(spec.effect_groups)},
+            impact_on_analysis="A grouping that cannot be formed produces no rows to report.",
+            recommended_repair="Name a column that is in the data, or choose different cuts.",
+        )
+
+    smallest = min(counts.values()) if counts else 0
+    evidence: dict[str, float | int | str | bool] = {
+        "assessed": True,
+        "passed": True,
+        "n_groupings": len(spec.effect_groups),
+        "n_groups": len(counts),
+        "smallest_group": smallest,
+        **{f"n_{name.replace(' ', '_')}": size for name, size in counts.items()},
+    }
+    return QualityIssue(
+        check_id=check_id,
+        layer=layer,
+        severity=Severity.INFO,
+        waivable=waivable,
+        summary=(
+            f"{len(spec.effect_groups)} grouping(s) giving {len(counts)} groups, "
+            f"the smallest holding {smallest:,} patients"
+        ),
+        evidence=evidence,
+        impact_on_analysis=(
+            "A small group gets a wide interval rather than a wrong answer, and the group "
+            "table prints every group's size for that reason. No group is dropped or merged: "
+            "a group of eleven patients with an interval four times the others is the finding."
+        ),
+    )
+
+
 def check_backdoor(
     data: pd.DataFrame, spec: Spec, config: dict[str, Any] | None = None
 ) -> QualityReport:
@@ -159,6 +254,10 @@ def check_backdoor(
     )
     if n_treated == 0 or n_control == 0:
         return QualityReport(issues=issues)  # one arm is empty; nothing else computes
+
+    # After the arm check, so an empty arm still stops everything below it: with no comparison
+    # to make, whether the groups are well formed is not the user's problem yet.
+    issues.append(_groups_declared(data, spec, config))
 
     # ---- 2. overlap / positivity (blocking) ----
     layer, severity, waivable = _issue_settings(config, "backdoor_overlap")

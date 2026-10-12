@@ -293,6 +293,46 @@ Draft it instead, and confirm the draft:
 3. **Offer a focus, do not require one.** "If you already suspect the benefit differs by
    severity, I can report that breakdown first." A user with a hypothesis gets to state it; a
    user without one is not blocked.
+4. **Keep X broad.** The importance table in step 8 is computed over `effect_modifiers` only,
+   not over `adjustment_set`, because X is what the effect is allowed to vary over. A user who
+   wants to discover where the effect differs and has put most covariates in W will get a
+   two-row shortlist.
+
+### Which estimand to ask for, when the question is "who benefits"
+
+`cate` gives a per-patient effect for every row and summarises the cloud. **It says the effect
+varies and names nobody**, which is what makes it the wrong default here: a reader picks a
+patient out of the cloud and treats that number as theirs.
+
+Ask for `gate` instead, and reach it in this order, which is how step 8's report is laid out:
+
+1. **The average effect**, which has the best statistical properties of anything here
+2. **The importance table**, which says along which covariates the effect varies
+3. **The user picks the dimensions and where to cut them**, and you write those into
+   `effect_groups` with their words
+4. **One row per group**, each with its own interval
+
+Step 3 is theirs, not yours. Ask for a threshold they can defend ("65 is where frailty starts
+mattering") and use `cuts`; if they have none, use `quantiles` for equal-sized bins, which at
+least cannot be chosen to flatter the result.
+
+**Choosing a dimension off the importance table is fine.** Every covariate was in the forest
+from the start, so this is not variable selection, and interpreting a result does mean looking
+at the covariates that carry the variation. Record `chosen_from: importance_ranking` and the
+report notes that such an interval is slightly optimistic. Do not pretend it was
+pre-specified, and do not refuse to do it.
+
+**Read the whole group table back, not the striking row.** On this project's own data every
+group's interval contained the overall average effect, which means no group was distinguishable
+from the average however different the point estimates looked. That is the usual situation and
+the sentence the user needs:
+
+> "The effect looks larger in the middle age band, but every band's interval covers the
+> overall average, so this data cannot tell these groups apart. What it can say is the average."
+
+A group's interval is not always wider than the overall one, so do not say it is. It reflects
+both estimation noise and how much the fitted effects vary inside the group, and a homogeneous
+group can come out tighter. The widths are printed per group; read them.
 
 Use W when the user wants a variable controlled but not treated as an axis the answer is
 expressed along.
