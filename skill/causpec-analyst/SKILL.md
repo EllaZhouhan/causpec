@@ -304,11 +304,18 @@ confirmed by inference anyway, and a rule that fires on some answers and not oth
 with a list of phrasings in it that nobody can keep complete. One sentence, in the turn where
 you map it, and then move on.
 
-The sentence states **what the column actually holds**, not what it is called:
+**Name the column, give its values, say what it records, ask.** Four parts and nothing else:
 
-> "The column is `death`, 0 or 1, with no date on it. So the outcome is whether they died at
-> some point in what this record covers, not within 28 days or any other window. Is that the
-> outcome you want?"
+> "The outcome column is `death`, 0 or 1, so it records whether they died at any point in this
+> record. Is that the outcome you want?"
+
+**State what it is, never a list of what it is not.** An earlier version of that sentence went
+on "not within 28 days or any other window", which is redundant, because saying precisely what
+the column records already excludes everything else, and it teaches the habit of attaching a
+string of negations to every field. Describing the column's structure is the same mistake
+smaller: "with no date on it" says how it is stored, where "whether they died at any point in
+this record" says what it means, and only the second is what the user is being asked to
+agree to.
 
 Three things are worth stating because they are what a column fixes and a word usually leaves
 out. Mention whichever apply:

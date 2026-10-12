@@ -52,11 +52,12 @@ critical field, so it cannot be confirmed by inference, and a rule that fires on
 phrasings carries a list of phrasings nobody keeps complete. One sentence, in the turn where
 you map it:
 
-> "The column is `death`, 0 or 1, with no date on it. So the outcome is whether they died at
-> some point in what this record covers, not within 28 days or any other window. Is that the
-> outcome you want?"
+> "The outcome column is `death`, 0 or 1, so it records whether they died at any point in
+> this record. Is that the outcome you want?"
 
-State what the column holds, not what it is called. Three things a word usually leaves out,
+Name the column, give its values, say what it records, ask. State what it is and never a
+list of what it is not: saying precisely what the column records already excludes everything
+else. Three things a word usually leaves out,
 so mention whichever apply: the **window** (no date means any point in the record, not 28
 days), the **shape** (whether, not how long, which is what "survival" leaves open), and the
 **aggregation** (a peak, a total, a daily mean and an ever-happened flag are four different

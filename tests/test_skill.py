@@ -584,6 +584,16 @@ def test_the_outcome_column_is_always_read_back(skill_text: str) -> None:
     assert "critical field" in lowered
     for item in ("the window", "the shape", "the aggregation"):
         assert item in lowered, item
+    # Four parts and nothing else, and no list of what the column is not: stating precisely
+    # what it records already excludes everything else, and a negation list is a habit that
+    # spreads to every field.
+    assert "name the column, give its values, say what it records, ask" in lowered
+    assert "state what it is, never a list of what it is not" in lowered
+    # On the spoken lines only: the rule has to quote the negation in order to forbid it,
+    # which is the same line drawn around every other negative example here.
+    spoken = " ".join(line for line in skill_text.splitlines() if line.startswith(">")).lower()
+    assert "not within 28 days" not in spoken
+    assert "with no date on it" not in spoken
     # The trap where the column's name matches their word, which looks settled and is not.
     assert "most careful about, not the one to wave through" in lowered
     assert "agreement on a word reads like agreement on a definition" in lowered
