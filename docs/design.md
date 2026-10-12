@@ -541,6 +541,44 @@ under monotonicity alone means the report must state that what is estimated is t
 conditional LATE among compliers, not the population CATE. [reuse] The reconciliation
 step follows step 5 of Baygent causal-inference's design choices (MIT).
 
+#### How it is enforced
+
+Gate condition 3, plus one check that is deliberately not a gate.
+
+**The estimand is a label, and nothing else reads it.** `hte_backdoor`'s estimator never looks
+at `spec.estimand`: it always fits a forest and averages it. So the field is a label typed by
+the agent and printed over a fixed computation, and before this gate existed
+`estimand: conditional_late` on `hte_backdoor` ran to completion. The report then describes an
+average over everyone using the words for an effect among compliers, which is a different
+population and a different number: `conditional_late`'s own declaration says "holds for
+compliers only, who cannot be identified individually, so this is neither the effect for this
+patient nor the population CATE". Reconciling the label against `estimands` in family.yaml is
+the only thing standing between those two readings, and the refusal names the family that does
+declare what was asked for, so a user has somewhere to go.
+
+**A missing required field** used to surface from inside a family as a bare
+`ValueError: hte_iv's quality checks require spec.instrument` with a traceback. It is a
+precondition stated under `requires.spec_fields`, so it belongs in the gate, phrased as what
+is missing. The gate runs **before** the checks for this reason: a family's own checks read
+those fields.
+
+Writing this gate found three overstated declarations, which is what an unenforced declaration
+drifts into. `hte_backdoor` required `time_zero`, read only by the optional temporal checks,
+and `adjustment_set`, which is optional because W=None is a valid analysis. The panel family
+required `instant_outcome`, a field name its code does not use, and two fields that are
+conditional: `termination` only when the horizon is variable, `effect_modifiers` only for
+`lag_cate`. A flat list cannot say "required only when", so the conditional ones stay with the
+family's own checks, which know the condition and can state it.
+
+**Routing is a warning, not a gate.** Whether the family matches the shape of the data and how
+the treatment was assigned is about whether what ran answers the question, and defensible
+analyses exist on both sides. What is not defensible is silence: a user who says "randomised,
+but uptake was about 60%" and an analysis routed to `hte_backdoor` gets an average effect that
+treats non-compliance as though it never happened, with every other check in the report
+passing. The shape is checked first, being the harder error: a panel analysed one row per unit
+answers a question about rows rather than about patients.
+
+
 When the design a question needs is outside the supported families (difference-in-
 differences, regression discontinuity, synthetic control), the system says so
 explicitly, lists each excluded family with its reason, and does not force the question

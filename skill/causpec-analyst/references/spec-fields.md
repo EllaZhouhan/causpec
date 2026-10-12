@@ -320,3 +320,27 @@ column this extract does not have, which is a limitation to report.
 **Ask for roles in groups, not column by column.** "Are these seven all things that were
 measured before the decision and could have influenced it?" is one question. The diagram draws
 them as one node with a count and two examples, so a group is what it expects.
+
+## `estimand`, which the gate now checks against the family
+
+Each family declares the estimands it can identify, and gate condition 3 refuses anything
+else. This matters more than it looks: **no estimator reads this field.** `hte_backdoor`
+always fits a forest and averages it, so the field is a label printed over a fixed
+computation, and a label the family cannot support would be printed over a number that
+answers something else.
+
+| Family | Estimands |
+|---|---|
+| `hte_backdoor` | `ate`, `att`, `cate` |
+| `hte_iv` | `conditional_late`, `weighted_conditional_late` |
+| `dynamic_lag_dml` | `lag_profile`, `lag_cate` |
+
+`conditional_late` is the one to be careful with. It holds **only for compliers**, the people
+whose treatment changed because the instrument took a different value, and compliers cannot be
+identified individually. So it is neither "the effect for this patient" nor the population
+CATE, and the report has to say so. Labelling an average over everyone with that word, or
+labelling a complier effect `ate`, are the two ways to get this wrong and they mislead in
+opposite directions.
+
+The refusal names the family that does declare what was asked, so if the user wants
+`conditional_late`, route to `hte_iv` rather than editing the label.

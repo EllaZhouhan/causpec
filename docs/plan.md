@@ -96,8 +96,12 @@ so longitudinal IPCW can be delivered complete, with estimation.
    group with a count and two examples, mermaid in the report and DOT in the run directory.
    `roles_match_adjustment` compares the declaration with what the analysis conditions on,
    which is the reason for deriving it. No DoWhy and no graph library: the derived graph has a
-   fixed shape, so the backdoor criterion over it reduces to a rule per role. Still open:
-   `route_family` and the estimand reconciliation
+   fixed shape, so the backdoor criterion over it reduces to a rule per role. The estimand
+   reconciliation and the routing are in too, as gate condition 3 plus one warning
+   (design.md 7.6): the gate refuses a missing required field and an estimand the family
+   cannot identify, and the check warns when the family does not match the data's shape or how
+   the treatment was assigned. Writing the gate found three overstated declarations, including
+   a required field name no family code reads
 4. Basic-layer quality checks, written here rather than with pandera (ADR-0003): types,
    uniqueness, missingness, NULL-encoding variants, zero spikes, isolated extremes and
    impossible signs, run before the design-level checks for every family. Plus the counting

@@ -27,7 +27,7 @@ from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.fingerprint import fingerprint
-from causpec.core.gates import GateError, check_all
+from causpec.core.gates import GateError, check_all, check_family_supports_spec
 from causpec.core.mapping import PreprocessingError, StepRecord
 from causpec.core.mapping import apply as apply_preprocessing
 from causpec.core.population import ExclusionRecord, PopulationError, apply_filters
@@ -37,6 +37,7 @@ from causpec.core.quality import (
     check_feasibility,
     check_population,
     check_roles,
+    check_routing,
     check_temporal,
 )
 from causpec.core.quality import config_hash as basic_config_hash
@@ -299,6 +300,22 @@ def _select_population(
     return kept, ledger, before
 
 
+def _require_family_support(spec: Spec) -> None:
+    """Gate condition 3, run before the checks rather than with the other gates.
+
+    The other two gate conditions run after the checks, because a quality report is a
+    deliverable even when the analysis cannot proceed. This one cannot wait: a family's own
+    checks read the fields its declaration requires, so a spec missing one reaches the user as
+    a traceback from inside that family rather than as a refusal naming the missing field.
+    `check_all` calls it again, which costs nothing and keeps the gate complete on its own.
+    """
+    try:
+        check_family_supports_spec(spec)
+    except GateError as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(2) from error
+
+
 def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
     """The core layers first, then the family's own, unless a core layer blocked.
 
@@ -315,6 +332,7 @@ def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
             *check_feasibility(data, spec).issues,
             *check_assumptions(data, spec).issues,
             *check_roles(data, spec).issues,
+            *check_routing(data, spec).issues,
         ]
     )
     if core.blocking:
@@ -336,6 +354,7 @@ def cmd_quality(args: argparse.Namespace) -> int:
     data, ledger, population = _select_population(data, spec)
     for record in ledger:
         print(f"- [excluded ] {record.describe()}")
+    _require_family_support(spec)
     report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues])
     for issue in report.issues:
         mark = {"blocking": "✗", "warning": "!", "info": "·"}[issue.severity.value]
@@ -356,6 +375,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     data, applied = _preprocess(source, spec)
     data, ledger, population = _select_population(data, spec)
     snapshot_fingerprint = fingerprint(data, key)
+    _require_family_support(spec)
     family = _resolve_family(spec)
 
     # The gate runs before estimation and stops the command if it fails, an `if` in

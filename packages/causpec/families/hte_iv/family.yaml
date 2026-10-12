@@ -89,13 +89,14 @@ estimands:
   #   requires_assumptions: [..., no_effect_heterogeneity_by_compliance]
 
 requires:
+  # Unconditional requirements only, enforced by gate condition 3. `adjustment_set` is
+  # optional (W=None is a valid analysis) and `time_zero` is read only by the temporal
+  # checks, which say when they could not run.
   spec_fields:
     - treatment            # T, binary
     - outcome              # Y, binary
     - instrument           # Z, one or more columns
     - effect_modifiers     # X, the covariates the CATE varies over
-    - adjustment_set       # W, nuisance-only covariates that do not enter the CATE
-    - time_zero
   key_non_edges:
     - the instrument affects the outcome only through the treatment   # exclusion restriction
     - the instrument is independent of unmeasured confounders

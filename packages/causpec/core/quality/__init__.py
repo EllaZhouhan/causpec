@@ -32,7 +32,7 @@ with no timestamps is a legitimate thing to analyse, but a check that reports no
 had nothing to read is worse than no check: the report then reads as a clean bill of health.
 """
 
-from causpec.core.quality.assumptions import check_assumptions, check_roles
+from causpec.core.quality.assumptions import check_assumptions, check_roles, check_routing
 from causpec.core.quality.basic import analysis_columns, check_basic, config_hash, load_config
 from causpec.core.quality.feasibility import check_feasibility
 from causpec.core.quality.population import check_population
@@ -45,6 +45,7 @@ __all__ = [
     "check_feasibility",
     "check_population",
     "check_roles",
+    "check_routing",
     "check_temporal",
     "config_hash",
     "load_config",

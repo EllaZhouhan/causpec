@@ -252,3 +252,15 @@ roles_match_adjustment:
   # this extract does not have, which is a limitation to report rather than an error to
   # refuse. The diagram shows the open path either way.
   severity_unadjusted: warning
+
+family_matches_the_question:
+  layer: identification
+  severity: warning
+  waivable: true
+  # Whether the family matches the data's shape and how the treatment was assigned. A warning,
+  # not a gate: the gate refuses what cannot run, and this is about whether what ran answers
+  # the question, where defensible analyses exist on both sides.
+  #
+  # It replaces nobody saying anything. A user who said "randomised, but uptake was about 60%"
+  # and an analysis routed to hte_backdoor gets an average effect that treats non-compliance
+  # as though it never happened, and every other check in the report passes.

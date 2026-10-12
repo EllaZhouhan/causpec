@@ -22,7 +22,12 @@ estimands:
     requires_assumptions: [unconfoundedness, positivity, consistency]
 
 requires:
-  spec_fields: [treatment, outcome, adjustment_set, effect_modifiers, time_zero]
+  # What the estimator cannot start without, which gate condition 3 enforces. Only the
+  # unconditional ones belong here: `adjustment_set` is optional (W=None is a valid analysis),
+  # and `time_zero` is read solely by the temporal checks, which report that they could not
+  # run rather than failing. Listing either here refused specs the code runs perfectly well,
+  # which is how an overstated declaration shows up.
+  spec_fields: [treatment, outcome, effect_modifiers]
 
 assumptions:
   - id: unconfoundedness

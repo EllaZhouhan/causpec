@@ -91,18 +91,20 @@ estimands:
 # What the question has to look like for this family to be the right one.
 requires:
   data_shape: panel
+  # Unconditional requirements only, enforced by gate condition 3. The two conditional ones
+  # are enforced by this family's own checks instead, which know the condition and can say
+  # it: `termination` only when the horizon is variable (horizon_declaration), and
+  # `effect_modifiers` only for lag_cate (lag_cate_time_varying_modifier). A flat list cannot
+  # express "required only when", and listing them unconditionally would refuse a perfectly
+  # ordinary fixed-horizon lag_profile.
   spec_fields:
     - unit_id            # the patient; the independent unit and the resampling unit
     - period_index       # consecutive integers from 0 within each unit, no gaps
-    - period_length      # what one period means in clock time, e.g. 12 hours
     - horizon            # fixed | variable; the data cannot settle it, see checks below
     - state              # X, recorded at the START of the period, before that period's treatment
     - treatment          # A, the exposure over the period
-    - instant_outcome    # Y, realised after that period's treatment and before the next state
+    - outcome            # Y, realised after that period's treatment and before the next state
     - max_lag            # K; the profile is theta_0 ... theta_K
-    - termination        # only when variable: the column marking the period a unit left,
-                         # or last_recorded_period when the rows simply stop there
-    - effect_modifiers   # only for lag_cate; read at the treatment period
   note_period_alignment: >
     The within-period order is fixed and the whole estimand depends on it: active,
     then state, then treatment, then outcome, then the next period. A state column

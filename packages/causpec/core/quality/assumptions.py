@@ -297,3 +297,141 @@ def _roles_vs_adjustment(data: pd.DataFrame, spec: Spec, config: dict) -> Qualit
             "assumptions are for."
         ),
     )
+
+
+# What each kind of assignment implies about which family can answer the question. The data
+# cannot settle this: it is the answer to step 1c, in the user's own words.
+FAMILY_FOR_ASSIGNMENT = {
+    "randomised": ("hte_backdoor",),
+    "randomised_with_noncompliance": ("hte_iv",),
+    "decided": ("hte_backdoor", "hte_iv"),
+}
+
+ASSIGNMENT_REASON = {
+    "randomised": (
+        "something random decided who was treated and nearly everyone got what they were "
+        "assigned, so exchangeability comes from the design and an adjustment-based family "
+        "is the right one"
+    ),
+    "randomised_with_noncompliance": (
+        "something random decided the assignment but many did not take it, which is what an "
+        "instrumental-variable design is for. Comparing by treatment received instead throws "
+        "away the randomisation and compares people who chose differently"
+    ),
+    "decided": (
+        "a person decided case by case, so either family can be defended, and which one "
+        "depends on whether a credible instrument exists"
+    ),
+}
+
+
+def check_routing(data: pd.DataFrame, spec: Spec, config_path: Path | None = None) -> QualityReport:
+    """Whether the family matches the shape of the data and how the treatment was assigned.
+
+    A warning rather than a gate, deliberately. The gate refuses what cannot run; this is
+    about whether what ran answers the question, and there are defensible analyses on either
+    side of it. What is not defensible is nobody saying anything, which is the situation it
+    replaces: a user who said "randomised, but uptake was about 60%" and an analysis routed to
+    `hte_backdoor` produces an average effect that treats non-compliance as though it never
+    happened, and every other check in this report passes.
+    """
+    config = load_config(config_path)
+    return QualityReport(issues=[_routing(data, spec, config)])
+
+
+def _routing(data: pd.DataFrame, spec: Spec, config: dict) -> QualityIssue:
+    check_id = "family_matches_the_question"
+    panel = spec.fields.get("period_index")
+    is_panel = panel is not None and panel.value is not None and str(panel.value) in data.columns
+    entry = spec.fields.get("assignment_mechanism")
+    assignment = str(entry.value) if entry is not None and entry.value is not None else ""
+
+    evidence: dict[str, float | int | str | bool] = {
+        "assessed": True,
+        "family": spec.family,
+        "data_shape": "panel" if is_panel else "cross_sectional",
+        "assignment_mechanism": assignment or "(not declared)",
+    }
+
+    # The shape is the harder constraint: a panel analysed one row per unit silently answers
+    # a different question, and a cross-sectional table has no periods to form lags from.
+    panel_family = spec.family == "dynamic_lag_dml"
+    if is_panel != panel_family:
+        return _issue(
+            config,
+            check_id,
+            passed=False,
+            summary=(
+                f"the data has one row per unit per period but {spec.family} analyses one row "
+                f"per unit"
+                if is_panel
+                else f"{spec.family} expects one row per unit per period, and this data has "
+                f"one row per unit"
+            ),
+            evidence=evidence,
+            impact=(
+                "A panel put through a cross-sectional family answers a question about rows "
+                "rather than about patients, and the same patient appearing in twenty rows is "
+                "counted twenty times. A cross-sectional table put through the panel family "
+                "has no periods to build a lag profile from."
+            ),
+            repair=(
+                "Route to dynamic_lag_dml for a lag profile over periods, or aggregate the "
+                "panel to one row per patient and ask a cross-sectional question. Those are "
+                "different questions and the report should say which one was asked."
+            ),
+        )
+
+    if not assignment:
+        return _issue(
+            config,
+            check_id,
+            passed=True,
+            summary=(
+                "not assessed: the spec does not say how the treatment was assigned, so the "
+                "choice of family cannot be checked against it"
+            ),
+            evidence={**evidence, "assessed": False},
+            impact=(
+                "This check did not run. Its absence is not evidence that the right family "
+                "was chosen; `assignment_mechanism` is what it would have read."
+            ),
+        )
+
+    expected = FAMILY_FOR_ASSIGNMENT.get(assignment, ())
+    if not expected or spec.family in expected or panel_family:
+        return _issue(
+            config,
+            check_id,
+            passed=True,
+            summary=(
+                f"{spec.family} is consistent with a {evidence['data_shape']} table and "
+                f"assignment recorded as {assignment!r}"
+            ),
+            evidence=evidence,
+            impact=(
+                "A consistent route is not a correct one: which family answers the question "
+                "is an argument from how the treatment came to be given, which is why that "
+                "field is confirmed by the user rather than inferred."
+            ),
+        )
+
+    return _issue(
+        config,
+        check_id,
+        passed=False,
+        summary=(
+            f"the treatment was assigned as {assignment!r}, which points to "
+            f"{' or '.join(expected)}, and this analysis used {spec.family}"
+        ),
+        evidence=evidence,
+        impact=(
+            f"The two families estimate different quantities, so this is not a matter of "
+            f"precision. The user said {ASSIGNMENT_REASON.get(assignment, '')}."
+        ),
+        repair=(
+            f"Either route to {' or '.join(expected)}, or say why {spec.family} is right here "
+            f"despite how the treatment was assigned, and record that in the spec. A warning "
+            f"rather than a refusal because there are defensible analyses on both sides."
+        ),
+    )

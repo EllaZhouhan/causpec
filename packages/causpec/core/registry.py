@@ -117,6 +117,29 @@ def declared_estimands(family_id: str) -> list[str]:
     return [e["id"] for e in estimands]
 
 
+def required_spec_fields(family_id: str) -> list[str]:
+    """The spec fields a family cannot run without, from its declaration."""
+    requires: dict[str, Any] = load_declaration(family_id).get("requires") or {}
+    return [str(name) for name in (requires.get("spec_fields") or [])]
+
+
+def estimand_assumptions(family_id: str, estimand_id: str) -> list[str]:
+    """The assumption ids one estimand's identification rests on."""
+    for entry in load_declaration(family_id).get("estimands") or []:
+        if entry.get("id") == estimand_id:
+            return [str(name) for name in (entry.get("requires_assumptions") or [])]
+    return []
+
+
+def families_declaring_estimand(estimand_id: str) -> list[str]:
+    """Which families can identify this estimand, for an error message that helps.
+
+    A user told only "this family cannot answer that" has to go looking. A user told
+    which family can has somewhere to go.
+    """
+    return [family for family in declared_families() if estimand_id in declared_estimands(family)]
+
+
 def get(family_id: str) -> Family:
     """Look up a family by id, importing it on demand.
 

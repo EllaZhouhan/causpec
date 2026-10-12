@@ -22,3 +22,14 @@ fields:
     said: the overall average effect is what I want
     turn: 8
     status: confirmed
+  effect_modifiers:
+    # Required by hte_backdoor even for an `ate`: the estimator fits a causal forest over
+    # these and then averages it, so there is no X-free path through this family. Gate
+    # condition 3 reads the requirement from family.yaml, which is why this fixture carries
+    # the field: a spec without it is not runnable, and the gate's job is to say so before
+    # the estimator does.
+    value: [max_creatinine, max_potassium, min_ArterialPressure]
+    source: user
+    said: creatinine, potassium and pressure are what the team watches
+    turn: 10
+    status: confirmed

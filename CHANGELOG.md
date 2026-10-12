@@ -7,6 +7,27 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Gate condition 3: the family has to be able to run this spec and answer this question**
+  (design.md 7.6). `estimand` is a label the estimator never reads, so before this,
+  `estimand: conditional_late` on `hte_backdoor` ran to completion and the report described an
+  average over everyone in the words for an effect among compliers, which is a different
+  population and a different number. The refusal names the family that does declare what was
+  asked for, so a user has somewhere to go. A missing required field is refused by name too,
+  instead of surfacing as `ValueError: hte_iv's quality checks require spec.instrument` with a
+  traceback from inside a family
+- **Writing that gate found three overstated declarations**, which is what an unenforced
+  declaration drifts into. `hte_backdoor` required `time_zero`, read only by the optional
+  temporal checks, and `adjustment_set`, which is optional because W=None is a valid analysis;
+  the panel family required `instant_outcome`, a field name its own code does not use, plus
+  two fields that are conditional. A flat list cannot say "required only when", so the
+  conditional ones stay with the family's checks, which know the condition and can state it.
+  A test now asserts every declared requirement is a real spec field name
+- **`family_matches_the_question`, a warning for the case nothing used to mention.** A user
+  who says "randomised, but uptake was about 60%" and an analysis routed to `hte_backdoor`
+  gets an average effect that treats non-compliance as though it never happened, with every
+  other check passing. A warning and not a gate, because defensible analyses exist on both
+  sides of a routing choice; the data's shape is checked first, being the harder error, since
+  a panel analysed one row per unit answers a question about rows rather than about patients
 - **The E-value, which is the only quantitative thing this project can say about
   unconfoundedness.** That assumption is `untestable` and no diagnostic will ever verify it,
   so the claim level caps what code may claim about it; the E-value adds how strong an
