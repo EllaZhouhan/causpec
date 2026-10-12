@@ -47,6 +47,24 @@ case `effect_modifiers` is central.
 
 Write it into the spec, each field carrying the user's own words, `status: confirmed`.
 
+**The outcome they name is a concept; the column is a measurement.** Confirm wherever the two
+differ, in one sentence, because the difference is written into the report as the outcome and
+nothing downstream questions it again.
+
+- "mortality" leaves out the **window**. A `death` column of 0/1 with no date means death at
+  some point inside this record, not within 28 days: "The column is death yes or no, with no
+  date on it, so it means they died at some point in what this record covers, rather than
+  within 28 days or any other window. Is that the outcome you want?"
+- "survival" leaves out the **shape**, whether against how long: "It records whether each of
+  them died, not when. So the outcome is death yes or no, rather than how long they lasted.
+  Is that what you meant by survival?"
+- "cost", "instability" or "engagement" leaves out the **aggregation**. A peak over a stay, a
+  total, a daily mean and an ever-happened flag are four different outcomes.
+
+If what they want is not what the file holds, say so in one sentence. Do not invent a cut-off
+to bridge the gap: a 28-day flag made up here is a new definition of the outcome and it would
+be yours rather than theirs. SKILL.md has the table.
+
 ### 1b. The shape, which the file answers
 
 One row per unit and no time columns is cross-sectional. One row per unit per period is a

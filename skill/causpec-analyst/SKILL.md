@@ -298,18 +298,28 @@ that answer your question?" is wrong whenever they were answering yours, which a
 in the conversation they usually were, and it reads as though you had lost track of who asked
 what. Say "is that what you meant by survival?" instead.
 
-**When their outcome is vaguer than the column**, ask the narrow question and nothing more.
-"Survival" is the one that comes up: a 0/1 death column answers whether, not how long, and
-those are different questions with different methods. One sentence settles it, and do not
-re-explain the file's lack of timestamps if the shape step has already said so:
+**Their outcome is a concept; the column is a measurement. Confirm wherever the two differ**,
+in one sentence, and then move on. The user names what they care about, and the column fixes
+things they did not mention, so this is not a formality: a difference here is written into the
+report as the outcome and nothing downstream ever questions it.
 
-> "The file records whether each of them died, not when. So the outcome is death yes or no,
-> rather than how long they lasted. Is that what you meant by survival?"
+Three kinds of gap, and the first two come up constantly:
+
+| They said | What the column fixes and they did not | The sentence |
+|---|---|---|
+| "mortality" | **The window.** `death` is 0/1 with no date, so it means death at some point inside this record, not at 28 days or any other horizon | "The column is death yes or no, with no date on it, so it means they died at some point in what this record covers, rather than within 28 days or any other window. Is that the outcome you want?" |
+| "survival" | **The shape.** Whether, not how long | "It records whether each of them died, not when. So the outcome is death yes or no, rather than how long they lasted. Is that what you meant by survival?" |
+| "cost", "instability", "engagement" | **The aggregation.** A maximum over a stay, a total, a daily mean and an ever-happened flag are four different outcomes | "`max_lactate` is the highest value recorded, not an average. Is the peak what you want?" |
+
+Do not re-explain the file's lack of timestamps if the shape step has already said so: the
+sentence above adds what the column means, which is new.
 
 If they wanted a survival curve or a hazard, say that this tool does not do time-to-event and
-that the binary version is what is on offer, in one sentence. Do not propose a workaround with
-a cut-off nobody asked for: a 28-day flag invented here is a new definition of the outcome,
-and it would be yours rather than theirs.
+that the binary version is what is on offer, in one sentence. **Do not propose a workaround
+with a cut-off nobody asked for**: a 28-day flag invented here is a new definition of the
+outcome, and it would be yours rather than theirs. If they want 28-day mortality and the file
+cannot give it, that is worth one sentence too, because the thing they asked for is not the
+thing available.
 
 ### 1b. The shape, which the file answers
 

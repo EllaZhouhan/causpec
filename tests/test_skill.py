@@ -550,3 +550,26 @@ def test_neutralising_a_sentence_must_not_empty_it(skill_text: str) -> None:
     assert "did someone decide case" in skill_text
     assert "someone decided case by case" in skill_text  # the rule, in prose
     assert "do not remove the idea and leave the grammar" in skill_text.lower()
+
+
+def test_the_outcome_is_confirmed_wherever_the_column_fixes_what_they_left_out(
+    skill_text: str,
+) -> None:
+    """A concept against a measurement, and the gap goes into the report unquestioned.
+
+    The rule used to fire only when the outcome was "vaguer than the column", which caught
+    "survival" and missed "mortality". A `death` column of 0/1 with no date means death at
+    some point inside the record, so a user who said mortality and meant 28-day mortality
+    gets the wrong number with nothing anywhere complaining: the window is the part their
+    word left out.
+
+    Three gaps are named, because the third generalises past this project's own data: the
+    window, the shape, and the aggregation.
+    """
+    lowered = skill_text.lower()
+    assert "their outcome is a concept; the column is a measurement" in lowered
+    assert "the window" in lowered
+    assert "within 28 days or any other window" in lowered
+    assert "the aggregation" in lowered
+    # And inventing a horizon to bridge the gap stays forbidden.
+    assert "cut-off nobody asked for" in lowered
