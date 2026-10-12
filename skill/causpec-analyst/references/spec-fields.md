@@ -193,7 +193,7 @@ converted for you: that is how a 28-day horizon becomes 28 hours.
 
 What to ask the user, when the data has these columns:
 
-> "What should time zero be, the point every one of them reaches before any treatment decision?
+> "What should time zero be, the point they all reach before any treatment decision?
 > Admission, or the moment they first met the criteria?"
 
 The answer matters more than it sounds. Anchoring on the treatment instead of on admission is
@@ -341,7 +341,8 @@ answers something else.
 
 `conditional_late` is the one to be careful with. It holds **only for compliers**, the people
 whose treatment changed because the instrument took a different value, and compliers cannot be
-identified individually. So it is neither "the effect for this one" nor the population
+identified individually. So it is neither the effect for any particular individual nor the
+population
 CATE, and the report has to say so. Labelling an average over everyone with that word, or
 labelling a complier effect `ate`, are the two ways to get this wrong and they mislead in
 opposite directions.
@@ -368,7 +369,7 @@ effect_groups:
 ```
 
 Give **either** `cuts`, thresholds the user can defend, **or** `quantiles`, equal-sized bins
-for when they cannot. Not both, not neither. `said` is required, as everywhere: which rows
+for when they cannot. Not both, not neither. `said` is required, as everywhere: which group
 a number describes is the user's judgement.
 
 **`chosen_from` is a disclosure, not a penalty.** `importance_ranking` means they picked the
@@ -384,5 +385,5 @@ there is nothing to cherry-pick, and no multiplicity correction is applied.
 under it, the same rule the population filters use, so the group sizes can total less than the
 sample.
 
-**No group is dropped or merged for being small.** A group of eleven with an interval
-four times the others is the finding.
+**No group is dropped or merged for being small.** A group of eleven, with an interval four
+times the width of the others, is the finding.

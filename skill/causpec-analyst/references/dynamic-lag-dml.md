@@ -105,8 +105,8 @@ analysis refuses to run without them.
 
 ### 1. Fixed or variable?
 
-> "Is every one of them followed for the same number of windows, or do the records end at
-> different times because they drop out?"
+> "Is everyone followed for the same number of windows, or do the records end at different
+> times because they drop out?"
 
 **Fixed** means no weighting is needed and none is applied: nobody left early, so there is
 nothing to correct. It also means each unit's **last period is used**: its outcome is recorded

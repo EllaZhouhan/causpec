@@ -353,8 +353,8 @@ answered.
 
 **Say it as a fact about their file, in one line, and move to 1c:**
 
-> "One row per store and no dates, so the comparison is between the ones that got the discount
-> and the ones that didn't."
+> "One row per store and no dates, so the comparison is between the stores that got the
+> discount and those that didn't."
 
 Say what the file is, not what kind of design it is. "A single comparison", "a
 cross-sectional analysis" and "a point-in-time contrast" all classify it in a vocabulary the
@@ -481,8 +481,8 @@ quality checks still run and still block.
 
 **When someone decided case by case**, ask this and not "what are your confounders":
 
-> "What did whoever decided have in front of them at the time? And is there anything that
-> mattered to that decision which the data doesn't record?"
+> "What was in front of the person making that decision? And is there anything that
+> mattered to it which the data doesn't record?"
 
 Two reasons for that phrasing. A clinician can answer what they looked at, and cannot reliably
 answer which variables satisfy a backdoor criterion. And the gap between what they used and
@@ -621,7 +621,11 @@ What to ask depends on the answer to 1c:
 
 - **Randomised with full compliance**: nothing to ask here. Exchangeability is justified by
   the design, and you record that justification in the user's words rather than asking them
-  to argue for it.
+  to argue for it. Two things follow, and both are worth one sentence each when they come up.
+  The covariates are buying precision and a look at who benefits more, not rescuing the
+  comparison, so a user who is missing one has lost less than they fear. And a balance or
+  overlap check that fails here is **not** telling you to adjust harder: it is saying the
+  randomisation did not come out as it should, which `quality-checks.md` covers.
 - **Randomised with imperfect compliance**: the instrument is already chosen. What is left is
   monotonicity, which randomisation does not give you: does the assignment move everyone in
   the same direction, or could it have pushed some patients away from treatment?

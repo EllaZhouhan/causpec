@@ -188,13 +188,13 @@ instrument and they may not know it:
 
 > "Then we have something better than adjustment. Which arm someone was offered was random,
 > so we can use that as an instrument for what they actually received. The answer it gives is
-> about the ones whose treatment changed because of the offer, which is a narrower group
+> about those whose treatment changed because of the offer, which is a narrower group
 > than everyone, and the report will say so."
 
 **If a person decided case by case**, ask this, and not "what are your confounders":
 
-> "What did whoever decided have in front of them at the time? And is there anything
-> that mattered to that decision which the data doesn't record?"
+> "What was in front of the person making that decision? And is there anything that
+> mattered to it which the data doesn't record?"
 
 A clinician can answer what they looked at. They cannot reliably answer which variables
 satisfy a backdoor criterion, and asking the second question gets a worse answer to the first.

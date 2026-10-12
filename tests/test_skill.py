@@ -46,11 +46,15 @@ def flat(text: str) -> str:
     out loud, which are blockquotes: every continuation line of those starts with "> ".
     Collapsing alone left that marker in the middle of the sentence.
 
-    Four tests have now failed on the formatting rather than on the content, which teaches
-    the author to assert shorter and weaker things than they mean.
+    Blockquote markers, emphasis and backticks are all removed, because every one of them has
+    now broken an assertion that was correct about the content. What that teaches an author is
+    to assert shorter and weaker things than they mean.
     """
     unquoted = re.sub(r"^\s*>\s?", " ", text, flags=re.MULTILINE)
-    return " ".join(unquoted.split())
+    # Emphasis too: these documents bold a word in the middle of a sentence, so an assertion
+    # spanning one would fail on the asterisks rather than on the content.
+    plain = unquoted.replace("**", "").replace("`", "")
+    return " ".join(plain.split())
 
 
 def test_frontmatter_has_name_and_description(frontmatter) -> None:
@@ -386,7 +390,7 @@ def test_candidate_confounders_come_from_asking_what_was_in_front_of_them(
     "clinicians", which made the question untellable to anyone outside a hospital and turned
     a correct generalisation into a test failure.
     """
-    assert "have in front of them" in skill_text
+    assert "what was in front of the person making that decision" in flat(skill_text).lower()
     assert 'not "what are your confounders"' in skill_text
 
 
@@ -641,3 +645,23 @@ def test_the_step_numbers_stay_out_of_the_conversation(skill_text: str) -> None:
     """
     lowered = flat(skill_text).lower()
     assert "the step numbers are scaffolding for you, not landmarks for them" in lowered
+
+
+def test_a_balance_check_reads_the_other_way_round_in_a_trial(
+    skill_text: str,
+) -> None:
+    """The adjustment was never carrying the comparison, so imbalance is not a call to adjust.
+
+    Found by tracing the randomised path: `backdoor_covariate_imbalance` was explained only
+    as "the adjustment may be incomplete", which is the observational reading. In a trial,
+    groups that were randomised should already be balanced, so imbalance says chance was
+    unkind, the allocation leaked, or the file is not of the arms it claims to be. Telling
+    such a user to add covariates moves the number without fixing anything, and contradicts
+    having just told them the covariates are not rescuing the comparison.
+    """
+    checks = (REFERENCES / "quality-checks.md").read_text(encoding="utf-8")
+    assert "the same check means something different in a randomised design" in flat(checks).lower()
+    assert "did not come out as it should" in flat(checks).lower()
+    assert "do not tell a user with a trial to add covariates" in flat(checks).lower()
+    # And SKILL.md points at it from the branch where it applies.
+    assert "not telling you to adjust harder" in flat(skill_text).lower()

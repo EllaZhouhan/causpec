@@ -37,6 +37,32 @@ The exit code is non-zero when a blocking issue is present. Every check has an a
 | `iv_low_complier_share` | warning | The conclusion holds for only a narrow slice of the population |
 | `iv_covariate_imbalance` | warning | The instrument may not be close to randomly assigned |
 
+## The same check means something different in a randomised design
+
+Every check still runs on a trial, and two of them have to be read the other way round. In
+observational data they say the adjustment is incomplete. In a randomised design the
+adjustment was never doing that work, so what they say instead is that **the randomisation
+did not come out as it should**, and adjusting harder is not the answer.
+
+| Check | Observational reading | Randomised reading |
+|---|---|---|
+| `backdoor_covariate_imbalance` | The adjustment may be incomplete; consider a richer specification | Groups that were randomised should already be balanced. Imbalance means chance was unkind, the randomisation leaked, or the file is not of the arms it claims to be |
+| `backdoor_overlap` | Some units have no comparable controls, so their effect is extrapolated | Under 1:1 randomisation a propensity score near 0 or 1 should not be reachable. If it is, something assigned treatment that was not the randomisation |
+
+What to say, and what not to. Do not tell a user with a trial to add covariates: it will move
+the number without fixing anything, and it invites the reading that the adjustment is carrying
+the comparison when they were told it is not. Say what the check found and ask the one
+question that distinguishes the three causes:
+
+> "The two groups are not as similar as randomisation would usually leave them, on
+> `max_creatinine` especially. With this many patients that is more than chance would usually
+> do. Was the allocation ever overridden, or did some patients get moved between arms after
+> they were assigned?"
+
+A yes makes it the non-compliance case, and the assignment column becomes an instrument. A no
+leaves an imbalance worth reporting as a limitation, with the comparison still resting on the
+design rather than on the covariates.
+
 ## Why only two blocking checks
 
 The trade-off is: **if the confidence interval already says it, do not gate on it.**
@@ -58,8 +84,8 @@ For a failed overlap check:
 
 > "88% of them have no comparable controls. For those the effect estimate is
 > **extrapolated**, not observed in the data. The confidence interval will look narrow,
-> but narrow in a way that means nothing. I'd suggest restricting the analysis to the
-> the ones that do have comparable controls, but **that changes what is being estimated**,
+> but narrow in a way that means nothing. I'd suggest restricting the analysis to those
+> that do have comparable controls, but **that changes what is being estimated**,
 > and the report will need to say whose effect it now reports."
 
 ## Waivers
@@ -148,7 +174,7 @@ recode above is one. It costs nothing, which is why it can be offered freely.
 report says so. This is the honest answer to "can you just drop the patients with no
 creatinine": yes, and here is what it does.
 
-> "I can exclude those 200. That makes the analysis about the 1,800 that have a creatinine,
+> "I can exclude those 200. That leaves the 1,800 who have a creatinine,
 > and whether the test was ordered usually tracks how sick someone looked, so those 1,800 may
 > not be the group you had in mind. The report will show the exclusion and compare the two
 > groups. The alternative is to leave creatinine out of the covariate set, which keeps all
@@ -157,7 +183,7 @@ creatinine": yes, and here is what it does.
 On yes, write it into `spec.population.filters` with what they said. Then **read the two
 population checks back to them**, because that is where the cost shows up:
 
-> "The excluded had a 0% treatment rate against 21% among the kept, so the exclusion
+> "Among the 200 excluded, none were treated, against 21% of the 1,800 kept, so the exclusion
 > is not neutral. The analysis is now about a population that was more likely to be treated.
 > That can still be the right analysis, but the report has to say it, and it does."
 
