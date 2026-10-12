@@ -421,3 +421,23 @@ def test_an_association_is_not_called_evidence_of_confounding(skill_text: str) -
     assert "mediator, a collider" in skill_text
     collapsed = " ".join(skill_text.split())
     assert "only that the variables you happen to have are balanced" in collapsed
+
+
+def test_skill_names_experiment_versus_observation_and_the_fact_it_needs(
+    skill_text: str,
+) -> None:
+    """Two questions in one sentence, because they come apart in both directions.
+
+    An earlier version asked only "did anything random decide who got it", which is the
+    operative fact but not the frame a clinician or an analyst thinks in. Naming the
+    distinction they already use gets a faster and more accurate answer, and the second half
+    is still needed: a single-arm trial is an experiment with nothing randomised, and a
+    staged rollout is observational with randomness in it, which is what an instrument is.
+    """
+    lowered = skill_text.lower()
+    assert "experiment" in lowered
+    assert "observational" in lowered
+    assert "whether anything random decided" in lowered
+    # And the two cases where design and randomisation come apart are spelled out.
+    assert "single-arm trial" in lowered
+    assert "staged rollout" in lowered

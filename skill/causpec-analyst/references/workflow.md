@@ -126,8 +126,15 @@ for you.
 Asked before the columns are mapped, because it decides which identification questions are
 worth asking at all.
 
-> "Did anything random decide who got dialysis, or was it a judgement each time? A trial, a
-> staged rollout, an A/B test, a lottery for access?"
+> "Was this an experiment of any kind, a trial, a staged rollout, an A/B test, a lottery for
+> access? Or is it observational, patients treated as the team judged best at the time? What
+> I need from the answer is whether anything random decided who got dialysis."
+
+Both halves are asked because they come apart in each direction, and only the second one
+identifies anything. A single-arm trial is an experiment with nothing randomised. A staged
+rollout whose order was arbitrary is observational with randomness in it, and that randomness
+is what an instrument is. So "it was a trial" has not yet told you whether anyone was
+randomised, and "observational" has not told you there is no instrument.
 
 **If something random decided and nearly everyone complied**, say what that buys them, because
 most users do not expect the answer to be this short:

@@ -73,6 +73,7 @@ problem. Each becomes a golden task in Phase 2.
 |---|---|---|
 | 1 | The opening line read "I'll help you work out what dialysis does for these patients" and "only after that estimate anything". Both hedge where the user's own register is specific, and the second sounds like estimation might not happen | SKILL.md now gives the exemplar opening and a vague/specific table, and names the hedged verbs to avoid |
 | 2 | Step 1b asked what the treatment flag meant as a branch point, on turn two, framed as "the answer decides what can be estimated". Assignment, which is step 1c and is supposed to come first, never got asked. Root cause was a contradiction inside 1b: its first paragraph said a wide file with no time columns settles the shape, a later one said a wide table settles nothing, and the stricter instruction won | The shape is read off the file and is no longer a branch point. The timing question moved to a new 1d, after assignment, in one line, with an exit for "I don't know". A test pins that 1c precedes 1d |
+| 4 | Step 1c asked only "did anything random decide who got it", which is the fact that identifies the analysis but not the frame a clinician or an analyst thinks in. Both of the user's own messages used experiment against observation | The question now names that distinction first and the randomness second, and spells out the two cases where they come apart: a single-arm trial is an experiment with nothing randomised, a staged rollout is observational with the randomness an instrument needs |
 | 3 | The same step threatened to end the analysis if the flag meant "ever treated". Immortal time genuinely cannot be corrected without start times, but refusing leaves the user with one file and no answer, and this project prices a data limitation rather than refusing it, as it does for imputation and exclusions | The ever-treated branch now reports the contrast at `associational` with the bias direction stated, and asks once whether a timed version exists. Scenario 3's expectation changed with it |
 
 ---
@@ -95,6 +96,7 @@ differ a lot in how readily they start dialysis."
 | Should happen | Must not happen |
 |---|---|
 | Asks what you are comparing before showing any columns | Opens with a list of columns |
+| Asks whether this was an experiment or observational, and what was random about it | Asks only "are there confounders", or never asks how the treatment was assigned |
 | Does not ask again whether you want heterogeneity: you said so | Asks "should heterogeneity be the primary target?" |
 | Drafts the covariate set itself and asks you to confirm it | Asks you to list the variables the effect varies over |
 | Asks which variables were measured after dialysis started | Assumes the measurement window |

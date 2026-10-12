@@ -276,11 +276,28 @@ without both. Neither can be read off the file.
 
 ### 1c. How the treatment was assigned
 
-> "Did anything random decide who got it, or was it a judgement each time? A trial, a staged
-> rollout, an A/B test, a lottery for access?"
+Name the distinction they already think in, then land on the fact that decides the analysis:
+
+> "Was this an experiment of any kind, a trial, a staged rollout, an A/B test, a lottery for
+> access? Or is it observational, patients treated as the team judged best at the time? What
+> I need from the answer is whether anything random decided who got it."
 
 **Ask this before step 2, not at step 4.** It decides which identification questions are
 worth asking at all, and asking it after the columns are mapped means reopening them.
+
+**Both halves of that question earn their place**, because the two come apart in each
+direction and only the second one identifies anything:
+
+- an experiment with no randomisation: a single-arm trial, everyone treated, before and after.
+  Experimental in design, observational for identification
+- randomness without an experiment: a staged rollout whose order was arbitrary, an
+  availability constraint, a rota. Observational in design, and the randomness is exactly what
+  an instrument is
+
+So ask which it was, and then ask what was random about it. A user who says "it was a trial"
+has not yet told you whether anyone was randomised, and a user who says "observational" may
+still be sitting on an instrument, which is what the consultant-preference question at the end
+of this step is for.
 
 Three answers, and they are three different worlds:
 
