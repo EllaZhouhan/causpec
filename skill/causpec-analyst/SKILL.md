@@ -67,7 +67,7 @@ The common case is a file with no timestamps. The shape step says so; the outcom
 has a real question to ask, and should ask only the part that is new:
 
 > "The file records whether each of them died, not when. So the outcome is death yes or no,
-> rather than how long they lasted. Does that answer your question?"
+> rather than how long they lasted. Is that what you meant by survival?"
 
 What that replaced was four sentences that said the same thing: no time columns, no follow-up
 over time, not when, no follow-up time. The question survives the cut, because "survival"
@@ -292,13 +292,19 @@ which columns plausibly match what they said. Then come back with specifics.
 Also establish the outcome and whether they want an average effect or "who benefits more".
 Write `treatment`, `outcome` and `estimand` into the spec, each with the user's own words.
 
+**Confirm their word, not your question.** A field is being written with the user's own
+words in it, so the question to ask is whether the column matches **what they said**. "Does
+that answer your question?" is wrong whenever they were answering yours, which at this point
+in the conversation they usually were, and it reads as though you had lost track of who asked
+what. Say "is that what you meant by survival?" instead.
+
 **When their outcome is vaguer than the column**, ask the narrow question and nothing more.
 "Survival" is the one that comes up: a 0/1 death column answers whether, not how long, and
 those are different questions with different methods. One sentence settles it, and do not
 re-explain the file's lack of timestamps if the shape step has already said so:
 
 > "The file records whether each of them died, not when. So the outcome is death yes or no,
-> rather than how long they lasted. Does that answer your question?"
+> rather than how long they lasted. Is that what you meant by survival?"
 
 If they wanted a survival curve or a hazard, say that this tool does not do time-to-event and
 that the binary version is what is on offer, in one sentence. Do not propose a workaround with

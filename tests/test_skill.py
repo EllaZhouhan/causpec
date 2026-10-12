@@ -502,3 +502,24 @@ def test_the_shape_is_stated_as_a_fact_not_classified(skill_text: str) -> None:
     """
     assert "Say what the file is, not what kind of design it is" in skill_text
     assert "not quoted as a whole sentence" in skill_text
+
+
+def test_a_confirmation_asks_about_their_word_not_about_their_question(
+    skill_text: str,
+) -> None:
+    """ "Does that answer your question?" is wrong when they were answering yours.
+
+    Found in a manual run: the model asked what outcome they wanted, the user said
+    "survival", and the reply closed with "does that answer your question?" when no question
+    had been asked. It reads as having lost track of who asked what, and the sentence came
+    from this document, twice.
+
+    A field carries the user's own words, so the confirmation is about those words.
+    """
+    # Checked on the spoken lines, not the whole document: the rule itself has to quote the
+    # forbidden phrase in order to name it, and a five-word fragment inside a prose rule is
+    # not a sentence anyone would send.
+    spoken = [line for line in skill_text.splitlines() if line.startswith(">")]
+    assert not [line for line in spoken if "answer your question" in line.lower()]
+    assert "Confirm their word, not your question" in skill_text
+    assert "what you meant by survival" in skill_text
