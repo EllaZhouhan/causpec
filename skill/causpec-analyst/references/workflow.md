@@ -40,7 +40,7 @@ In order:
 
 > "What are you comparing: receiving what treatment, versus not receiving it?"
 > "What counts as the outcome, and within what time window?"
-> "Do you want the **overall average** effect, or **which patients benefit more**?"
+> "Do you want the **overall average** effect, or **which of them benefit more**?"
 
 The third decides the estimand: overall -> `ate`; which patients -> a CATE, in which
 case `effect_modifiers` is central.
@@ -65,8 +65,8 @@ assignment, because randomisation at a fixed point settles it by design.
 Only for a static treatment on a cross-sectional file, only after 1c, and in one line
 with a way out:
 
-> "Does `isDialysisICU` mean the decision was made in the window those labs came from, or
-> that the patient started at any point during the stay? If you're not sure, say so and
+> "Does `isDialysisICU` mean the decision was made in the window those other measurements
+> came from, or that it started at any point afterwards? If you're not sure, say so and
 > I'll record it as an assumption."
 
 Three answers, and none of them ends the analysis:
@@ -127,8 +127,9 @@ Asked before the columns are mapped, because it decides which identification que
 worth asking at all.
 
 > "Was this an experiment of any kind, a trial, a staged rollout, an A/B test, a lottery for
-> access? Or is it observational, patients treated as the team judged best at the time? What
-> I need from the answer is whether anything random decided who got dialysis."
+> access? Or did it just happen the way it happened, with whoever was deciding doing what
+> seemed best at the time? What I need from the answer is whether anything random decided
+> who got it."
 
 Both halves are asked because they come apart in each direction, and only the second one
 identifies anything. A single-arm trial is an experiment with nothing randomised. A staged
@@ -149,12 +150,12 @@ instrument and they may not know it:
 
 > "Then we have something better than adjustment. Which arm someone was offered was random,
 > so we can use that as an instrument for what they actually received. The answer it gives is
-> about the patients whose treatment changed because of the offer, which is a narrower group
+> about the ones whose treatment changed because of the offer, which is a narrower group
 > than everyone, and the report will say so."
 
 **If a person decided case by case**, ask this, and not "what are your confounders":
 
-> "What did the clinicians have in front of them when they decided? And is there anything
+> "What did whoever decided have in front of them at the time? And is there anything
 > that mattered to that decision which the data doesn't record?"
 
 A clinician can answer what they looked at. They cannot reliably answer which variables
@@ -205,8 +206,8 @@ Confirm `effect_modifiers` (X) and `adjustment_set` (W) **separately**. See
 **Measurement time first**: a variable measured after treatment can never enter the
 adjustment set.
 
-> "Was `max_creatinine` measured at ICU admission, or does it include values from
-> after dialysis started?"
+> "Was `max_creatinine` recorded before the treatment decision, or does it include values
+> from after it started?"
 
 ---
 

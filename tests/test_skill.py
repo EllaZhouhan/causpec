@@ -364,9 +364,14 @@ def test_randomisation_is_distinguished_from_the_treatment_received(skill_text: 
 def test_candidate_confounders_come_from_asking_what_was_in_front_of_them(
     skill_text: str,
 ) -> None:
-    """A clinician can answer what they looked at. They cannot reliably answer which variables
-    satisfy a backdoor criterion, and asking the second gets a worse answer to the first."""
-    assert "What did the clinicians have in front of them" in skill_text
+    """Someone can answer what they looked at. They cannot reliably answer which variables
+    satisfy a backdoor criterion, and asking the second gets a worse answer to the first.
+
+    The assertion is on the shape of the question, not its nouns: it used to require the word
+    "clinicians", which made the question untellable to anyone outside a hospital and turned
+    a correct generalisation into a test failure.
+    """
+    assert "have in front of them" in skill_text
     assert 'not "what are your confounders"' in skill_text
 
 
@@ -441,3 +446,32 @@ def test_skill_names_experiment_versus_observation_and_the_fact_it_needs(
     # And the two cases where design and randomisation come apart are spelled out.
     assert "single-arm trial" in lowered
     assert "staged rollout" in lowered
+
+
+def test_the_skill_does_not_put_clinical_vocabulary_in_the_models_mouth(
+    skill_text: str,
+) -> None:
+    """The method does not care whether the treatment is a drug or a discount code.
+
+    The project was built against an ICU study, so the examples are clinical, and an earlier
+    version let that leak into the sentences the model says out loud: it would have told
+    someone measuring an ad campaign about "patients treated as the team judged best at the
+    time". Lines beginning with `>` are what the model says to the user, and those have to
+    take their nouns from the user instead.
+
+    One clinical quote is deliberate and allowed: the opening example is given twice, once in
+    a commercial setting and once clinical, so the pattern is visibly domain-general rather
+    than domain-free.
+    """
+    spoken = [line for line in skill_text.splitlines() if line.startswith(">")]
+    clinical = [
+        line
+        for line in spoken
+        if any(
+            word in line.lower() for word in ("patient", "clinician", "consultant", "ward", "icu ")
+        )
+    ]
+    assert len(clinical) <= 1, f"clinical vocabulary in what the model says: {clinical}"
+    assert "Follow the user's domain too" in skill_text
+    # And "unit" is the tool's word, not anyone's.
+    assert "do not say" in skill_text.lower()

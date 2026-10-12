@@ -105,8 +105,8 @@ analysis refuses to run without them.
 
 ### 1. Fixed or variable?
 
-> "Is every patient followed for the same number of windows, or do the records end at
-> different times because patients leave?"
+> "Is every one of them followed for the same number of windows, or do the records end at
+> different times because they drop out?"
 
 **Fixed** means no weighting is needed and none is applied: nobody left early, so there is
 nothing to correct. It also means each unit's **last period is used**: its outcome is recorded
@@ -129,7 +129,7 @@ wrong answer here is caught rather than quietly used.
 
 ### 2. If variable: how is leaving identified?
 
-> "When a patient's rows stop, is that because they left the ICU? Or is there a column that
+> "When a row's records stop, is that because they left? Or is there a column that
 > records the discharge, with rows carrying on after it?"
 
 Two answers, and they lead to different handling:

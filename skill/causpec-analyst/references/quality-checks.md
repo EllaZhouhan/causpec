@@ -3,6 +3,11 @@
 > `RUN` is `causpec` when it is installed for the whole machine, `python scripts/run.py` in
 > the packaged skill, and `uv run causpec` inside the repository. Probe in that order, once
 > per session. SKILL.md has the table.
+>
+> The worked example below is clinical, a lab value with a `-999` sentinel, because that is
+> the clearest case of a placeholder nothing complains about. Take the nouns from the user:
+> stores, accounts, applicants or patients, whichever one row is. Only the column names are
+> fixed.
 
 ```bash
 RUN quality --spec spec.yaml --data <data file>
@@ -51,10 +56,10 @@ deliberately.
 
 For a failed overlap check:
 
-> "88% of these patients have no comparable controls. For them the effect estimate is
+> "88% of them have no comparable controls. For those the effect estimate is
 > **extrapolated**, not observed in the data. The confidence interval will look narrow,
 > but narrow in a way that means nothing. I'd suggest restricting the analysis to the
-> patients who do have comparable controls, but **that changes what is being estimated**,
+> the ones that do have comparable controls, but **that changes what is being estimated**,
 > and the report will need to say whose effect it now reports."
 
 ## Waivers
@@ -128,8 +133,8 @@ block. What has changed is that the number is no longer being quietly computed f
 measurement artefact.
 
 > "That's marked them as missing, which is what they are. Now the missing-value check sees
-> 300 patients with no creatinine, which it won't let us estimate through. The options are to
-> get those values, drop those patients and say so in the report, or leave creatinine out of
+> 300 rows with no creatinine, which it won't let us estimate through. The options are to
+> get those values, drop those rows and say so in the report, or leave creatinine out of
 > the covariate set."
 
 ## The two kinds of fix, which differ in what they cost
@@ -143,16 +148,16 @@ recode above is one. It costs nothing, which is why it can be offered freely.
 report says so. This is the honest answer to "can you just drop the patients with no
 creatinine": yes, and here is what it does.
 
-> "I can exclude those 200 patients. That makes the analysis about the 1,800 who had a
-> creatinine drawn, and in an ICU whether a test was ordered usually tracks how sick someone
-> looked, so those 1,800 may not be the patients you had in mind. The report will show the
-> exclusion and compare the two groups. The alternative is to leave creatinine out of the
-> covariate set, which keeps all 2,000 patients."
+> "I can exclude those 200. That makes the analysis about the 1,800 that have a creatinine,
+> and whether the test was ordered usually tracks how sick someone looked, so those 1,800 may
+> not be the group you had in mind. The report will show the exclusion and compare the two
+> groups. The alternative is to leave creatinine out of the covariate set, which keeps all
+> 2,000."
 
 On yes, write it into `spec.population.filters` with what they said. Then **read the two
 population checks back to them**, because that is where the cost shows up:
 
-> "The excluded patients had a 0% treatment rate against 21% among the kept, so the exclusion
+> "The excluded had a 0% treatment rate against 21% among the kept, so the exclusion
 > is not neutral. The analysis is now about a population that was more likely to be treated.
 > That can still be the right analysis, but the report has to say it, and it does."
 
@@ -166,7 +171,7 @@ Four fills exist and none of them is a default. `spec-fields.md` has the table o
 is right; what matters in the conversation is that **you say the price before they accept,
 not after**:
 
-> "I can fill those 200 creatinines with the median of the rest. Every one of those patients
+> "I can fill those 200 creatinines with the median of the rest. Every one of those rows
 > then sits at the same value, so the column carries less than it did, and the report prints
 > the spread among the filled values, which will be zero. Filling also assumes those 200 are
 > missing for reasons the other columns already capture. If creatinine here is drawn on a

@@ -9,7 +9,7 @@ That is a judgement for them to make, not something you can read off the data. H
 ask:
 
 > "Is there anything that influenced both who received treatment and the outcome, but
-> that the data doesn't record? A clinician's impression of severity, family
+> that the data doesn't record? Someone's impression at the time, a conversation
 > preference, signs that never made it into the chart?"
 
 Yes, and there is an instrument -> consider IV. No, and the user is confident ->
@@ -104,9 +104,8 @@ assumptions:
 
 The exclusion restriction needs a **domain argument**, so you have to ask:
 
-> "Besides influencing whether a patient gets dialysis, could a consultant's past
-> dialysis tendency reach mortality by any other route? Are consultants who dialyse
-> more also more aggressive in other ways?"
+> "Besides influencing whether they get treated, could this reach the outcome by any other
+> route? Whoever leans towards treating more, do they differ in other ways that could matter?"
 
 The `iv_covariate_imbalance` check only tests a **necessary** condition, if the
 instrument really were close to random, covariates should be balanced across it.
