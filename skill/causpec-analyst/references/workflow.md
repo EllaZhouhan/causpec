@@ -213,9 +213,11 @@ Now look at the variables. **Do not paste raw rows into the conversation.**
 Map the user's concepts onto specific columns and confirm each:
 
 > "By 'dialysis', do you mean the `isDialysisICU` column? It's 0/1."
-> "Does `death` record in-hospital death or death within 28 days?"
 
-When a column name is ambiguous, ask. Do not guess.
+When a column name is ambiguous, ask. Do not guess, and do not offer a meaning the file
+cannot have: asking whether `death` records in-hospital death or death within 28 days invites
+an answer the column cannot deliver, since it carries no date either way. Read back what it
+holds, as in step 1a.
 
 ---
 

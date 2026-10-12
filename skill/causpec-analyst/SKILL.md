@@ -309,20 +309,23 @@ you map it, and then move on.
 > "The outcome column is `death`, 0 or 1, so it records whether they died at any point in this
 > record. Is that the outcome you want?"
 
-**State what it is, never a list of what it is not.** An earlier version of that sentence went
-on "not within 28 days or any other window", which is redundant, because saying precisely what
-the column records already excludes everything else, and it teaches the habit of attaching a
-string of negations to every field. Describing the column's structure is the same mistake
-smaller: "with no date on it" says how it is stored, where "whether they died at any point in
-this record" says what it means, and only the second is what the user is being asked to
-agree to.
+**State what it is, never a clause about which windows it is not.** Saying precisely what the
+column records already excludes everything else, so a negation adds nothing and teaches the
+habit of attaching a string of them to every field. This leaked twice: once in the sentence
+itself, then again from the row above, which described the window by naming a horizon the
+column is not.
+
+**Say what it means, not how it is stored.** "0 or 1" is enough about the storage. A clause
+about there being no date column says how the file is built, where "whether they died at any
+point in this record" says what the number means, and only the second is what the user is
+being asked to agree to.
 
 Three things are worth stating because they are what a column fixes and a word usually leaves
 out. Mention whichever apply:
 
 | | What to say |
 |---|---|
-| **The window** | No date on the column means death at some point inside this record, not at 28 days. "Mortality", "death", "deaths" and "did they die" all leave this out equally |
+| **The window** | No date on the column, so it records the event at some point inside this record. "Mortality", "death", "deaths" and "did they die" leave the window out equally, and so does every other way of naming an event |
 | **The shape** | Whether, not how long. The one that matters when they said "survival", because a curve or a hazard is a different question with different methods |
 | **The aggregation** | A peak over a stay, a total, a daily mean and an ever-happened flag are four different outcomes of "cost" or "instability" or "engagement" |
 

@@ -588,14 +588,21 @@ def test_the_outcome_column_is_always_read_back(skill_text: str) -> None:
     # what it records already excludes everything else, and a negation list is a habit that
     # spreads to every field.
     assert "name the column, give its values, say what it records, ask" in lowered
-    assert "state what it is, never a list of what it is not" in lowered
+    assert "state what it is, never a clause about which windows it is not" in lowered
+    assert "say what it means, not how it is stored" in lowered
     # On the spoken lines only: the rule has to quote the negation in order to forbid it,
     # which is the same line drawn around every other negative example here.
     spoken = " ".join(line for line in skill_text.splitlines() if line.startswith(">")).lower()
+    # The negation leaked twice: once from the sentence, once from the checklist row that
+    # described the window by naming a horizon the column is not. So the whole document is
+    # checked for the construction, except the one rule that forbids inventing a cut-off,
+    # which has to name one.
     assert "not within 28 days" not in spoken
     assert "with no date on it" not in spoken
+    without_rule = lowered.replace("cut-off to bridge the gap", "")
+    assert "not at 28 days" not in without_rule
     # The trap where the column's name matches their word, which looks settled and is not.
     assert "most careful about, not the one to wave through" in lowered
     assert "agreement on a word reads like agreement on a definition" in lowered
     # And inventing a horizon to bridge the gap stays forbidden.
-    assert "do not invent a cut-off" in lowered
+    assert "do not invent a" in lowered and "cut-off to bridge the gap" in lowered
