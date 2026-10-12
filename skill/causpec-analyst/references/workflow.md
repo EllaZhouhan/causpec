@@ -179,9 +179,9 @@ answer is that no such column exists, because there was nothing to not comply wi
 most users do not expect the answer to be this short:
 
 > "Then the comparison is already fair by design. I'll still adjust for the covariates,
-> because that narrows the interval and lets us look at who benefits more, but the adjustment
-> isn't rescuing anything. And the assumption that usually needs your judgement, that nothing
-> unmeasured drove who got treated, is given to you by the randomisation."
+> because that narrows the interval and lets us look at who benefits more. And the assumption
+> that usually needs your judgement, that nothing unmeasured drove who got treated, is given
+> to you by the randomisation."
 
 **If something random decided but compliance was partial**, the design has handed them an
 instrument and they may not know it:

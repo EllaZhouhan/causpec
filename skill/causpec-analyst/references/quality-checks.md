@@ -54,7 +54,7 @@ the number without fixing anything, and it invites the reading that the adjustme
 the comparison when they were told it is not. Say what the check found and ask the one
 question that distinguishes the three causes:
 
-> "The two groups are not as similar as randomisation would usually leave them, on
+> "The two groups differ more than randomisation would usually leave them, on
 > `max_creatinine` especially. With this many patients that is more than chance would usually
 > do. Was the allocation ever overridden, or did some patients get moved between arms after
 > they were assigned?"
@@ -159,7 +159,7 @@ block. What has changed is that the number is no longer being quietly computed f
 measurement artefact.
 
 > "That's marked them as missing, which is what they are. Now the missing-value check sees
-> 300 rows with no creatinine, which it won't let us estimate through. The options are to
+> 300 rows with no creatinine, which blocks the estimate. The options are to
 > get those values, drop those rows and say so in the report, or leave creatinine out of
 > the covariate set."
 
@@ -184,7 +184,7 @@ On yes, write it into `spec.population.filters` with what they said. Then **read
 population checks back to them**, because that is where the cost shows up:
 
 > "Among the 200 excluded, none were treated, against 21% of the 1,800 kept, so the exclusion
-> is not neutral. The analysis is now about a population that was more likely to be treated.
+> changed who the analysis is about: it is now about a population more likely to be treated.
 > That can still be the right analysis, but the report has to say it, and it does."
 
 **Decide exclusions one at a time.** When several columns have missing values the check
@@ -197,13 +197,20 @@ Four fills exist and none of them is a default. `spec-fields.md` has the table o
 is right; what matters in the conversation is that **you say the price before they accept,
 not after**:
 
-> "I can fill those 200 creatinines with the median of the rest. Every one of those rows
-> then sits at the same value, so the column carries less than it did, and the report prints
-> the spread among the filled values, which will be zero. Filling also assumes those 200 are
-> missing for reasons the other columns already capture. If creatinine here is drawn on a
-> schedule, that is reasonable and you can say so. If it was skipped because someone looked
-> fine, or because they died in the first hours, it is not, and the fill will be confidently
-> wrong in the direction that matters."
+> "I can fill those 200 creatinines with the median of the rest. Every one of those rows then
+> sits at the same value, so the column carries less than it did. Shall I?"
+
+**One question per turn, and this is two.** Whether to fill is one; whether the missingness is
+the kind a fill can stand in for is the other, and it only arises once they have said yes. The
+long version of this said both at once in 106 words, with a clause about what the report
+prints, which is something they need when reading the report rather than when deciding.
+
+On yes, the second question:
+
+> "A fill like this stands in for the 200 only if they are missing for reasons the other
+> columns already capture. If creatinine here is drawn on a schedule, that holds and you can
+> say so. If it was skipped because someone looked fine, or because they died in the first
+> hours, the fill will be wrong in the direction that matters."
 
 Then **ask them for the justification and write it into `assumptions`**, because
 `imputation_assumption_declared` blocks until the assumption is on the record. Unjustified, it

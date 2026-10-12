@@ -63,6 +63,33 @@ result. "Anything that starts on day 5 counts as untreated for those four days, 
 change the number" earns its place; a paragraph on immortal time bias and g-methods does
 not. State the consequence, not the mechanism, unless they ask.
 
+**Say what is, not what isn't.** The user reads every clause you write. One about what
+something is *not* makes them take on a possibility they did not have, hold it, and discard
+it, and they are left wondering why you raised it. The positive statement already excludes
+the alternatives.
+
+| Don't | Do |
+|---|---|
+| "The other columns aren't needed to make the comparison fair. They make the estimate more precise and let us see whether some benefit more" | "The other columns will make the estimate more precise and let us see whether some benefit more" |
+| "The two groups are not as similar as randomisation would usually leave them" | "The two groups differ more than randomisation would usually leave them" |
+| "The exclusion is not neutral" | "The exclusion changed who the analysis is about" |
+| "The adjustment isn't rescuing anything" | (cut it. Saying what the adjustment does is the whole of what they need) |
+
+**A negation earns its place when it heads off a reading the user is about to make, and not
+otherwise.** Those are easy to tell apart: the first answers something they just said or
+would predictably assume, the second rules out a thought they never had.
+
+- Earns it: they said "survival", so "it records whether they died, not when" corrects a
+  meaning they have already committed to
+- Earns it: "a passing placebo test says the machinery is not manufacturing an effect; it
+  does not say the effect is causal", because they will read it as proof
+- Does not: "the other columns aren't needed to make the comparison fair", when nobody asked
+  whether they were
+
+This has gone wrong four times in this document's history, each time repaired locally and
+each time coming back somewhere else, so prefer the positive form by default and let a
+negation be the exception you can point at a reading for.
+
 **Say each limitation once.** Every step of this workflow looks at the data again, so each
 one rediscovers the same constraints, and reporting them each time is how a user hears "there
 are no time columns" four times in two turns. Once a fact about the data has been stated,
@@ -71,8 +98,8 @@ later steps build on it instead of re-deriving it.
 The common case is a file with no timestamps. The shape step says so; the outcome step then
 has a real question to ask, and should ask only the part that is new:
 
-> "The file records whether each of them died, not when. So the outcome is death yes or no,
-> rather than how long they lasted. Is that what you meant by survival?"
+> "The outcome column is `death`, 0 or 1, so it records whether they died at any point in
+> this record. Is that what you meant by survival?"
 
 What that replaced was four sentences that said the same thing: no time columns, no follow-up
 over time, not when, no follow-up time. The question survives the cut, because "survival"
@@ -621,11 +648,11 @@ What to ask depends on the answer to 1c:
 
 - **Randomised with full compliance**: nothing to ask here. Exchangeability is justified by
   the design, and you record that justification in the user's words rather than asking them
-  to argue for it. Two things follow, and both are worth one sentence each when they come up.
-  The covariates are buying precision and a look at who benefits more, not rescuing the
-  comparison, so a user who is missing one has lost less than they fear. And a balance or
-  overlap check that fails here is **not** telling you to adjust harder: it is saying the
-  randomisation did not come out as it should, which `quality-checks.md` covers.
+  to argue for it. Two things follow. Say what the covariates do here, which is to tighten
+  the interval and to let you look at who benefits more; that is the whole of what the user
+  needs, and a sentence about what they are not doing adds a thought they did not have. And
+  when a balance or overlap check fails on a randomised design, read it as what it is, a sign
+  that the randomisation did not come out as it should, which `quality-checks.md` covers.
 - **Randomised with imperfect compliance**: the instrument is already chosen. What is left is
   monotonicity, which randomisation does not give you: does the assignment move everyone in
   the same direction, or could it have pushed some patients away from treatment?

@@ -663,5 +663,30 @@ def test_a_balance_check_reads_the_other_way_round_in_a_trial(
     assert "the same check means something different in a randomised design" in flat(checks).lower()
     assert "did not come out as it should" in flat(checks).lower()
     assert "do not tell a user with a trial to add covariates" in flat(checks).lower()
-    # And SKILL.md points at it from the branch where it applies.
-    assert "not telling you to adjust harder" in flat(skill_text).lower()
+    # And SKILL.md points at it from the branch where it applies, positively: the earlier
+    # wording was "not telling you to adjust harder", which is the negation this document
+    # now forbids by default.
+    assert "read it as what it is" in flat(skill_text).lower()
+
+
+def test_the_skill_prefers_the_positive_form(skill_text: str) -> None:
+    """Four separate repairs of the same habit, so the rule is general now.
+
+    The habit: telling the user what something is not. "The other columns aren't needed to
+    make the comparison fair." "Not within 28 days or any other window." "This is not a
+    single comparison." Each one makes the reader take on a possibility they did not have,
+    hold it, and discard it, and each was fixed locally before coming back somewhere else.
+
+    A negation earns its place when it heads off a reading the user is about to make, which
+    is why the rule is a default rather than a ban: "it records whether they died, not when"
+    answers a meaning they committed to by saying survival.
+    """
+    lowered = flat(skill_text).lower()
+    assert "say what is, not what isn't" in lowered
+    assert "a negation earns its place when it heads off a reading" in lowered
+    # The sentence that prompted the rule must not be the thing it demonstrates.
+    spoken = flat(
+        " ".join(line for line in skill_text.splitlines() if line.startswith(">"))
+    ).lower()
+    for dead in ("aren't needed to make the comparison fair", "isn't rescuing anything"):
+        assert dead not in spoken, dead
