@@ -258,11 +258,57 @@ how it is implemented is not constrained:
 2. **snapshot_fingerprint**: computed over the **normalised content** (sort by primary
    key, then fix column order and dtypes), not over the file's bytes
 
-The default implementation reads with pandas/polars, applies the mapping, writes a
-parquet file, and fingerprints the normalised content. Below about a hundred thousand
-rows this is the simplest route with the fewest dependencies. Beyond what fits in
-memory, switch to DuckDB or another columnar engine; that is an implementation detail
-and does not change the two contracts above.
+The implementation reads with pandas, applies the preprocessing steps and the population
+filters, writes the result as gzipped CSV, and fingerprints the normalised content. Beyond
+what fits in memory, switch to DuckDB or another columnar engine; that is an implementation
+detail and does not change the two contracts above.
+
+**Gzipped CSV rather than parquet**, which is a change from this section's earlier default.
+Parquet needs pyarrow, a forty-megabyte wheel, for one artefact, and what it would buy is
+dtype preservation, which is exactly what the fingerprint normalises away: an integer stored
+as a float is the same content. CSV is also readable by a person looking for one patient.
+
+**Two fingerprints, because they answer different questions.** `source_fingerprint` is over
+the file as read, before anything touches it, and answers "is this the same data?".
+`snapshot_fingerprint` is over the table actually analysed and ties the report's numbers to a
+specific table. Both are in the manifest.
+
+**What the normalisation forgives**, each rule being something that would otherwise give a
+different hash for the same data: row order (sorted by the declared key, or by every column
+when there is none), column order, an integer stored as a float, negative zero, the flavour of
+a missing value, and a boolean against a 0/1 integer. Strings are not stripped or case-folded,
+because " A" and "A" are different values and a fingerprint that said otherwise would be
+making an editorial decision.
+
+**What it does not forgive, and why rounding is not the answer.** Floats are compared at full
+precision, so a table re-serialised by something writing fewer than seventeen significant
+digits will not match. Rounding the fingerprint is the obvious fix and the wrong one: one ulp
+is about 2e-16 relative and the rounding boundaries at fifteen digits are spaced 1e-15 apart,
+so a perturbed value crosses a boundary about a fifth of the time. Rounding moves the
+instability onto every value instead of removing it. The snapshot is therefore written
+losslessly, at seventeen digits and read back with pandas' exact float parser, so that its own
+recorded fingerprint verifies against it. Both halves were needed: with sixteen digits, or
+with the default parser at seventeen, 32 of 41 columns came back differing in the last bit.
+
+### 6.6 Earlier runs on the same data
+
+The source fingerprint exists for one thing that nothing else can do. design.md 7.4 locks the
+primary analysis at confirmation and marks anything changed after seeing the results as post
+hoc. Applying that needs these two cases told apart, and `spec_hash` changed in both:
+
+- the same spec on new data, a fresh primary analysis, legitimate
+- a different spec on the same data, a second look at numbers already seen
+
+So a run scans the sibling runs in its run directory for the same `source_fingerprint` with a
+different `spec_hash`, and the report states what it found. **Stated, never refused**: a
+second analysis is legitimate and common, it only has to be visible as one.
+
+One refinement keeps the warning honest. Only runs that **reached an estimate** count, which
+the manifest shows through the presence of `results/results.json`. A user who hit a blocking
+quality issue, added the step that cleared it and re-ran has changed the spec on the same data
+and saw no results in between, so there was nothing to react to. Without this the warning
+would fire on the tool's own intended workflow, and a warning that fires on correct use is
+one people learn to ignore.
 
 Database sources additionally record the query text and the time of reading.
 

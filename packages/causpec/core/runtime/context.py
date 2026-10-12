@@ -27,7 +27,7 @@ from typing import Any
 
 from causpec import __version__
 from causpec.core.contracts.manifest import ExecutionMode, Manifest
-from causpec.core.runtime import audit
+from causpec.core.runtime import audit, snapshot
 from causpec.core.runtime.writer import sha256_of, write_atomic, write_json_atomic
 
 # Dependencies that can change the numbers. A version bump can change the estimate
@@ -112,6 +112,18 @@ class RunContext:
         self._artifacts.append(path)
         return path
 
+    def write_snapshot(self, data: Any) -> Path:
+        """Write the analysed table, so the report can be checked against it.
+
+        Not atomic in the write_atomic sense: it streams through gzip rather than building
+        the whole file in memory first, because a snapshot is the one artefact that can be
+        large. It is still checksummed into the manifest like every other artefact, so a
+        truncated write is detectable.
+        """
+        path = snapshot.write_snapshot(self.directory, data)
+        self._artifacts.append(path)
+        return path
+
     # ---- audit ----
 
     def audit(self, tool: str, params: dict[str, Any] | None = None, **kwargs: Any) -> None:
@@ -127,7 +139,9 @@ class RunContext:
         *,
         spec_hash: str,
         seed: int,
+        source_fingerprint: str | None = None,
         snapshot_fingerprint: str | None = None,
+        prior_runs_on_this_data: list[str] | None = None,
         claim_rules_hash: str = "",
         basic_checks_hash: str = "",
     ) -> Manifest:
@@ -146,7 +160,9 @@ class RunContext:
             python_version=platform.python_version(),
             package_versions=package_versions(),
             spec_hash=spec_hash,
+            source_fingerprint=source_fingerprint,
             snapshot_fingerprint=snapshot_fingerprint,
+            prior_runs_on_this_data=prior_runs_on_this_data or [],
             seed=seed,
             claim_rules_hash=claim_rules_hash,
             basic_checks_hash=basic_checks_hash,

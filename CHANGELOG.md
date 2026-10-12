@@ -7,6 +7,30 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The derived snapshot and two content fingerprints** (design.md 6.5). The analysed table
+  is written into the run directory, after the preprocessing steps and the population filters,
+  so a report can be checked against the data it describes rather than only against the spec.
+  Gzipped CSV, not parquet: pyarrow is a forty-megabyte dependency for one artefact, and what
+  it buys is dtype preservation, which is what the fingerprint normalises away
+- **Earlier runs on the same data are reported** (design.md 6.6), which is the one thing a
+  data fingerprint does that nothing else can. design.md 7.4 locks the primary analysis at
+  confirmation, and `spec_hash` cannot tell a fresh analysis on new data apart from a second
+  look at the same numbers, because the spec changed in both. Now a run finds the sibling runs
+  with the same `source_fingerprint` and a different `spec_hash`, and the report names them and
+  says the primary analysis is the first one. Stated, never refused: a second look is
+  legitimate, it only has to be visible as one. Only runs that reached an estimate count, or
+  the warning would fire on a user who cleared a blocking issue and re-ran, which is the
+  tool's own intended workflow
+- **The snapshot could not verify against its own fingerprint, twice over.** Pandas writes
+  floats at sixteen significant digits, one short of a lossless float64, and its default CSV
+  parser does not round correctly even when the file carries seventeen. Either alone left 32 of
+  41 columns differing in the last bit. Fixed with `float_format="%.17g"` on the write and
+  `float_precision="round_trip"` on every read, including the source data, which also removes
+  a dependence of the estimates on the parser's version
+- **Rounding the fingerprint would not have fixed it**, which is worth recording because it is
+  the obvious idea: one ulp is about 2e-16 relative and the boundaries at fifteen significant
+  digits are spaced 1e-15 apart, so a perturbed value crosses a boundary about a fifth of the
+  time. Rounding moves the instability onto every value rather than removing it
 - **The variable-role diagram, derived from the declarations** (design.md 7.5).
   `variable_roles` and `key_non_edges` are confirmed spec fields, the edges come from the role
   with no freedom, and the report embeds mermaid while the run directory gets the same graph as

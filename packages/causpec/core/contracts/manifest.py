@@ -48,7 +48,18 @@ class Manifest(BaseModel):
 
     # ---- inputs ----
     spec_hash: str
+    # Over the normalised content of the file as read, before any preprocessing or filter.
+    # This is the one that answers "is this the same data?", which is what tells a fresh
+    # primary analysis on new data apart from a second look at the same numbers (design.md
+    # 7.4). spec_hash alone cannot: it changed in both cases.
+    source_fingerprint: str | None = None
+    # Over the table actually analysed, after the preprocessing steps and the population
+    # filters. This is the one that ties the report's numbers to a specific table.
     snapshot_fingerprint: str | None = None
+    # Earlier runs that reached an estimate on this same source data under a different spec.
+    # Recorded rather than refused: a second look is legitimate and common, it just has to be
+    # visible as one.
+    prior_runs_on_this_data: list[str] = Field(default_factory=list)
     seed: int
 
     # ---- decision basis ----

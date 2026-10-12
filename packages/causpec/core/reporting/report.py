@@ -107,7 +107,11 @@ def _escape(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
-def _spec_section(spec: Spec, execution_mode: ExecutionMode) -> str:
+def _spec_section(
+    spec: Spec,
+    execution_mode: ExecutionMode,
+    provenance: Mapping[str, Any] | None = None,
+) -> str:
     """The spec in full, with each field's provenance.
 
     design.md 7.1: confirmation happens in conversation, and the server cannot verify
@@ -140,7 +144,50 @@ def _spec_section(spec: Spec, execution_mode: ExecutionMode) -> str:
             f"{field.turn or '(none)'} |"
         )
     lines += ["", f"spec hash: `{spec.spec_hash()}`"]
+    lines += _provenance_lines(provenance or {})
     return "\n".join(lines)
+
+
+def _provenance_lines(provenance: Mapping[str, Any]) -> list[str]:
+    """The data fingerprints, and whether this data has been analysed before.
+
+    The fingerprints are over normalised content, so the same numbers re-exported in a
+    different column order give the same value: they answer "is this the same data?" the way a
+    person means it.
+
+    The earlier-runs line is the one that matters. design.md 7.4 locks the primary analysis at
+    confirmation, and a reader cannot apply that rule without knowing whether these numbers
+    are the first look at this data or the fourth. It is stated, never refused: a second
+    analysis is legitimate and common, it just has to be visible as one. Runs that stopped at
+    a gate do not count, because a user who cleared a blocking issue and re-ran was not
+    reacting to a result.
+    """
+    source = provenance.get("source_fingerprint")
+    snapshot = provenance.get("snapshot_fingerprint")
+    if not source and not snapshot:
+        return []
+    lines = [""]
+    if source:
+        lines.append(f"source data fingerprint: `{source}`")
+    if snapshot and snapshot != source:
+        lines.append(
+            f"analysed table fingerprint: `{snapshot}` (after the preprocessing steps and "
+            f"the population filters)"
+        )
+    prior = list(provenance.get("prior_runs") or [])
+    if prior:
+        lines += [
+            "",
+            f"**This data has been analysed before.** {len(prior)} earlier run(s) reached an "
+            f"estimate on the same source data under a different spec:",
+        ]
+        lines += [f"- {entry}" for entry in prior]
+        lines.append(
+            "The primary analysis is the first one (design.md 7.4). Treat what follows as a "
+            "further look at numbers that have already been seen, and read any difference in "
+            "the spec as a choice made with those numbers in view."
+        )
+    return lines
 
 
 def _assumptions_section(spec: Spec) -> str:
@@ -387,6 +434,7 @@ def build(
     tables: Sequence[Mapping[str, Any]] | None = None,
     preprocessing: Sequence[str] | None = None,
     exclusions: Sequence[Mapping[str, Any]] | None = None,
+    provenance: Mapping[str, Any] | None = None,
     execution_mode: ExecutionMode = ExecutionMode.CLI,
     title: str | None = None,
 ) -> str:
@@ -405,6 +453,9 @@ def build(
         exclusions: the exclusion ledger, one row per population filter. Printed above
             everything else in the data section: an estimate computed on 2,800 of 3,000
             patients is an estimate for whoever those 2,800 are.
+        provenance: the data fingerprints and any earlier runs on the same data, printed
+            under the spec table. Whether these numbers have been looked at before is part
+            of how strongly they can be read (design.md 7.4).
 
     Raises:
         ReportError: the model tried to author a purely factual section.
@@ -423,7 +474,7 @@ def build(
         )
 
     facts: dict[Section, str] = {
-        Section.QUESTION_AND_SPEC: _spec_section(spec, execution_mode),
+        Section.QUESTION_AND_SPEC: _spec_section(spec, execution_mode, provenance),
         Section.ASSUMPTIONS: _assumptions_section(spec),
         Section.DATA_QUALITY: _quality_section(quality, preprocessing or [], exclusions or []),
         Section.CLAIM_LEVEL: _claim_level_section(decision),

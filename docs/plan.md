@@ -71,7 +71,13 @@ so longitudinal IPCW can be delivered complete, with estimation.
 
 ### Phase 1 (W2-W3)
 
-1. csv/parquet adapter, the derived snapshot (parquet), the normalised fingerprint
+1. csv/parquet adapter, the derived snapshot, the normalised fingerprint. **Done**, with two
+   departures recorded in design.md 6.5: the snapshot is gzipped CSV rather than parquet,
+   because pyarrow is a forty-megabyte dependency for one artefact and dtype preservation is
+   what the fingerprint normalises away; and there are two fingerprints rather than one, over
+   the source and over the analysed table, because they answer different questions. The
+   source one drives the earlier-runs report of 6.6, which is the thing a data fingerprint
+   does that nothing else can
 2. Lightweight mapping and the population. `population.filters`
    with a closed operator set, applied after preprocessing and before every check, with an
    exclusion ledger in the report and two checks pricing what each filter removed. This closed

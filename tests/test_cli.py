@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import yaml
 from dataset_a import config_for, generate
 
 from causpec.cli import _parse_waivers, main
@@ -317,6 +318,10 @@ def test_run_dir_persists_everything(workspace, tmp_path, capsys) -> None:
         "quality/issues.json",
         "results/results.json",
         "report.md",
+        # The table every number above came from, after the preprocessing steps and the
+        # population filters. Without it the report can be checked against the spec but never
+        # against the data it describes.
+        "snapshot.csv.gz",
     }
 
 
@@ -456,3 +461,72 @@ def test_a_blocking_gate_reports_the_diagnosis_it_already_computed(workspace, ca
     # The summary, and the repair, not just the id.
     assert "falls outside" in message or "%" in message
     assert "Suggested:" in message
+
+
+def test_the_manifest_records_both_fingerprints(workspace, tmp_path, capsys) -> None:
+    """One over the file as read, one over the table analysed. They answer different
+    questions: whether this is the same data, and what these particular numbers came from.
+    """
+    runs = tmp_path / "runs"
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--run-dir",
+        str(runs),
+    )
+    capsys.readouterr()
+    directory = next(runs.iterdir())
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["source_fingerprint"]) == 16
+    assert len(manifest["snapshot_fingerprint"]) == 16
+    assert manifest["prior_runs_on_this_data"] == []
+
+
+def test_a_second_spec_on_the_same_data_is_reported_not_refused(
+    workspace, tmp_path, capsys
+) -> None:
+    """design.md 7.4: the primary analysis is the first one. A second look is legitimate and
+    common, so it is stated rather than blocked, and the user is told which run was first.
+    """
+    runs = tmp_path / "runs"
+    for _ in range(1):
+        assert (
+            run(
+                "estimate",
+                "--spec",
+                str(workspace["spec.yaml"]),
+                "--data",
+                str(workspace["good.csv"]),
+                "--run-dir",
+                str(runs),
+            )
+            == 0
+        )
+    capsys.readouterr()
+
+    narrowed = yaml.safe_load(workspace["spec.yaml"].read_text(encoding="utf-8"))
+    narrowed["fields"]["effect_modifiers"]["value"] = narrowed["fields"]["effect_modifiers"][
+        "value"
+    ][:1]
+    second = tmp_path / "narrowed.yaml"
+    second.write_text(yaml.safe_dump(narrowed), encoding="utf-8")
+
+    assert (
+        run(
+            "estimate",
+            "--spec",
+            str(second),
+            "--data",
+            str(workspace["good.csv"]),
+            "--report",
+            "--run-dir",
+            str(runs),
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "This data has been analysed before" in out
+    assert "The primary analysis is the first one" in out

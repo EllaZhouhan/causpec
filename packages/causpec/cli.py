@@ -24,6 +24,7 @@ from causpec.core.contracts.manifest import ExecutionMode
 from causpec.core.contracts.quality import QualityReport
 from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
+from causpec.core.fingerprint import fingerprint
 from causpec.core.gates import GateError, check_all
 from causpec.core.mapping import PreprocessingError, StepRecord
 from causpec.core.mapping import apply as apply_preprocessing
@@ -43,6 +44,7 @@ from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
 from causpec.core.reporting.render import RenderError
 from causpec.core.reporting.report import ReportError
 from causpec.core.reporting.report import build as build_report
+from causpec.core.runtime import snapshot as snapshot_store
 from causpec.core.runtime.context import RunContext
 
 
@@ -58,7 +60,11 @@ def _load_data(path: Path) -> pd.DataFrame:
         raise SystemExit(f"No data file at {path}")
     if path.suffix.lower() == ".parquet":
         return pd.read_parquet(path)
-    return pd.read_csv(path)
+    # The exact float parser, not the default fast one. The default returns a different
+    # float64 from the same text for most real-valued columns, which would make the data
+    # depend on the parser's version and the fingerprint impossible to verify against a file
+    # written from it.
+    return pd.read_csv(path, float_precision="round_trip")
 
 
 def _load_narrative(path: Path | None) -> dict[str, str]:
@@ -127,6 +133,10 @@ def _persist_run(
     elapsed_ms: float,
     waivers: dict[str, str],
     render_ok: bool,
+    analysed: pd.DataFrame,
+    source_fingerprint: str,
+    snapshot_fingerprint: str,
+    earlier: list[snapshot_store.PriorRun],
 ) -> Path:
     """Persist this run as a run directory (design.md section 14).
 
@@ -148,6 +158,9 @@ def _persist_run(
             # graphviz and wants an SVG. Derived from the same roles, so the two cannot
             # disagree.
             run.write_text("variable_roles.dot", diagram.dot(spec))
+        # The table every number in the report came from, after the steps and the filters.
+        # Without it a report can be checked against the spec but never against the data.
+        run.write_snapshot(analysed)
 
         run.audit(
             "estimate",
@@ -165,11 +178,29 @@ def _persist_run(
         run.finalize(
             spec_hash=spec.spec_hash(),
             seed=args.seed,
+            source_fingerprint=source_fingerprint,
+            snapshot_fingerprint=snapshot_fingerprint,
+            prior_runs_on_this_data=[prior.describe() for prior in earlier],
             claim_rules_hash=decision.rules_hash,
             basic_checks_hash=basic_config_hash(),
         )
     print(f"run directory: {run.directory}", file=sys.stderr)
     return run.directory
+
+
+def _key_columns(spec: Spec, data: pd.DataFrame) -> list[str]:
+    """The primary key, for the canonical row order a fingerprint is taken over.
+
+    With a key, two exports of the same table in different row orders agree because they are
+    sorted the same way. Without one the fingerprint sorts by every column instead, which also
+    makes it order-independent, so a missing key costs nothing but a slower sort.
+    """
+    names = []
+    for field_name in ("unit_id", "period_index"):
+        entry = spec.fields.get(field_name)
+        if entry is not None and entry.value is not None and str(entry.value) in data.columns:
+            names.append(str(entry.value))
+    return names
 
 
 def _preprocess(data: pd.DataFrame, spec: Spec) -> tuple[pd.DataFrame, list[StepRecord]]:
@@ -252,8 +283,15 @@ def cmd_quality(args: argparse.Namespace) -> int:
 
 def cmd_estimate(args: argparse.Namespace) -> int:
     spec = _load_spec(args.spec)
-    data, applied = _preprocess(_load_data(args.data), spec)
+    source = _load_data(args.data)
+    key = _key_columns(spec, source)
+    # Taken on the file as read, before anything touches it: this is the fingerprint that
+    # answers "is this the same data?", and so the one that tells a fresh analysis on new data
+    # apart from a second look at the same numbers.
+    source_fingerprint = fingerprint(source, key)
+    data, applied = _preprocess(source, spec)
     data, ledger, population = _select_population(data, spec)
+    snapshot_fingerprint = fingerprint(data, key)
     family = _resolve_family(spec)
 
     # The gate runs before estimation and stops the command if it fails, an `if` in
@@ -266,6 +304,15 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     except GateError as error:
         print(error, file=sys.stderr)
         return 2
+
+    # Earlier runs that reached an estimate on this same data under a different spec. Looked
+    # for before estimating, so the report can say so rather than the fact surfacing only in
+    # the manifest. Not a refusal: a second look is legitimate, it has to be visible as one.
+    earlier = (
+        snapshot_store.prior_runs(args.run_dir, source_fingerprint, spec.spec_hash())
+        if args.run_dir is not None
+        else []
+    )
 
     started = time.perf_counter()
     result = family.estimate(data, spec, seed=args.seed)
@@ -303,6 +350,11 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                 # happened to mention.
                 tables=registry.load_declaration(spec.family).get("report_tables", []),
                 preprocessing=[record.describe() for record in applied],
+                provenance={
+                    "source_fingerprint": source_fingerprint,
+                    "snapshot_fingerprint": snapshot_fingerprint,
+                    "prior_runs": [prior.describe() for prior in earlier],
+                },
                 exclusions=[
                     {
                         "criterion": record.criterion,
@@ -329,6 +381,10 @@ def cmd_estimate(args: argparse.Namespace) -> int:
             elapsed_ms,
             waivers,
             render_ok=render_error is None,
+            analysed=data,
+            source_fingerprint=source_fingerprint,
+            snapshot_fingerprint=snapshot_fingerprint,
+            earlier=earlier,
         )
 
     if render_error is not None:
