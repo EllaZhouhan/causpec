@@ -92,6 +92,7 @@ class ClaimLevelDecision(BaseModel):
 
     level: ClaimLevel
     reasons: list[str] = Field(default_factory=list)
+    failed_refutations: list[str] = Field(default_factory=list)
     interval_calibration: str = "calibrated"
     significance_claims_allowed: bool = True
     failed_blocking_checks: list[str] = Field(default_factory=list)
@@ -111,6 +112,7 @@ class ClaimLevelDecision(BaseModel):
             "claim:n_failed_blocking_checks": len(self.failed_blocking_checks),
             "claim:n_waived_blocking_checks": len(self.waived_blocking_checks),
             "claim:n_unjustified_assumptions": len(self.unjustified_assumptions),
+            "claim:n_failed_refutations": len(self.failed_refutations),
             "claim:rules_version": self.rules_version,
             "claim:rules_hash": self.rules_hash,
         }
@@ -126,6 +128,7 @@ def determine(
     waived: dict[str, str] | None = None,
     rules_path: Path | None = None,
     interval_calibration: str = "calibrated",
+    failed_refutations: list[str] | None = None,
 ) -> ClaimLevelDecision:
     """Decide how strongly this analysis's conclusion may be worded.
 
@@ -140,6 +143,11 @@ def determine(
             or "exploratory". An exploratory interval forbids significance wording and caps
             the level, independently of everything else here. A property of the estimator:
             what the *data* cannot settle arrives through `assumptions` instead.
+        failed_refutations: ids of refutation tests that did not come back as they should
+            (design.md 10.1). These run after estimation, so they cannot be a gate; they
+            land here instead, and a failed placebo test pulls the level down rather than
+            merely withholding causal, because an effect that survives permuting the
+            treatment is not an effect of the treatment.
     """
     rules = load_rules(rules_path)
     waived = waived or {}
@@ -206,6 +214,23 @@ def determine(
             note = " (waived, but the diagnosis is unchanged)" if check_id in waived else ""
             reasons.append(f"Blocking check failed: {check_id}, {issue.summary}{note}")
         return decide(ClaimLevel(rules["rules"]["blocking_check_failed"]), **common)
+
+    refuted = list(failed_refutations or [])
+    if refuted:
+        # Below the ordinary ceiling rather than merely short of causal. A placebo test that
+        # fails says this pipeline produces the number from data containing no relation at
+        # all, and no justification of an assumption repairs that. What is left defensible is
+        # a statement about association.
+        reasons.append(
+            f"Refutation test(s) failed: {', '.join(refuted)}. A test whose correct answer "
+            f"is known in advance did not return it, so the estimate cannot be read as an "
+            f"effect of the treatment."
+        )
+        return decide(
+            ClaimLevel(rules.get("failed_refutation_level", "associational")),
+            failed_refutations=refuted,
+            **common,
+        )
 
     # Both blocking checks passed, so suggestive is the most code can grant.
     level = ClaimLevel(rules["rules"]["all_blocking_checks_passed"])

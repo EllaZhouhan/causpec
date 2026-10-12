@@ -123,3 +123,28 @@ The decision rules live in `claim_levels.yaml`, and the report records its versi
 hash. Both the thresholds and the rules are conventions, not laws, and may be
 disputed, what matters is that they are fixed in advance, printed in the report, and
 reproducible later.
+
+## Sensitivity and refutation, which you report and do not interpret away
+
+Two things land in that section, and they answer different questions.
+
+**The E-value** is the only number here that speaks to unmeasured confounding. Read the one
+for the **confidence limit**, not the one for the point estimate:
+
+> "An unmeasured confounder would have to be associated with both dialysis and death by a risk
+> ratio of about 1.7 each, beyond everything already adjusted for, to move this estimate to
+> nothing. To make it merely compatible with nothing takes 1.3. Whether something that strong
+> is plausible here is your call, not the tool's."
+
+When the interval already includes no effect, the limit's E-value is 1, and the honest sentence
+is that no unmeasured confounding at all is needed for the result to be compatible with
+nothing. Do not quote the point estimate's E-value on its own in that case: it reads as
+reassurance and the situation is the opposite.
+
+**A failed refutation is the most important line in the report.** A failed placebo test means
+the estimate survived permuting the treatment, so it is not an estimate of the treatment's
+effect. Say that plainly, do not soften it, and do not look for a different number to lead
+with. The claim level drops to `associational` on its own and you may not write above it.
+
+A passing placebo test says the machinery is not manufacturing an effect. It does not say the
+effect is causal, and writing it as though it did is the specific mistake this section invites.

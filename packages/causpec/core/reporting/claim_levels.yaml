@@ -34,6 +34,17 @@ causal_requires:
   explicit_user_approval: true
   # An analysis that waived anything cannot reach causal.
   no_waived_blocking_checks: true
+  # Every refutation test that ran came back as it should (design.md 10.2 names a failed
+  # refutation as disqualifying). The placebo test is the one that matters: an effect that
+  # survives permuting the treatment is not an effect of the treatment, and no justification
+  # of an assumption repairs that.
+  no_failed_refutations: true
+
+# A failed placebo test is worse than a missing justification: it says the pipeline produces
+# this number from data that contains no relation at all. So it does not merely withhold
+# `causal`, it pulls the level down to `associational`, the same as a failed blocking check,
+# because what remains defensible is a statement about association rather than about effect.
+failed_refutation_level: associational
 
 # Whether the estimator's intervals may be read as a test. An estimator whose theory
 # proves consistency but gives no limiting distribution (dynamic_lag_dml, design.md 7.3)

@@ -609,15 +609,18 @@ Repairs act on the derived snapshot only.
 |---|---|
 | DMLIV (primary, IV design) | The author's code; interface TODO |
 | CausalForestDML (baseline) | [reuse] EconML (MIT), already used in the author's code |
-| HTE calibration: BLP, group calibration, uplift/QINI | hte_backdoor: [reuse] EconML's econml.validate.DRTester (MIT), against the installed version's interface. hte_iv: DRTester rests on doubly-robust scores that assume unconfoundedness and cannot be used directly in an IV setting; an IV-appropriate score has to be written. TODO. The original code had no such step |
-| Rank stability over repeated cross-fitting | Written here (loop the estimator over seeds) |
-| Sensitivity to unmeasured confounding (DML) | [reuse] DoubleML (BSD-3) sensitivity_analysis |
-| E-value | Written here (a closed-form expression), with a regression test against the numerical example of VanderWeele & Ding (2017) |
-| Refutation: placebo treatment, random common cause, data subset | [reuse] DoWhy (MIT) refuters |
+| HTE calibration: BLP, group calibration, uplift/QINI | **Dropped.** The question is worth asking, and the counting half of the feasibility layer already refuses the designs where the answer is certainly noise. Carrying a second, heavier apparatus for the same question was not worth it |
+| Rank stability over repeated cross-fitting | **Dropped with HTE calibration**, for the same reason |
+| Sensitivity to unmeasured confounding (DML) | **Not used.** DoubleML's `sensitivity_analysis` bounds omitted-variable bias for a DML estimator, and the cross-sectional families here use EconML's causal forest, so it would mean a second estimator fitted to the same data and a second set of numbers to reconcile. The E-value answers the same question from the estimate already in hand |
+| E-value | Written here (a closed-form expression), checked against the numerical example of VanderWeele & Ding (2017): a risk ratio of 3.9 gives 7.26, and a lower confidence limit of 1.8 gives 3.0 |
+| Refutation: placebo treatment, random common cause, data subset | Written here against the `Family` protocol, in about forty lines, rather than through DoWhy. The protocol is `estimate(data, spec, seed)`, so core drives all three tests without knowing which family it has, the panel family included, and DoWhy is not a dependency |
 | Longitudinal IPCW | The author's code; correctness verified by ground-truth coverage on synthetic dataset A |
 
-Dependency policy: only four direct dependencies (EconML, DoWhy, DoubleML and linearmodels),
-all mature with stable interfaces. Closed-form diagnostics (E-value, effective F) are
+Dependency policy: three direct dependencies (EconML, linearmodels, scikit-learn), all mature
+with stable interfaces. DoWhy and DoubleML were planned and are not used: the refuters turned
+out to be forty lines against this project's own `Family` protocol, which also makes them work
+for the panel family, and DoubleML's sensitivity analysis applies to an estimator this project
+does not fit. Closed-form diagnostics (E-value, effective F) are
 written here with numerical regression tests: writing them costs a few dozen lines,
 while each additional heavy dependency adds version drift and correctness risk. StatsPAI
 is not taken as a dependency; only its field layout and some of its practice are
@@ -638,6 +641,59 @@ model to rewrite.
 
 [reuse] The mechanism of "a judgement must cite an existing address, or be refused and
 asked again" follows Causal desk ADR-0002 (ideas only).
+
+### 9.1 What sensitivity and refutation each answer
+
+Two different kinds of question, run after estimation, so neither can be a gate: the gate
+decides whether to estimate at all. They reach the claim level and the report instead.
+
+**The E-value** speaks to the assumption nothing can check. Unconfoundedness is `untestable`,
+so the claim level caps what code may say about it; what the E-value adds is a quantity, how
+strong an unmeasured confounder would have to be, in association with both the treatment and
+the outcome, to explain the estimate away. It turns "could confounding explain this?" into
+"could a confounder this strong exist?", which someone who knows the setting can answer.
+
+Two numbers, and the second is the one to read: the E-value for the point estimate says what
+it would take to move the effect to nothing, and the E-value for the confidence limit nearest
+the null says what it would take to make the result merely compatible with nothing. A report
+quoting only the first is quoting the flattering one. When the interval already includes the
+null the limit's E-value is 1, and the report says so in those words.
+
+The E-value is defined on a risk ratio, which the binary-outcome families form from their two
+arm risks, exactly rather than through one of the paper's approximate conversions. A
+continuous outcome has no risk ratio, and the report says there is no E-value rather than
+inventing a standardised effect size.
+
+**The refuters** speak to the pipeline, not to the effect. Each changes one thing whose
+correct answer is known in advance, re-runs the family's own estimator, and checks the known
+answer comes back:
+
+- **Placebo treatment**, which is the one that matters. Permute the treatment and nothing in
+  the data links it to the outcome, so the estimate must collapse. One that survives is being
+  produced by something other than the treatment. This is a statement about validity; the
+  other two are about stability.
+- **A random common cause.** Add a column of noise to the covariates; a correct estimator
+  ignores it, so the estimate must barely move.
+- **Subset stability.** Re-estimate on random subsets; the estimates should sit inside the
+  interval the full run reported. The tolerance is widened by the square root of the sampling
+  fraction, because a half-sample estimate is genuinely noisier and comparing it against the
+  full sample's interval without that correction would fail a sound estimator.
+
+**The tolerance is the analysis's own interval half-width**, not a fixed number. A fixed
+threshold would fail a noisy-but-correct estimator and pass anything on a precise one. One
+consequence is worth stating: the placebo test therefore also catches an over-confident
+interval, because permuted estimates scatter by the estimator's real sampling error and an
+interval narrower than that will not contain them. The complaint is then not about the point
+estimate but about the reported precision, which is the right thing to complain about.
+
+**Which number is compared** is declared by the family as `sensitivity.primary_address` in
+family.yaml, because core must not know that one family's headline is an average effect and
+another's is a lag. A family declaring none is not refuted and says so, rather than being
+silently skipped.
+
+A failed refutation pulls the claim level down to `associational` rather than merely
+withholding `causal`: an effect that survives permuting the treatment is not an effect of the
+treatment, and no justification of an assumption repairs that.
 
 ### 10.2 Claim levels
 

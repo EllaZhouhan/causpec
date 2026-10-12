@@ -7,6 +7,37 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The E-value, which is the only quantitative thing this project can say about
+  unconfoundedness.** That assumption is `untestable` and no diagnostic will ever verify it,
+  so the claim level caps what code may claim about it; the E-value adds how strong an
+  unmeasured confounder would have to be, in association with both treatment and outcome, to
+  explain the estimate away. Written here as a closed form under ADR-0004's rule and checked
+  against VanderWeele and Ding (2017), where a risk ratio of 3.9 gives 7.26 and a lower
+  confidence limit of 1.8 gives 3.0. The report leads with the limit's E-value, because that
+  is what it would take to make the result merely compatible with nothing, and quoting only
+  the point estimate's is quoting the flattering number
+- **Three refutation tests, written against the `Family` protocol rather than through DoWhy.**
+  The protocol is `estimate(data, spec, seed)`, so forty lines of core drive a placebo
+  treatment, a random common cause and subset stability for every family including the panel
+  one, and DoWhy stays out of the dependency list. The placebo test is the one that speaks to
+  validity: permute the treatment and nothing links it to the outcome, so an estimate that
+  survives is produced by something other than the treatment
+- **The tolerance is the analysis's own interval half-width**, not a fixed number, since a
+  fixed one would fail a noisy-but-correct estimator and pass anything on a precise one. A
+  consequence found while writing the tests, and kept as one: the placebo test therefore also
+  catches an over-confident interval, because permuted estimates scatter by the estimator's
+  real sampling error and an interval narrower than that cannot contain them. The complaint is
+  then about the reported precision rather than the point estimate, which is the right thing
+  to complain about
+- **A failed refutation pulls the claim level to `associational`**, not merely short of
+  causal: an effect that survives permuting the treatment is not an effect of the treatment,
+  and no justification of an assumption repairs that. Which number each family offers up for
+  this is declared as `sensitivity.primary_address` in family.yaml, so core never learns that
+  one family's headline is an average effect and another's is a lag
+- **DoubleML is not used**, though the plan named it. Its `sensitivity_analysis` bounds
+  omitted-variable bias for a DML estimator, and these families fit EconML's causal forest, so
+  it would mean a second estimator on the same data and a second set of numbers to reconcile.
+  The direct dependency list is down to three
 - **The derived snapshot and two content fingerprints** (design.md 6.5). The analysed table
   is written into the run directory, after the preprocessing steps and the population filters,
   so a report can be checked against the data it describes rather than only against the spec.

@@ -90,3 +90,14 @@ checks:
     severity: warning
     waivable: true
     min_ess_ratio: 0.20         # Kish effective sample size over actual sample size
+
+# What the refutation tests compare, and the interval that sets the scale for "unchanged"
+# (design.md 10.1). Declared rather than discovered, because core must not know that this
+# family's headline is an average effect while another's is a lag.
+sensitivity:
+  primary_address: res:primary.ate
+  primary_ci_lower: res:primary.ate_ci_lower
+  primary_ci_upper: res:primary.ate_ci_upper
+  # The E-value needs a risk ratio, which these two form from the arm risks. A continuous
+  # outcome has no risk ratio and the report says so rather than inventing one.
+  control_risk_address: res:sample.outcome_rate_control

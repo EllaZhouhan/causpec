@@ -80,6 +80,20 @@ def workspace(tmp_path_factory) -> dict[str, Path]:
 
 
 def run(*argv: str) -> int:
+    """Invoke the CLI, with the refutation tests off for an `estimate`.
+
+    They are on by default in real use and they re-fit the estimator seven times, which took
+    this file from 30 seconds to 165. Every test here is about something else, so they are
+    switched off and `run_with_refutations` covers the default path explicitly.
+    """
+    arguments = list(argv)
+    if arguments and arguments[0] == "estimate" and "--no-sensitivity" not in arguments:
+        arguments.append("--no-sensitivity")
+    return main(arguments)
+
+
+def run_with_refutations(*argv: str) -> int:
+    """Invoke the CLI as a user would, with the refutation tests running."""
     return main(list(argv))
 
 
@@ -530,3 +544,44 @@ def test_a_second_spec_on_the_same_data_is_reported_not_refused(
     out = capsys.readouterr().out
     assert "This data has been analysed before" in out
     assert "The primary analysis is the first one" in out
+
+
+def test_the_refutation_tests_run_by_default(workspace, tmp_path, capsys) -> None:
+    """The default path, exercised once here because every other test in this file turns the
+    refuters off for speed. A placebo test that never runs is worth nothing, so the thing to
+    pin is that it runs without being asked for."""
+    assert (
+        run_with_refutations(
+            "estimate",
+            "--spec",
+            str(workspace["spec.yaml"]),
+            "--data",
+            str(workspace["good.csv"]),
+            "--report",
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "Sensitivity and refutation" in out
+    assert "placebo_treatment" in out
+    assert "E-value" in out
+
+
+def test_no_sensitivity_says_so_rather_than_leaving_the_section_blank(
+    workspace, tmp_path, capsys
+) -> None:
+    """A blank section reads as a clean bill of health."""
+    assert (
+        run(
+            "estimate",
+            "--spec",
+            str(workspace["spec.yaml"]),
+            "--data",
+            str(workspace["good.csv"]),
+            "--report",
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "No refutation test ran" in out
+    assert "not evidence that the estimate would have survived one" in out

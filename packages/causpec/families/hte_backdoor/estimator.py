@@ -135,6 +135,11 @@ class HteBackdoor:
             "res:sample.n_control": int(len(t) - t.sum()),
             "res:sample.treatment_rate": float(t.mean()),
             "res:sample.outcome_rate": float(y.mean()),
+            # Per arm as well as overall, because the E-value needs a risk ratio and the
+            # ratio is formed from these two rather than through one of the paper's
+            # approximate conversions from a risk difference.
+            "res:sample.outcome_rate_treated": float(y[t == 1].mean()) if (t == 1).any() else 0.0,
+            "res:sample.outcome_rate_control": float(y[t == 0].mean()) if (t == 0).any() else 0.0,
             "res:design.n_effect_modifiers": len(effect_modifiers),
             "res:design.n_adjustment_covariates": len(adjustment_set),
             "res:estimation.estimator": "causal_forest_dml",

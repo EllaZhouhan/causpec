@@ -124,8 +124,16 @@ so longitudinal IPCW can be delivered complete, with estimation.
    the counting half of the feasibility layer already refuses the designs where the answer
    is certainly noise. Carrying a second, heavier apparatus for the same question was not
    worth it, and a declaration naming a validator nobody calls is worse than no declaration
-9. Sensitivity and refutation ([reuse] DoWhy refuters, DoubleML sensitivity_analysis;
-   the E-value written here with a numerical regression test)
+9. Sensitivity and refutation. **Done**, and neither borrowed dependency was needed. The
+   E-value is written here and checked against VanderWeele and Ding (2017): a risk ratio of
+   3.9 gives 7.26, a lower limit of 1.8 gives 3.0. The three refuters are written against
+   this project's own `Family` protocol in about forty lines, which makes them work for the
+   panel family too, so DoWhy is not a dependency. DoubleML's `sensitivity_analysis` is not
+   used: it bounds omitted-variable bias for a DML estimator and these families fit a causal
+   forest, so it would mean a second estimator on the same data and a second set of numbers
+   to reconcile. A failed refutation pulls the claim level to `associational`, and the
+   refuters re-fit the estimator, so `--no-sensitivity` exists and the report says when they
+   did not run
 10. Runtime: RunContext, atomic writes, audit, manifest
 11. Reporting: address resolution, placeholder rendering, the claim-level decision
     ([reuse] adapted from Baygent's check_refutation.py, MIT notice retained)

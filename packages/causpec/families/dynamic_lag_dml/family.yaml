@@ -438,3 +438,14 @@ checks:
     # application from 12.1% at lag 0 to 17.1% at lag 3. A profile whose last lag rests on
     # a different population from its first has to be read that way.
     flag_treated_share_drift: 0.03
+
+# The lag-1 effect, which is the first one the treatment's propagation shows up in and the
+# one the paper's own simulation reports. A profile has no single headline, so one lag is
+# named rather than refuting the shape: a placebo treatment must move this to nothing, and if
+# it does not, nothing further along the profile means anything either.
+sensitivity:
+  primary_address: res:profile.lag1.theta
+  primary_ci_lower: res:profile.lag1.ci_lo
+  primary_ci_upper: res:profile.lag1.ci_hi
+  # Per-period outcomes here are continuous, so there is no risk ratio and no E-value.
+  control_risk_address: ""

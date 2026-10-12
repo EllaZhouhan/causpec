@@ -206,3 +206,11 @@ diagnostics:
     - partial_r2_iv
   exogeneity:
     - covariate_balance_by_instrument     # p-value per covariate regressed on the instrument
+
+# As for hte_backdoor. The compared number is the local effect among compliers, which is
+# what this family estimates; a placebo instrument has to move it to nothing just the same.
+sensitivity:
+  primary_address: res:primary.ate
+  primary_ci_lower: res:primary.ate_ci_lower
+  primary_ci_upper: res:primary.ate_ci_upper
+  control_risk_address: res:sample.outcome_rate_control

@@ -13,7 +13,9 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import yaml
@@ -46,6 +48,8 @@ from causpec.core.reporting.report import ReportError
 from causpec.core.reporting.report import build as build_report
 from causpec.core.runtime import snapshot as snapshot_store
 from causpec.core.runtime.context import RunContext
+from causpec.core.sensitivity import SensitivityReport, e_value_from_risks, run_refutations
+from causpec.core.sensitivity.evalue import EValueUndefined
 
 
 def _load_spec(path: Path) -> Spec:
@@ -121,6 +125,66 @@ def _interval_calibration(spec: Spec) -> str:
     """
     declaration = registry.load_declaration(spec.family)
     return str(declaration.get("inference", {}).get("calibration", "calibrated"))
+
+
+def _sensitivity(
+    family: Any,
+    data: pd.DataFrame,
+    spec: Spec,
+    result: Result,
+    seed: int,
+    enabled: bool,
+) -> SensitivityReport:
+    """The refutation tests and the E-value, after estimation.
+
+    After, necessarily: each refuter re-runs the estimator, and the E-value is computed from
+    the estimate. So none of this can be a gate, which decides whether to estimate at all. It
+    reaches the claim level and the report instead, which is where design.md 10.2 puts it.
+    """
+    declaration = registry.load_declaration(spec.family)
+    if not enabled:
+        return SensitivityReport(
+            skipped_because=(
+                "--no-sensitivity was passed, so no refutation test ran. That is not evidence "
+                "that the estimate would have survived one."
+            )
+        )
+    settings = declaration.get("sensitivity") or {}
+    report = run_refutations(family, data, spec, result, declaration, seed=seed)
+
+    risk_address = str(settings.get("control_risk_address", "") or "")
+    primary = str(settings.get("primary_address", "") or "")
+    if not risk_address:
+        return replace(
+            report,
+            e_value_absent_because=(
+                f"{spec.family} declares no control-arm risk, because its outcome is not a "
+                f"binary event. An E-value is a statement about a risk ratio and there is "
+                f"none here."
+            ),
+        )
+    if risk_address not in result.values or primary not in result.values:
+        return replace(
+            report,
+            e_value_absent_because="This run did not produce an arm risk to form a ratio from.",
+        )
+    try:
+        computed = e_value_from_risks(
+            control_risk=float(result.values[risk_address]),
+            effect=float(result.values[primary]),
+            ci_lower=_optional(result, settings.get("primary_ci_lower")),
+            ci_upper=_optional(result, settings.get("primary_ci_upper")),
+        )
+    except EValueUndefined as error:
+        return replace(report, e_value_absent_because=str(error))
+    return replace(report, e_value_addresses=computed.addresses())
+
+
+def _optional(result: Result, address: object) -> float | None:
+    name = str(address or "")
+    if name and name in result.values:
+        return float(result.values[name])
+    return None
 
 
 def _persist_run(
@@ -318,6 +382,8 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     result = family.estimate(data, spec, seed=args.seed)
     elapsed_ms = (time.perf_counter() - started) * 1000
 
+    sensitivity = _sensitivity(family, data, spec, result, args.seed, not args.no_sensitivity)
+
     # The claim level is decided by code; the model may not upgrade it (principle 5). How
     # the family's intervals are calibrated is part of that decision and comes from the
     # family's own declaration: an estimator proved consistent without a limiting
@@ -328,11 +394,13 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         gate_passed=True,
         waived=waivers,
         interval_calibration=_interval_calibration(spec),
+        failed_refutations=[finding.test_id for finding in sensitivity.failed],
     )
     addresses: dict[str, float | int | str] = {
         **result.values,
         **report.addresses(),
         **decision.addresses(),
+        **sensitivity.addresses(),
     }
 
     rendered: str | None = None
@@ -354,6 +422,21 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                     "source_fingerprint": source_fingerprint,
                     "snapshot_fingerprint": snapshot_fingerprint,
                     "prior_runs": [prior.describe() for prior in earlier],
+                },
+                # As a mapping, so core renders the findings without the sensitivity
+                # module's dataclasses reaching into the reporting one.
+                sensitivity={
+                    "findings": [
+                        {
+                            "test_id": finding.test_id,
+                            "passed": finding.passed,
+                            "summary": finding.summary,
+                            "interpretation": finding.interpretation,
+                        }
+                        for finding in sensitivity.findings
+                    ],
+                    "skipped_because": sensitivity.skipped_because,
+                    "e_value_absent_because": sensitivity.e_value_absent_because,
                 },
                 exclusions=[
                     {
@@ -431,6 +514,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="model-written interpretation as {section: prose}; numbers only via placeholders",
     )
     estimate.add_argument("--seed", type=int, default=42)
+    estimate.add_argument(
+        "--no-sensitivity",
+        action="store_true",
+        help=(
+            "skip the refutation tests. They re-fit the estimator several times, so they "
+            "cost minutes on a large sample; the report then says they did not run"
+        ),
+    )
     estimate.add_argument(
         "--run-dir",
         type=Path,

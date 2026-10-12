@@ -327,6 +327,81 @@ def _roles_section(spec: Spec) -> str:
     return "\n".join(lines)
 
 
+def _sensitivity_section(
+    sensitivity: Mapping[str, Any] | None,
+    addresses: Mapping[str, float | int | str],
+) -> str:
+    """The refutation verdicts and the E-value, with what each cannot say.
+
+    Both are stated as code-generated findings rather than left to prose, for the same reason
+    the quality table is: a refutation that failed is the single most important line in a
+    report, and a sentence is where it goes missing.
+    """
+    if sensitivity is None:
+        return _not_implemented("Sensitivity and refutation testing", "design.md 10.1")
+    skipped = str(sensitivity.get("skipped_because") or "")
+    lines: list[str] = []
+    findings = list(sensitivity.get("findings") or [])
+    if skipped:
+        lines += [f"**No refutation test ran.** {skipped}", ""]
+    elif findings:
+        lines += [
+            "Each test changes one thing whose correct answer is known in advance, re-runs "
+            "the same estimator, and checks that the known answer comes back. None of them "
+            "can say the effect is real; they can say the machinery is not inventing one.",
+            "",
+            "| Test | Result | What happened |",
+            "|---|---|---|",
+        ]
+        for finding in findings:
+            mark = "pass" if finding.get("passed") else "**FAIL**"
+            lines.append(
+                f"| `{finding.get('test_id')}` | {mark} | {_escape(finding.get('summary', ''))} |"
+            )
+        lines += [""]
+        for finding in findings:
+            if finding.get("interpretation"):
+                lines.append(f"- **{finding.get('test_id')}**: {finding['interpretation']}")
+        lines += [""]
+
+    absent = str(sensitivity.get("e_value_absent_because") or "")
+    if absent:
+        lines += [f"**No E-value.** {absent}", ""]
+    elif "res:sensitivity.e_value" in addresses:
+        point = addresses["res:sensitivity.e_value"]
+        ratio = addresses.get("res:sensitivity.risk_ratio", "n/a")
+        lines += [
+            f"**E-value for the estimate: {point}** (risk ratio {ratio}). An unmeasured "
+            f"confounder would have to be associated with both the treatment and the outcome "
+            f"by at least this risk ratio each, beyond every covariate already adjusted for, "
+            f"to move the estimate to no effect.",
+            "",
+        ]
+        if "res:sensitivity.e_value_limit" in addresses:
+            includes = str(addresses.get("res:sensitivity.interval_includes_null", "no")) == "yes"
+            limit = addresses["res:sensitivity.e_value_limit"]
+            lines.append(
+                f"**E-value for the confidence limit: {limit}.** This is the number to read: "
+                f"it is what it would take to make the result merely compatible with no "
+                f"effect, which is a weaker and more honest claim than moving the point "
+                f"estimate."
+                if not includes
+                else "**The interval already includes no effect**, so the E-value for the "
+                "limit is 1: no unmeasured confounding at all is needed for this result to "
+                "be compatible with nothing."
+            )
+            lines.append("")
+        lines.append(
+            "Whether a confounder that strong is plausible is a question for someone who "
+            'knows this setting. The E-value turns "could confounding explain this?" into '
+            '"could a confounder this strong exist?", which is answerable; it does not '
+            "answer it."
+        )
+    return "\n".join(lines).strip() or _not_implemented(
+        "Sensitivity and refutation testing", "design.md 10.1"
+    )
+
+
 def _claim_level_section(decision: ClaimLevelDecision) -> str:
     """Claim level and reasoning. Code-generated, principle 5: no self-upgrading."""
     wording = load_rules()["wording"][decision.level.value]
@@ -435,6 +510,7 @@ def build(
     preprocessing: Sequence[str] | None = None,
     exclusions: Sequence[Mapping[str, Any]] | None = None,
     provenance: Mapping[str, Any] | None = None,
+    sensitivity: Mapping[str, Any] | None = None,
     execution_mode: ExecutionMode = ExecutionMode.CLI,
     title: str | None = None,
 ) -> str:
@@ -456,6 +532,8 @@ def build(
         provenance: the data fingerprints and any earlier runs on the same data, printed
             under the spec table. Whether these numbers have been looked at before is part
             of how strongly they can be read (design.md 7.4).
+        sensitivity: the refutation findings and the E-value, as a mapping, so core renders
+            them without importing the sensitivity module's dataclasses into this one.
 
     Raises:
         ReportError: the model tried to author a purely factual section.
@@ -479,9 +557,7 @@ def build(
         Section.DATA_QUALITY: _quality_section(quality, preprocessing or [], exclusions or []),
         Section.CLAIM_LEVEL: _claim_level_section(decision),
         Section.VARIABLE_ROLES: _roles_section(spec),
-        Section.SENSITIVITY: _not_implemented(
-            "Sensitivity and refutation testing", "plan.md Phase 1 task 9"
-        ),
+        Section.SENSITIVITY: _sensitivity_section(sensitivity, addresses),
     }
     if tables:
         rendered_tables = _tables_section(tables, addresses)
