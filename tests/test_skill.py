@@ -177,14 +177,38 @@ def test_the_constraint_is_on_showing_not_on_reading(skill_text: str) -> None:
 
 
 def test_skill_asks_about_timing_concretely_not_abstractly(skill_text: str) -> None:
-    """Two options only: already on treatment at baseline, or started at some point.
+    """Asked as two concrete readings of the flag, with an exit, and never as a dead end.
 
-    No fixed windows, landmark analysis or g-methods unless the user asks, those are
-    for a colleague, not for the clinician who asked the question.
+    This test used to assert one exact phrase, which made a wording change look like a
+    regression. What it defends is the shape of the question: two readings a clinician can
+    recognise, a way out for "I don't know", and none of the apparatus that belongs to a
+    methods colleague rather than to the person who asked.
+
+    It must also not refuse. Immortal time cannot be corrected without start times, but
+    "ever treated" against "never treated" is still a contrast someone can interpret once
+    they are told what it is, and the claim level is how they are told. Refusing leaves a
+    user holding one file and no answer, which is worse than an honest associational one.
     """
-    assert "already on it at admission" in skill_text.lower()
-    assert "at any point during the stay" in skill_text.lower()
+    lowered = skill_text.lower()
+    assert "at any point during the stay" in lowered
+    assert "not sure" in lowered  # the exit
     assert "unless they ask" in skill_text
+    assert "landmark analysis" in lowered  # named only to forbid it
+    assert "associational" in lowered  # the price, instead of a refusal
+
+
+def test_skill_asks_how_the_treatment_was_assigned_before_asking_when(
+    skill_text: str,
+) -> None:
+    """The order carries information, so it is pinned.
+
+    Randomisation at a fixed point settles when the treatment happened, so asking the timing
+    first can waste a whole turn on a question the design has already answered. Found in a
+    manual test run, where the shape step asked about the flag's meaning and the assignment
+    step never ran.
+    """
+    assert skill_text.index("### 1c.") < skill_text.index("### 1d.")
+    assert "before treatment timing" in skill_text
 
 
 def test_skill_separates_justifying_the_workflow_from_stating_the_stakes(

@@ -195,7 +195,7 @@ Steps 6 to 8 are shared again.
 
 | Step | | Path |
 |---|---|---|
-| 1 | The question, the shape, and how the treatment was assigned | shared |
+| 1 | The question, the shape, how the treatment was assigned, and when | shared |
 | 2 | Map the concepts onto columns | shared |
 | 3 | Variable roles | **A** one row per unit / **B** one row per unit per period |
 | 4 | Identification strategy and assumptions | **A** / **B** |
@@ -206,10 +206,15 @@ Steps 6 to 8 are shared again.
 
 ---
 
-## Step 1, shared. The question, the shape, and how the treatment was assigned
+## Step 1, shared. The question, the shape, how the treatment was assigned, and when
 
-Three things, in this order. Each one changes what the next question should be, which is why
-none of them can wait until the columns are mapped.
+Four things, **in this order**, and the order is not arbitrary: each one changes what the next
+question should be, or removes it. Assignment comes before treatment timing because
+randomisation at a fixed point settles the timing by design. Both come before the columns,
+because asking either after the mapping means reopening it.
+
+Only 1a and 1c are questions you always ask. 1b is read off the file, and 1d applies only to a
+static treatment on a cross-sectional file and is one line.
 
 ### 1a. The question, before any column names
 
@@ -235,33 +240,27 @@ which columns plausibly match what they said. Then come back with specifics.
 Also establish the outcome and whether they want an average effect or "who benefits more".
 Write `treatment`, `outcome` and `estimand` into the spec, each with the user's own words.
 
-### 1b. The shape, which the file usually answers
+### 1b. The shape, which the file answers
 
-If every unit appears once and there are no time columns, the data is cross-sectional: say so
-and move on to 1c. Do not ask a clinician to classify their own treatment as static or
-time-varying in the abstract, which is a hard question to answer cold and often one the file
-has already answered.
+One row per unit and no time columns is cross-sectional: **say so in one line and move to
+1c.** One row per unit per period is a panel. The file settles this, so do not ask a clinician
+to classify their own treatment as static or time-varying in the abstract, which is a hard
+question cold and one the schema has already answered.
 
-**When the treatment might be time-varying**, ask concretely rather than abstractly:
+**Do not turn the shape into a branch point.** An earlier version of this step asked, right
+here, whether a 0/1 treatment flag meant "started at any point during the stay" or "already on
+it at baseline", and said a flattened comparison was unavailable if the answer was the former.
+Three things were wrong with that, and all three are worth avoiding generally:
 
-> "Your data has one row per patient, and `rrt_started` is 0/1. Does that flag mean the
-> patient started dialysis **at any point during the stay**, or that they were **already on
-> it at admission**?"
+- it asked the user to adjudicate a subtlety about their own extract before they had finished
+  saying what they wanted
+- it offered two options when the honest answer is often "I don't know"
+- it threatened to end the analysis, which this project does not do for a **data** limitation.
+  A question the family cannot identify is refused; a column the extract lacks caps the claim
+  level and goes in the limitations
 
-Two answers matter, and only two:
-
-- **Already on it at admission**, or at some fixed baseline. A static treatment: path A.
-- **At any point during the stay.** A time-varying treatment. Say what hangs on it in one
-  sentence ("a patient who starts on day 5 counts as untreated for those four days, and
-  anyone who died early never had the chance, which would make dialysis look better than it
-  is"), then say a flattened comparison is not available and ask one further question: is
-  there a version of this data with one row per patient per time window, or only this one row
-  per patient? A panel opens path B; one row per patient closes it. Either way, do not go into
-  fixed windows, landmark analysis or g-methods unless they ask, and read `dynamic-lag-dml.md`
-  before describing the lag profile, because four nearby questions are not what it answers.
-
-**A wide table does not settle this.** One row per patient can still be a flattened "ever
-treated during the stay". The schema lets you ask concretely; it does not answer for you.
+The timing question is real and it comes back at **1d**, after assignment, in one line, with an
+exit for "I don't know".
 
 **On path B, two questions about the horizon are required**, and the analysis refuses to run
 without both. Neither can be read off the file.
@@ -308,6 +307,42 @@ Two reasons for that phrasing. A clinician can answer what they looked at, and c
 answer which variables satisfy a backdoor criterion. And the gap between what they used and
 what the file holds **is** the unmeasured-confounding question, asked concretely enough to get
 a concrete answer.
+
+---
+
+### 1d. When the treatment happened, in one line
+
+Only for a **static** treatment on a cross-sectional file, and only after 1c, because
+randomisation at a fixed point settles it by design and there is nothing to ask.
+
+A 0/1 treatment flag on one row per patient can mean two things, and one of them makes the
+comparison optimistic:
+
+> "Does `isDialysisICU` mean the decision was made in the window those labs came from, or that
+> the patient started at any point during the stay? If you're not sure, say so and I'll record
+> it as an assumption."
+
+| Answer | What follows |
+|---|---|
+| **In the baseline window** | Nothing to do. The treatment and the covariates are aligned, which is the ordinary case for an extract built this way |
+| **At any point during the stay** | The effect of *starting* RRT is not identified from this file and no adjustment recovers it, because correcting for immortal time needs the start time. Say it in one sentence, report the contrast at `associational`, and ask **once** whether a version exists with one row per patient per window |
+| **Not sure** | Record it as an untestable assumption with their words, proceed, and let the report carry it |
+
+The sentence for the middle case, and keep it to this:
+
+> "If some of them started on day 5, they count as treated while spending four days untreated,
+> and anyone who died in those four days never had the chance to start. That makes RRT look
+> better than it is, and without start times it cannot be corrected, only stated."
+
+**Do not** go into landmark analysis, time-dependent models or g-methods unless they ask. Do
+not ask twice. If they say a per-window version exists, that is path B, and read
+`dynamic-lag-dml.md` before describing the lag profile, because four nearby questions are not
+what it answers.
+
+**Why this is not a refusal.** The bias is real and famously large, so it has to be named. But
+"ever treated" against "never treated" is still a contrast someone can interpret once they
+know what it is, and the claim level exists to say what it is. Refusing would leave a user with
+one file and no answer at all, which is worse than an honest associational one.
 
 ---
 

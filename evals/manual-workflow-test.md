@@ -72,6 +72,8 @@ problem. Each becomes a golden task in Phase 2.
 | # | What happened | Fixed by |
 |---|---|---|
 | 1 | The opening line read "I'll help you work out what dialysis does for these patients" and "only after that estimate anything". Both hedge where the user's own register is specific, and the second sounds like estimation might not happen | SKILL.md now gives the exemplar opening and a vague/specific table, and names the hedged verbs to avoid |
+| 2 | Step 1b asked what the treatment flag meant as a branch point, on turn two, framed as "the answer decides what can be estimated". Assignment, which is step 1c and is supposed to come first, never got asked. Root cause was a contradiction inside 1b: its first paragraph said a wide file with no time columns settles the shape, a later one said a wide table settles nothing, and the stricter instruction won | The shape is read off the file and is no longer a branch point. The timing question moved to a new 1d, after assignment, in one line, with an exit for "I don't know". A test pins that 1c precedes 1d |
+| 3 | The same step threatened to end the analysis if the flag meant "ever treated". Immortal time genuinely cannot be corrected without start times, but refusing leaves the user with one file and no answer, and this project prices a data limitation rather than refusing it, as it does for imputation and exclusions | The ever-treated branch now reports the contrast at `associational` with the bias direction stated, and asks once whether a timed version exists. Scenario 3's expectation changed with it |
 
 ---
 
@@ -131,13 +133,21 @@ differ a lot in how readily they start dialysis."
 
 | Should happen | Must not happen |
 |---|---|
-| Asks the concrete question about what the flag means, using the column name | Asks you to classify the treatment as static or time-varying |
-| Explains the consequence in one sentence, not a paragraph on immortal time bias | Lectures, or names g-methods unprompted |
-| Asks whether a version exists with one row per patient per time window | Dead-ends, or offers a flattened comparison anyway |
-| Produces no effect estimate at all | Produces a number with a caveat |
+| Asks how the treatment was assigned **before** asking what the flag means | Asks about the flag's meaning first, or never asks about assignment |
+| Asks the concrete question about the flag, using the column name, with a way out for "not sure" | Asks you to classify the treatment as static or time-varying |
+| Explains the consequence in one sentence, not a paragraph on immortal time bias | Lectures, or names g-methods or landmark analysis unprompted |
+| Says the effect of *starting* cannot be recovered without start times | Implies adjustment could fix it |
+| Offers the ever-treated contrast labelled `associational`, and asks once about a timed version | Dead-ends with no answer at all, or reports it as a causal effect |
 
 Then say: "Yes, we have a 12-hour bucket version." It should move to the panel path and
 start asking for that file. Do not give it the file; this scenario ends here.
+
+**This expectation changed.** It used to be that the right outcome was no number at all. That
+is wrong: immortal time cannot be corrected without start times, but "ever treated" against
+"never treated" is a contrast someone can interpret once they are told what it is, and the
+claim level is how they are told. A refusal leaves a user holding one file and no answer,
+which is worse than an honest associational one. What must not happen is the number arriving
+without the label.
 
 ---
 

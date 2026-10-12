@@ -47,43 +47,54 @@ case `effect_modifiers` is central.
 
 Write it into the spec, each field carrying the user's own words, `status: confirmed`.
 
-### 1b. The shape, which the file usually answers
+### 1b. The shape, which the file answers
 
-#### What the shape tells you
+One row per unit and no time columns is cross-sectional. One row per unit per period is a
+panel. **Say which in one line and move to 1c.** Do not ask a clinician to classify their
+own treatment as static or time-varying in the abstract: that is hard to answer cold, and
+the schema has already answered it.
 
-If every unit appears once and there are no time columns, the data is cross-sectional.
-Say so and move on. Do not ask a clinician to classify their own treatment as static or
-time-varying in the abstract, that is hard to answer cold, and the file has often
-answered it already.
+The shape is not a branch point and the treatment's timing is not asked here. It was,
+and the result in a manual run was that the assignment step never happened at all: the
+model spent its second turn asking the user to adjudicate what a flag meant, framed as
+though the answer might end the analysis. The timing question belongs at 1d, after
+assignment, because randomisation at a fixed point settles it by design.
 
-#### When the treatment might be time-varying
+### 1d. When the treatment happened
 
-Having read the schema, ask concretely:
+Only for a static treatment on a cross-sectional file, only after 1c, and in one line
+with a way out:
 
-> "Your data has one row per patient, and `rrt_started` is 0/1. Does that flag mean the
-> patient started dialysis **at any point during the stay**, or that they were
-> **already on it at admission**?"
+> "Does `isDialysisICU` mean the decision was made in the window those labs came from, or
+> that the patient started at any point during the stay? If you're not sure, say so and
+> I'll record it as an assumption."
 
-Only two answers matter:
+Three answers, and none of them ends the analysis:
 
-- **Already on it at admission** (or at a fixed baseline), a static treatment, which is
-  what CauSpec supports
-- **At any point during the stay**, a time-varying treatment. Say what hangs on it in
-  one sentence, then say a flattened comparison is not on offer:
+- **In the baseline window.** Nothing to do. The treatment and the covariates are
+  aligned, which is the ordinary case for an extract built this way.
+- **At any point during the stay.** The effect of *starting* is not identified from this
+  file, and no adjustment recovers it, because correcting immortal time needs start
+  times. Say it once, report the contrast at `associational`, and ask once about a timed
+  version:
 
-  > "A patient who starts on day 5 counts as untreated for those four days, and anyone
-  > who died early never had the chance to start, which would make dialysis look better
-  > than it is. I won't force it into a comparison that would give you a number you
-  > can't rely on."
+  > "If some started on day 5, they count as treated while spending four days untreated,
+  > and anyone who died in those four days never had the chance to start. That makes it
+  > look better than it is, and without start times it can be stated but not corrected.
+  > I can still report the comparison between ever treated and never treated, labelled
+  > for what it is. Is there a version with one row per patient per time window?"
 
-  Then ask the one question that decides what is possible:
+- **Not sure.** Record it as an untestable assumption in their words and proceed. The
+  report carries it and the claim level reads it.
 
-  > "Is there a version of this data with one row per patient per time window, say per
-  > twelve hours, with the state at the start of the window and whether they were on
-  > dialysis during it? That form supports a different question: what one window of
-  > dialysis does to that window's outcome and to the windows after it."
+A panel opens `dynamic_lag_dml`. One row per patient does **not** close the analysis: it
+caps what the answer can be called.
 
-  A panel opens `dynamic_lag_dml`. One row per patient closes it.
+**Why not refuse.** This project refuses a question a family cannot identify, and prices
+a limitation the data has. Immortal time with no timestamps is the second kind. Refusing
+leaves a user holding one file and no answer, which is worse than an honest
+associational one, and the claim level exists precisely so that an honest lesser answer
+can be given.
 
   On that path, two further questions are required and the data cannot answer either:
 
