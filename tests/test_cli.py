@@ -114,6 +114,55 @@ def test_no_waivers_is_empty() -> None:
     assert _parse_waivers(None) == {}
 
 
+# ---- columns ----
+
+
+def test_columns_lists_every_column_without_a_spec(workspace, capsys) -> None:
+    """It runs before a spec exists, which is the point: the roles step needs the listing in
+    order to ask for the roles."""
+    assert run("columns", "--data", str(workspace["good.csv"])) == 0
+    out = capsys.readouterr().out
+    assert "isDialysisICU" in out and "death" in out and "admission_age" in out
+    assert "binary" in out and "measurement" in out
+
+
+def test_columns_marks_the_roles_a_spec_already_holds(workspace, capsys) -> None:
+    run(
+        "columns",
+        "--data",
+        str(workspace["good.csv"]),
+        "--spec",
+        str(workspace["spec.yaml"]),
+    )
+    out = capsys.readouterr().out
+    assert "[treatment]" in out
+    assert "[outcome]" in out
+    assert "[effect_modifiers]" in out
+
+
+def test_columns_computes_nothing_across_two_columns(workspace, capsys) -> None:
+    """The reason this command exists rather than the agent improvising pandas. Describing one
+    column is a description of the file; a balance table or a propensity fit is a diagnostic,
+    and a diagnostic has to be a check, where a spec can stand it down and a report can carry
+    it. So no word here that would belong to one.
+    """
+    import re
+
+    import pandas as pd
+
+    run("columns", "--data", str(workspace["good.csv"]))
+    out = capsys.readouterr().out
+    names = list(pd.read_csv(workspace["good.csv"], nrows=1).columns)
+    # The structural property, rather than a list of forbidden words: a column name in this
+    # data is `min_netBodyBalancePerHour`, so searching the text for "balance" tests the
+    # extract's vocabulary and not the command's behaviour.
+    for line in out.splitlines()[1:]:
+        mentioned = [n for n in names if re.search(rf"\b{re.escape(n)}\b", line)]
+        assert len(mentioned) <= 1, line
+    for forbidden in ("propensity", "SMD", "standardised", "correlat", "overlap"):
+        assert forbidden not in out, forbidden
+
+
 # ---- quality ----
 
 

@@ -674,6 +674,69 @@ def test_the_balance_checks_stand_down_on_a_declared_trial(skill_text: str) -> N
     assert "the balance and overlap checks stand down here" in flat(skill_text).lower()
 
 
+def test_every_statistic_has_to_come_from_a_command(skill_text: str) -> None:
+    """The hole this closes, found by running the agent on a declared randomised trial.
+
+    The two balance checks stand down in code, so the agent fitted a propensity model in a
+    shell instead, found the arms separable, and opened its next turn by telling the user the
+    data did not back up their design. Every objection to the check applies double to the
+    improvised version: no report carries it, no fingerprint covers it, no claim level governs
+    it, and the user is contradicted on the one thing they are the authority about.
+
+    The rule is drawn where it can be followed: describing one column is a description of the
+    file and has a command, relating two columns is a diagnostic and belongs to the checks.
+    """
+    text = flat(skill_text).lower()
+    assert "every statistic comes from a run command" in text
+    assert (
+        "describing one column is a description of the file, relating two columns is a "
+        "diagnostic of the analysis" in text
+    )
+    assert "a check the spec stands down is not yours to run by hand" in text
+    # And the reference page says it where the stand-down itself is explained.
+    checks = flat((REFERENCES / "quality-checks.md").read_text(encoding="utf-8")).lower()
+    assert "and not by hand either" in checks
+
+
+def test_the_roles_step_shows_the_user_every_column(skill_text: str) -> None:
+    """What the agent did instead: "age, sex, AKI stage and the 14 labs and vitals
+    (creatinine, urea, potassium and so on)", then "I'll leave out the consultant columns, the
+    noise_ columns and the patient ID". Nine columns hidden behind a phrase and twelve dropped
+    without being named, and a user cannot correct a listing they were never shown.
+    """
+    text = flat(skill_text)
+    assert "RUN columns --data <data file> --spec spec.yaml" in text
+    assert "name every column you are leaving out" in text.lower()
+    assert "Leaving a column out is a decision about their data, so it is theirs" in text
+    # The panel path lists the file too.
+    assert "Show the whole file first, the same way A3 does" in text
+
+
+def test_the_commands_the_skill_names_are_the_commands_that_exist(skill_text: str) -> None:
+    """Pins the documented RUN table against argparse, the drift this file exists for."""
+    import argparse
+
+    from causpec.cli import build_parser
+
+    subcommands = [
+        action
+        for action in build_parser()._actions
+        if isinstance(action, argparse._SubParsersAction)
+    ]
+    real = set(subcommands[0].choices)
+    documented = set(re.findall(r"^RUN (\w+)", skill_text, re.MULTILINE))
+    assert documented == real, (documented, real)
+
+
+def test_the_working_directory_wins_over_a_global_install(skill_text: str) -> None:
+    """A stale `causpec` on PATH answered `--version` happily and ran two checks the checkout
+    stands down, so the probe order had the repository last and the stale copy first."""
+    text = flat(skill_text)
+    assert "The working directory wins over a global install" in text
+    rows = text.index("| Where | Command |")
+    assert text.index("pyproject.toml naming causpec", rows) < text.index("| Neither |", rows)
+
+
 def test_a_check_that_did_not_run_is_never_listed(skill_text: str) -> None:
     """The general form of the rule, so it does not have to be fixed check by check.
 

@@ -197,28 +197,38 @@ narrative you write for the report.
    cross-sectional path, `{{res:profile.lag1.theta|+.3f}}` on the panel one. Do not
    compute anything yourself, and do not copy a tool's output into the prose, the
    renderer will refuse it.
-3. **Follow the claim level the code decides** (causal / suggestive / associational /
+3. **Every statistic comes from a `RUN` command, including in conversation.** The line
+   is this: **describing one column is a description of the file, relating two columns
+   is a diagnostic of the analysis.** The first is `RUN columns`; the second is the
+   checks, and only they can be stood down by a spec, carried in a report, or tied to
+   the data fingerprint. So no propensity fit, no standardised difference between the
+   arms, no correlation with the outcome, in the conversation or in a script of your
+   own. **A check the spec stands down is not yours to run by hand**: when the user has
+   said the treatment was randomised, computing their balance table anyway and opening
+   with it contradicts them using a number they never asked for and no report will
+   carry. If you believe a diagnostic is missing, say so in one sentence and leave it.
+4. **Follow the claim level the code decides** (causal / suggestive / associational /
    descriptive). Never upgrade it. `causpec` decides the level and writes it into the
    report; your job is to keep the prose consistent with it.
-4. **Ask the user when domain knowledge is needed.** Whether an instrument satisfies
+5. **Ask the user when domain knowledge is needed.** Whether an instrument satisfies
    the exclusion restriction, whether unmeasured confounding exists, whether a
    variable was measured before or after treatment, you cannot infer these. Ask.
-5. **Confirmation must be real.** A field marked `status: confirmed` must carry the
+6. **Confirmation must be real.** A field marked `status: confirmed` must carry the
    words the user actually used (`said`). **Never confirm on the user's behalf**, even
    when the answer seems obvious. The report's front page prints every field's
    provenance and quote for them to check.
-6. **Ask what they want to know before showing them any columns.** The risk is the
+7. **Ask what they want to know before showing them any columns.** The risk is the
    data supplying the question, and that comes from the user picking off a list they
    have just been shown, or from you proposing an analysis because a variable happens
    to exist, not from you reading the file. Read the schema freely; just never hand
    over a menu, and never suggest a question they did not ask.
-7. **For `adjustment_set`, check measurement time before role.** A variable measured
+8. **For `adjustment_set`, check measurement time before role.** A variable measured
    after treatment can never enter the adjustment set. Being pre-treatment is
    necessary, not sufficient.
-8. **When the design the question needs is unsupported, say so and say why.** Do not
+9. **When the design the question needs is unsupported, say so and say why.** Do not
    substitute another design to produce a number. Three designs are supported and the
    list below says which; everything else is refused.
-9. **An association is not evidence of confounding.** A variable correlated with both the
+10. **An association is not evidence of confounding.** A variable correlated with both the
    treatment and the outcome may be a confounder, a mediator, a collider, or a consequence
    of either. Which it is comes from how the treatment was decided and when the variable
    was measured, never from the correlation. The reverse holds too: covariates balancing
@@ -253,21 +263,25 @@ Currently only the **scripts form** is available; the MCP server is not implemen
 three places and the command differs. Probe in this order and stop at the first that works:
 
 ```bash
-causpec --version          # 1. installed for the whole machine, works from any directory
-ls scripts/run.py          # 2. the packaged bundle on claude.ai
-# 3. otherwise: uv run causpec --version, inside the causpec repository
+ls pyproject.toml scripts/run.py   # 1. the causpec repository, or the packaged bundle
+causpec --version                  # 2. otherwise, installed for the whole machine
 ```
 
 | Where | Command |
 |---|---|
-| `causpec --version` answers | `causpec ...` |
+| A `pyproject.toml` naming causpec is in the working directory | `uv run causpec ...` |
 | `scripts/run.py` is in the working directory | `python scripts/run.py ...` |
-| Neither, and a `pyproject.toml` naming causpec is here | `uv run causpec ...` |
+| Neither | `causpec ...` |
 
-The order matters: a globally installed command is the only one that works whatever directory
-the user is in, and that is the ordinary case for someone analysing their own data. The
-repository's `uv run` form only works from inside the repository, and `scripts/run.py` only
-exists in the uploaded bundle.
+**The working directory wins over a global install, and that order was the other way round
+once.** Someone sitting in the causpec repository usually has an installed copy on their PATH
+as well, and it can be months older than the checkout while answering `--version` perfectly
+happily. That happened: the stale copy ran two checks the current code stands down, so a user
+who had declared a randomised trial was shown a balance table that the repository they were
+standing in would not have produced. Outside a checkout the global command is the right one,
+and the only one that works whatever directory the user is in.
+
+If the two disagree about anything that matters, say which copy you ran, in one line.
 
 All three take identical arguments and do identical work. Below, `RUN` stands for whichever
 one applies.
@@ -279,6 +293,7 @@ explain it in advance, do not ask for a directory to be pre-authorised, and neve
 data somewhere more convenient.
 
 ```bash
+RUN columns  --data <data file> [--spec spec.yaml]
 RUN quality  --spec spec.yaml --data <data file>
 RUN estimate --spec spec.yaml --data <data file> --report --narrative narrative.yaml
 ```
@@ -607,20 +622,51 @@ When a column name is ambiguous, ask. Do not guess.
 
 ## Path A, one row per unit: steps 3 to 5
 
-### A3. Variable roles: draft them yourself, then confirm
+### A3. Variable roles: show the whole file, propose roles, then confirm
 
 `effect_modifiers` (X) are the variables the effect is allowed to vary over;
 `adjustment_set` (W) removes confounding without entering the CATE. Putting a variable in the
 wrong one raises no error. It quietly changes the estimand.
 
-**Do not ask the user to enumerate the effect modifiers.** They came to find out which
-patients benefit; asking them to name those variables up front asks them to answer their own
-question. With forty covariates it is also forty questions.
+**Start by showing them every column.** One command, and it is the only place in this
+workflow that lists the file:
 
-Draft it instead, and confirm the draft:
+```bash
+RUN columns --data <data file> --spec spec.yaml
+```
 
-1. **Default X to every pre-treatment covariate.** The forest finds the heterogeneity; that is
-   what it is for.
+It describes each column on its own: how many distinct values, its range or its levels, how
+much is missing, and which spec field already claims it. The columns are grouped by shape,
+which is what the file can actually say: `binary`, `scale`, `measurement`, `code`, `category`,
+`date`, `text`, and the two that cannot be covariates at all, `identifier` and `constant`.
+
+**Then propose the roles against that listing, and name every column you are leaving out.**
+This is the step with the most to go wrong in it, and what goes wrong is abbreviation:
+
+| Don't | Do |
+|---|---|
+| "age, sex, AKI stage and the 14 labs and vitals (creatinine, urea, potassium and so on)" | the listing, then "I'd let the effect vary over all 19 clinical columns in it" |
+| "I'll leave out the consultant columns, the noise_ columns and the patient ID" | "`consultant_id` is a code for who was on, and the ten `noise_` columns are unlabelled. `unit_id` is one per row. Shall I leave all twelve out?" |
+
+"And so on" hides nine columns behind a phrase, and a column the user was never shown is
+exactly the one they would have had something to say about: that `noise_03` is a lab they
+renamed, that `consultant_id` is the only record of who made the call. **Leaving a column out
+is a decision about their data, so it is theirs, and they can only make it if they can see
+what they are deciding about.** Show the listing, propose, let them correct you.
+
+**Do not ask the user to enumerate the effect modifiers**, which is a different thing from
+showing them the file. They came to find out which patients benefit, so asking them to name
+the variables the effect varies over asks them to answer their own question, and with forty
+covariates it is also forty questions. Propose the set; let them strike from it.
+
+Nor does this reopen the rule at 1a. That one protects the **question** from the file, and by
+now the question, the outcome and the design are settled and written down. The covariate set
+is the one thing in this workflow the user should be choosing from a complete list.
+
+Then:
+
+1. **Default X to every pre-treatment covariate** they have agreed to. The forest finds the
+   heterogeneity; that is what it is for.
 2. **Ask the one thing only they can answer**: which of these were measured after treatment
    started. A column name will not tell you, and this is the answer that affects correctness
    rather than presentation. Post-treatment variables come out of both X and W.
@@ -733,6 +779,10 @@ compliers, not the population CATE.
 All three are written out in `dynamic-lag-dml.md`; this is the shape of them.
 
 ### B3. Variable roles
+
+**Show the whole file first, the same way A3 does**, with `RUN columns`, and name every column
+you propose to leave out. The panel path has more to leave out, not less: a period index, an
+exit column, and whatever the extract carried along.
 
 There is no separate W. The conditioning set is `state`, recorded at the start of each period,
 and it is where confounding by indication is handled. `effect_modifiers` exist only for the

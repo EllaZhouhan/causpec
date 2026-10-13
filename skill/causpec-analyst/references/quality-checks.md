@@ -69,6 +69,13 @@ report shows instead is a count, `15 of 25 checks apply to this spec`, and the s
 above it already says which fields the other ten would have read. This holds for every check
 that stands down, not just these two.
 
+**And not by hand either.** The checks standing down is the whole of the behaviour, so
+computing a propensity model or a standardised difference yourself in a shell and opening with
+what it found puts back exactly what the stand-down removed, using a number that no report
+carries, no fingerprint covers and no claim level governs. It also contradicts the user on the
+one thing they are the authority about. Key rule 3 is the general form: describing one column
+is a description of the file, relating two is a diagnostic, and diagnostics come from `RUN`.
+
 **What to say if a user asks about balance anyway.** Answer the question rather than running
 the check back: the comparison rests on the randomisation, the covariates are there for
 heterogeneity, and if they want a baseline table for a paper that is a description of the

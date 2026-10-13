@@ -5,7 +5,7 @@ field; assess whether the data can support that question before estimating anyth
 run the estimation in deterministic code; and produce a report whose every number
 traces back to a computation. Data sources are read-only throughout.
 
-> Status: the library and the agent workflow are built and tested (632 tests). The MCP
+> Status: the library and the agent workflow are built and tested (685 tests). The MCP
 > server, the database adapter and the demo deployment are declared and not implemented,
 > and this README says so where it matters. The repository is private until v0.3.
 
@@ -61,9 +61,14 @@ silently from the source it claims to be.
 **Without an agent**, the library has a CLI and the same gates apply:
 
 ```bash
+uv run causpec columns  --data cohort.csv
 uv run causpec quality  --spec spec.yaml --data cohort.csv
 uv run causpec estimate --spec spec.yaml --data cohort.csv --report --run-dir runs/
 ```
+
+`columns` describes every column on its own, grouped by shape, which is what the roles step
+needs: nothing in it crosses two columns, because a comparison between the arms is a
+diagnostic and diagnostics belong in the checks, where a spec can stand them down.
 
 The skill is marked **best-effort** for one honest reason: an agent is technically able
 to bypass `scripts/run.py` and read the data itself, so in this form "only code produces
@@ -148,8 +153,10 @@ against this project's own data rather than picked.
 | identification | prevalence, overlap, SMD, instrument relevance and endogeneity, the declared roles against the adjustment set, the family against the question, population filters |
 | feasibility | per-arm sizes and event counts, extreme weights and effective sample size |
 
-Two properties the checks are built around. **A check that could not run says so** rather
-than passing: a clean report on a table nobody could read is worse than no report. And
+Two properties the checks are built around. **A check that could not run is counted, never
+listed**: it stood down because the spec declares no column for it to read, or because an
+answer in the spec settles what it would ask, and in both cases it found nothing. Ten rows
+reading "not assessed" above the findings is how a reader stops reading a table. And
 **a suggested fix is offered, never applied**: when a check can name the exact operation
 that would address what it found, the agent offers it and the user agrees in their own
 words before anything runs.
@@ -214,9 +221,9 @@ packages/causpec/          the library, 10k lines; all computation lives here
   families/                  plugins; a new analysis is a directory and one registration
     hte_backdoor/  hte_iv/  dynamic_lag_dml/
       family.yaml                what it identifies, needs, assumes, refuses, and tabulates
-  cli.py                     causpec quality / estimate
+  cli.py                     causpec columns / quality / estimate
 
-tests/                     8k lines, 632 tests; each file documents a property, not a function
+tests/                     9k lines, 685 tests; each file documents a property, not a function
 skill/causpec-analyst/     SKILL.md, 8 reference files, scripts/run.py
 docs/                      design.md, plan.md, decisions/ (four ADRs)
 data/generators/           synthetic data with ground truth (output is never committed)
@@ -280,7 +287,7 @@ report has to surface it.
 
 ```bash
 uv sync --all-extras --dev   # everything
-uv run pytest                # 632 tests
+uv run pytest                # 685 tests
 uv run ruff check .          # lint
 uv run pyright               # types; CI pins Python 3.11
 uv run lint-imports          # the architecture contract: core must not import a family

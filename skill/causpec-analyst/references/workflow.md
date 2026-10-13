@@ -240,6 +240,18 @@ holds, as in step 1a.
 **Cross-sectional path.** For the panel path see `dynamic-lag-dml.md`: there is one
 conditioning set, `state`, and the modifiers must be variables the treatment cannot move.
 
+**Open with the whole file**, which is the one listing in this workflow:
+
+```bash
+RUN columns --data <data file> --spec spec.yaml
+```
+
+Every column, described on its own and grouped by shape, with the roles the spec already
+holds marked. Propose the covariate set against that listing and **name every column you are
+leaving out, individually**, because dropping one is a decision about their data and they can
+only make it if they can see it. "The labs and vitals, and so on" is not a listing, and the
+column hidden behind "and so on" is the one they would have corrected you about.
+
 Confirm `effect_modifiers` (X) and `adjustment_set` (W) **separately**. See
 `variable-roles.md`, this is the easiest place to go wrong without any error.
 

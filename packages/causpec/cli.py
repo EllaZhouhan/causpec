@@ -28,6 +28,8 @@ from causpec.core.contracts.result import Result
 from causpec.core.contracts.spec import Spec
 from causpec.core.fingerprint import fingerprint
 from causpec.core.gates import GateError, check_all, check_family_supports_spec
+from causpec.core.inventory import describe_columns
+from causpec.core.inventory import render as render_inventory
 from causpec.core.mapping import PreprocessingError, StepRecord
 from causpec.core.mapping import apply as apply_preprocessing
 from causpec.core.population import ExclusionRecord, PopulationError, apply_filters
@@ -360,6 +362,23 @@ def _coverage_line(report: QualityReport) -> str:
     return f"  {ran} of {total} checks apply to this spec."
 
 
+def cmd_columns(args: argparse.Namespace) -> int:
+    """Describe every column, for the user to assign roles from.
+
+    No spec required: this runs before there is one, and `--spec` only adds the roles already
+    confirmed so the listing shows what is still unassigned.
+
+    Nothing here crosses two columns. The reason is in `core/inventory.py`: a comparison
+    between the arms is a diagnostic of the analysis, and the point of having this command is
+    that the agent does not have to improvise one.
+    """
+    data = _load_data(args.data)
+    spec = _load_spec(args.spec) if args.spec else None
+    facts = describe_columns(data, spec)
+    print(render_inventory(facts, n_rows=len(data), source=args.data.name))
+    return 0
+
+
 def cmd_quality(args: argparse.Namespace) -> int:
     """Run the quality checks only.
 
@@ -542,6 +561,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="causpec", description="Spec-gated causal analysis.")
     parser.add_argument("--version", action="version", version=f"causpec {__version__}")
     subparsers = parser.add_subparsers(dest="command")
+
+    columns = subparsers.add_parser(
+        "columns", help="describe every column in the data, for choosing variable roles"
+    )
+    columns.add_argument("--data", type=Path, required=True, help="path to the CSV or Parquet")
+    columns.add_argument(
+        "--spec", type=Path, help="optional: mark the columns a spec already assigns"
+    )
+    columns.set_defaults(func=cmd_columns)
 
     quality = subparsers.add_parser(
         "quality", help="run the quality checks only; no confirmed spec required"
