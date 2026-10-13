@@ -717,3 +717,22 @@ def test_the_skill_does_not_promise_a_tighter_interval_from_adjustment(
     assert "0.7%" in roles and "10.4%" in roles
     # And the observational case, where the trade runs the other way.
     assert "in an observational analysis the trade runs the other way" in roles
+
+
+def test_the_skill_forbids_appraising_the_users_design(skill_text: str) -> None:
+    """ "It was randomised, which is the cleanest kind there is" is praise for an unchecked claim.
+
+    The model improvised it, so nothing in the document was feeding it, but nothing forbade it
+    either. It adds nothing past the word randomised, and the user had supplied that word one
+    turn earlier with no evidence attached.
+
+    The timing is the argument. In the run that produced the sentence, the next thing to
+    happen was an overlap check reporting that the data and the stated design disagree.
+    """
+    lowered = flat(skill_text).lower()
+    assert "do not appraise their design" in lowered
+    assert "cleanest kind there is" in lowered  # named so it is recognisable
+    assert "a careful instrument does not flatter the thing it is measuring" in lowered
+    # And the superlatives are listed, since they are the tell.
+    for word in ("cleanest", "ideal", "textbook", "gold standard"):
+        assert word in lowered, word
