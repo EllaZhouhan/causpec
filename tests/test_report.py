@@ -394,3 +394,63 @@ def test_the_ledger_comes_before_the_quality_table() -> None:
 
 def test_no_filters_means_no_ledger() -> None:
     assert "Who the analysis is about" not in build(SPEC, QUALITY, DECISION, ADDRESSES)
+
+
+# ---- the E-value section leads with the number that decides the reading ----
+
+SENSITIVITY_WITH_NULL = {
+    "findings": [],
+    "skipped_because": "",
+    "e_value_absent_because": "",
+}
+EVALUE_NULL = {
+    "res:sensitivity.e_value": 2.4527,
+    "res:sensitivity.risk_ratio": 1.5404,
+    "res:sensitivity.e_value_limit": 1.0,
+    "res:sensitivity.interval_includes_null": "yes",
+}
+EVALUE_AWAY = {
+    "res:sensitivity.e_value": 2.366,
+    "res:sensitivity.risk_ratio": 1.5,
+    "res:sensitivity.e_value_limit": 1.69,
+    "res:sensitivity.interval_includes_null": "no",
+}
+
+
+def test_an_interval_containing_the_null_leads_with_that() -> None:
+    """Found by running the refutation path: the section opened with a bold 2.45, which reads
+    as robustness, and only afterwards said no confounding at all was needed.
+
+    A reader forms a view from the first bold number. When the interval already contains the
+    null, that number must be the one that withdraws the claim, not the one that flatters it.
+    """
+    markdown = build(
+        SPEC,
+        QUALITY,
+        DECISION,
+        {**ADDRESSES, **EVALUE_NULL},
+        sensitivity=SENSITIVITY_WITH_NULL,
+    )
+    section = markdown[markdown.index("## Sensitivity") :]
+    needed = section.index("No unmeasured confounding at all is needed")
+    point = section.index("E-value for the point estimate is 2.4527")
+    assert needed < point
+
+
+def test_an_interval_away_from_the_null_leads_with_the_limit() -> None:
+    """Still not the point estimate: what it would take to make the result merely compatible
+    with nothing is the weaker and more honest claim."""
+    markdown = build(
+        SPEC,
+        QUALITY,
+        DECISION,
+        {**ADDRESSES, **EVALUE_AWAY},
+        sensitivity=SENSITIVITY_WITH_NULL,
+    )
+    section = markdown[markdown.index("## Sensitivity") :]
+    assert section.index("E-value for the confidence limit: 1.69") < section.index(
+        "E-value for the point estimate is 2.366"
+    )
+    # And the point estimate's number is still there, because it is the one a reader will
+    # have seen quoted elsewhere.
+    assert "2.366" in section

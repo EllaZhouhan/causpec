@@ -370,27 +370,39 @@ def _sensitivity_section(
     elif "res:sensitivity.e_value" in addresses:
         point = addresses["res:sensitivity.e_value"]
         ratio = addresses.get("res:sensitivity.risk_ratio", "n/a")
-        lines += [
-            f"**E-value for the estimate: {point}** (risk ratio {ratio}). An unmeasured "
+        includes = str(addresses.get("res:sensitivity.interval_includes_null", "no")) == "yes"
+        limit = addresses.get("res:sensitivity.e_value_limit")
+        point_line = (
+            f"The E-value for the point estimate is {point} (risk ratio {ratio}): a "
             f"confounder would have to be associated with both the treatment and the outcome "
-            f"by at least this risk ratio each, beyond every covariate already adjusted for, "
-            f"to move the estimate to no effect.",
-            "",
-        ]
-        if "res:sensitivity.e_value_limit" in addresses:
-            includes = str(addresses.get("res:sensitivity.interval_includes_null", "no")) == "yes"
-            limit = addresses["res:sensitivity.e_value_limit"]
-            lines.append(
+            f"by at least that much, beyond every covariate already adjusted for, to move the "
+            f"estimate to no effect."
+        )
+
+        # The order is the finding. When the interval already contains the null, the first
+        # bold number a reader meets has to be the one that decides how to read the result,
+        # and the point estimate's E-value is not it: a reader who sees 2.45 in bold has
+        # formed a view about robustness before reaching the sentence that withdraws it.
+        if includes:
+            lines += [
+                "**No unmeasured confounding at all is needed for this result to be "
+                "compatible with no effect**, because the interval already includes it. The "
+                "E-value for the confidence limit is 1.",
+                "",
+                point_line + " That number describes the point estimate alone, and the "
+                "interval is what the result rests on.",
+                "",
+            ]
+        else:
+            lines += [
                 f"**E-value for the confidence limit: {limit}.** This is the number to read: "
                 f"it is what it would take to make the result merely compatible with no "
                 f"effect, which is a weaker and more honest claim than moving the point "
-                f"estimate."
-                if not includes
-                else "**The interval already includes no effect**, so the E-value for the "
-                "limit is 1: no unmeasured confounding at all is needed for this result to "
-                "be compatible with nothing."
-            )
-            lines.append("")
+                f"estimate.",
+                "",
+                point_line,
+                "",
+            ]
         lines.append(
             "Whether a confounder that strong is plausible is a question for someone who "
             'knows this setting. The E-value turns "could confounding explain this?" into '
