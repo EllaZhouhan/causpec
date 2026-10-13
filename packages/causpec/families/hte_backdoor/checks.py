@@ -237,12 +237,15 @@ def _overlap_impact(randomised: bool) -> str:
     """What a failed overlap check means, which depends on how the treatment was assigned."""
     if randomised:
         return (
-            "This says the treated and untreated groups are separable from the covariates, "
-            "which randomised assignment does not leave behind: with this many units on the "
-            "wrong side of the cut, chance alone rarely produces it. So the data and the "
-            "stated design disagree, and that is the finding. Restricting the population "
-            "would hide it rather than resolve it, and the estimate that followed would rest "
-            "on an adjustment the design said was unnecessary."
+            "Two things in this analysis disagree, and the check cannot say which is right. "
+            "The spec records that assignment was randomised; the data shows the arms "
+            "separable from the baseline covariates, which randomisation does not usually "
+            "leave behind at this size. The most common explanation is innocent: the column "
+            "holds the treatment received rather than the arm assigned, or this is a subset "
+            "of the trial such as a per-protocol population. The consequence of taking the "
+            "spec at its word is specific: a design-based justification is the strongest one "
+            "the claim level accepts, so an analysis that is not actually randomised would "
+            "earn causal wording on it."
         )
     return (
         "Some units have almost no comparable controls on these covariates, so their effect "
@@ -255,12 +258,15 @@ def _overlap_impact(randomised: bool) -> str:
 def _overlap_repair(randomised: bool) -> str:
     if randomised:
         return (
-            "Check the allocation before changing the analysis. Three things produce this: "
-            "the allocation was overridden for some units, the file holds what they received "
-            "rather than what they were assigned, or it is not the randomised cohort it is "
-            "taken to be. If some were moved after assignment, the assignment column is an "
-            "instrument and hte_iv is the family. If the design was not randomised after all, "
-            "say so and the observational remedies apply. A waiver must state its reason."
+            "Ask which of the two is wrong, and do not guess. Three things produce this, the "
+            "first two of them ordinary: the column holds the treatment received rather than "
+            "the arm assigned, this is a subset of the trial rather than the randomised "
+            "population, or the allocation was overridden for some units. If an assignment "
+            "column exists, hte_iv uses it as an instrument and that is the better analysis. "
+            "If the design was not randomised after all, say so and the observational "
+            "remedies apply. And if the user is confident the design holds and the imbalance "
+            "is chance, that is a waiver with their reason, which the report records and "
+            "which caps the wording at associational."
         )
     return (
         "Restrict the population to the region with common support (and state in the report "

@@ -611,6 +611,40 @@ Draft it instead, and confirm the draft:
    wants to discover where the effect differs and has put most covariates in W will get a
    two-row shortlist.
 
+### When they said it was randomised, run the checks as soon as the covariates are settled
+
+Not at step 6. The balance and overlap checks need the treatment and the baseline covariate
+set, and both exist the moment A3 is confirmed, so run them there.
+
+The reason is not speed, it is that one of their answers may be wrong in a way that changes
+everything after it. A stated randomised design whose arms are separable from the baseline
+covariates is either not randomised, or not the population that was randomised, or recorded
+by treatment received rather than by arm assigned. Each sends the analysis somewhere
+different, and two of the three make the identification strategy and the estimand questions
+in A4 and A5 the wrong questions. Finding out after those are settled wastes the user's turns
+and makes the correction feel like a reversal.
+
+**It is a disagreement between two things they told you, and you are not the one to settle
+it.** They said randomised; the file they gave you shows a pattern randomisation does not
+usually leave. Say both, give the ordinary explanations first, and ask:
+
+> "Something doesn't line up, and I can't tell which side of it is right. You said they were
+> randomised, and the two groups differ on the baseline measurements more than randomisation
+> would normally leave them, most of all on AKI stage and SOFA. The usual reason is that the
+> column records who actually got the treatment rather than which arm they were assigned to,
+> or that this file is a subset of the trial rather than everyone who was randomised. Does
+> either fit? And is there a column with the assigned arm?"
+
+**Offer the way through, because there is one.** If they are confident the design holds and
+the imbalance is chance, that is a waiver with their reason: the analysis proceeds, the report
+records what was waived and why, and the wording is capped at associational. Say that rather
+than leaving them at a dead end, and do not waive it for them.
+
+**What this costs if it is skipped**, measured on this project's own data: taking a false
+randomisation claim at its word gives an effect of +0.019 where the truth is -0.001, and
+because a design-based justification is the strongest the claim level accepts, that estimate
+earns `causal` wording. The balance check is the only thing between those two outcomes.
+
 ### Which estimand to ask for, when the question is "who benefits"
 
 `cate` gives a per-patient effect for every row and summarises the cloud. **It says the effect
