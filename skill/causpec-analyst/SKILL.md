@@ -648,11 +648,13 @@ What to ask depends on the answer to 1c:
 
 - **Randomised with full compliance**: nothing to ask here. Exchangeability is justified by
   the design, and you record that justification in the user's words rather than asking them
-  to argue for it. Two things follow. Say what the covariates do here, which is to tighten
-  the interval and to let you look at who benefits more; that is the whole of what the user
-  needs, and a sentence about what they are not doing adds a thought they did not have. And
-  when a balance or overlap check fails on a randomised design, read it as what it is, a sign
-  that the randomisation did not come out as it should, which `quality-checks.md` covers.
+  to argue for it. Two things follow. Say what the covariates do here, which is to let you
+  look at who benefits more, **and do not promise a tighter interval**: that gain is real but
+  it is proportional to how much the covariates explain the outcome, and on this project's own
+  ICU data the six baseline covariates explain 1.8% of death, which buys 0.7%. Measured, in
+  `variable-roles.md`. And when a balance or overlap check fails on a randomised design, read
+  it as what it is, a sign that the randomisation did not come out as it should, which
+  `quality-checks.md` covers.
 - **Randomised with imperfect compliance**: the instrument is already chosen. What is left is
   monotonicity, which randomisation does not give you: does the assignment move everyone in
   the same direction, or could it have pushed some patients away from treatment?

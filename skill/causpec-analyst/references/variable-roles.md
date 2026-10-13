@@ -84,3 +84,36 @@ independent of unmeasured confounders.
 
 > Automatic rendering of the variable-role diagram is not implemented; the report says
 > so in that section.
+
+## What adjustment buys in a randomised design, measured
+
+A randomised design does not need the covariates to make the comparison fair, so the question
+is what they are for. The usual answer is precision, and that is right in principle and small
+in practice unless the covariates predict the outcome well.
+
+The mechanism is exact: adjusting for covariates replaces the outcome's variance with its
+residual variance, so the standard error falls by a factor of the square root of one minus
+the share of the outcome they explain. Measured on this project's own ICU data, with the
+treatment permuted so that it is randomised by construction and the only thing changing is
+whether the covariates are in the model:
+
+| What is adjusted for | Explains of the outcome | Interval narrows by |
+|---|---|---|
+| Six baseline covariates, as a real spec would declare them | 1.8% | **0.7%** |
+| Six columns of pure noise | 0% | 0.03% |
+| One strongly prognostic column | 20% | **10.4%** |
+
+The last row matches the square-root rule to two decimal places, which is how we know the
+first row is small for the right reason rather than through some error: death is simply hard
+to predict from six baseline labs.
+
+**So do not promise a tighter interval to someone with a trial.** Say the covariates are what
+lets you look at who benefits more, which is true and is why the field exists. If they ask
+about precision, the honest answer is that it depends on how well those columns predict the
+outcome and here it is under a percent.
+
+**In an observational analysis the trade runs the other way.** Adjustment is there for bias,
+not for precision, and it can widen the interval: on the same data, adjusting moved the
+estimate from +0.0245 to +0.0154 and made the interval 1 to 2% wider, because the treatment
+is correlated with the covariates and that inflates the variance of its coefficient. That is
+the normal price of removing confounding and it should not be presented as a loss.

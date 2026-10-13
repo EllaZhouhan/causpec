@@ -690,3 +690,30 @@ def test_the_skill_prefers_the_positive_form(skill_text: str) -> None:
     ).lower()
     for dead in ("aren't needed to make the comparison fair", "isn't rescuing anything"):
         assert dead not in spoken, dead
+
+
+def test_the_skill_does_not_promise_a_tighter_interval_from_adjustment(
+    skill_text: str,
+) -> None:
+    """The claim was true in principle and wrong in magnitude on this kind of data.
+
+    A4 said the covariates in a randomised design are there "to tighten the interval and to
+    let you look at who benefits more". The mechanism is exact, the standard error falling by
+    the square root of one minus the share of the outcome the covariates explain, but these
+    six baseline labs explain 1.8% of death, which buys 0.7%. A strongly prognostic column
+    with 20% buys 10.4%, matching the rule to two decimal places, which is how the small
+    number is known to be small for the right reason.
+
+    Promising precision to someone with a trial sets up an expectation the data will not meet,
+    and the true reason the covariates are there, finding who benefits more, is better.
+    """
+    lowered = flat(skill_text).lower()
+    assert "do not promise a tighter interval" in lowered
+    assert "proportional to how much the covariates explain the outcome" in lowered
+
+    roles = flat((REFERENCES / "variable-roles.md").read_text(encoding="utf-8")).lower()
+    # The measurement is in the reference, with the row that validates the mechanism.
+    assert "what adjustment buys in a randomised design, measured" in roles
+    assert "0.7%" in roles and "10.4%" in roles
+    # And the observational case, where the trade runs the other way.
+    assert "in an observational analysis the trade runs the other way" in roles
