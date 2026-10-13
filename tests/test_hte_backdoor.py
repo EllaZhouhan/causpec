@@ -261,3 +261,71 @@ def test_backdoor_cannot_remove_unobserved_confounding() -> None:
 
     assert naive_bias > 0.10
     assert backdoor_bias > 0.10  # still badly biased after adjustment
+
+
+def test_a_failed_overlap_check_reads_differently_in_a_randomised_design() -> None:
+    """Telling a trial's owner to restrict the population is the opposite of the right advice.
+
+    Found by running the pipeline end to end on a spec whose `assignment_mechanism` said
+    randomised, which no reading of the prose would have caught: the guidance for this case
+    had been written into the skill's reference, while the text the model actually relays
+    comes from here and was unconditionally observational. It advised restricting the
+    population to the region of common support, which for a randomised design hides the
+    finding rather than addressing it and leaves an estimate resting on an adjustment the
+    design said was unnecessary.
+
+    The text functions are tested directly rather than through a fixture that happens to fail
+    overlap, because which fixture fails is not what this is about.
+    """
+    from causpec.families.hte_backdoor.checks import _overlap_impact, _overlap_repair
+
+    observational = _overlap_repair(randomised=False).lower()
+    randomised = _overlap_repair(randomised=True).lower()
+    assert "restrict the population" in observational
+    assert "check the allocation" in randomised
+    assert "restrict the population" not in randomised
+    # And it names the route out: a reassignment makes the assignment an instrument.
+    assert "hte_iv" in randomised
+
+    assert "disagree" in _overlap_impact(randomised=True)
+    assert "extrapolated" in _overlap_impact(randomised=False)
+
+
+def test_the_assignment_field_is_what_switches_the_reading() -> None:
+    """Both randomised answers switch it; an absent field does not.
+
+    The field is optional, and its absence is not a claim that the design was randomised.
+    """
+    from causpec.families.hte_backdoor.checks import _was_randomised
+
+    assert _was_randomised(make_spec()) is False
+    for answer in ("randomised", "randomised_with_noncompliance"):
+        spec = make_spec().model_copy(
+            update={
+                "fields": {
+                    **make_spec().fields,
+                    "assignment_mechanism": confirmed(answer),
+                }
+            }
+        )
+        assert _was_randomised(spec) is True, answer
+    decided = make_spec().model_copy(
+        update={"fields": {**make_spec().fields, "assignment_mechanism": confirmed("decided")}}
+    )
+    assert _was_randomised(decided) is False
+
+
+def test_the_imbalance_check_inverts_too() -> None:
+    """Groups formed at random arrive balanced, so imbalance is not a call for a richer model.
+
+    A richer propensity model would move the number without addressing what the check found,
+    and it contradicts having just told the user the covariates are not making the comparison
+    fair.
+    """
+    import inspect
+
+    from causpec.families.hte_backdoor import checks
+
+    source = inspect.getsource(checks)
+    assert "Groups formed at random arrive balanced" in source
+    assert "Check the allocation rather than the model" in source

@@ -233,6 +233,55 @@ def _groups_declared(data: pd.DataFrame, spec: Spec, config: dict[str, Any]) -> 
     )
 
 
+def _overlap_impact(randomised: bool) -> str:
+    """What a failed overlap check means, which depends on how the treatment was assigned."""
+    if randomised:
+        return (
+            "This says the treated and untreated groups are separable from the covariates, "
+            "which randomised assignment does not leave behind: with this many units on the "
+            "wrong side of the cut, chance alone rarely produces it. So the data and the "
+            "stated design disagree, and that is the finding. Restricting the population "
+            "would hide it rather than resolve it, and the estimate that followed would rest "
+            "on an adjustment the design said was unnecessary."
+        )
+    return (
+        "Some units have almost no comparable controls on these covariates, so their effect "
+        "is extrapolated rather than observed. The confidence interval will look narrow, but "
+        "narrow in a way that means nothing; the conclusion may not be worded above "
+        "associational."
+    )
+
+
+def _overlap_repair(randomised: bool) -> str:
+    if randomised:
+        return (
+            "Check the allocation before changing the analysis. Three things produce this: "
+            "the allocation was overridden for some units, the file holds what they received "
+            "rather than what they were assigned, or it is not the randomised cohort it is "
+            "taken to be. If some were moved after assignment, the assignment column is an "
+            "instrument and hte_iv is the family. If the design was not randomised after all, "
+            "say so and the observational remedies apply. A waiver must state its reason."
+        )
+    return (
+        "Restrict the population to the region with common support (and state in the report "
+        "that the estimand changes accordingly), or drop the adjustment-set variables driving "
+        "the separation. A waiver must state its reason."
+    )
+
+
+def _was_randomised(spec: Spec) -> bool:
+    """Whether the user said the treatment was assigned at random.
+
+    Two checks read this, because what they found means something different depending on the
+    answer, and getting it wrong means telling a user with a trial to do the opposite of what
+    they should.
+    """
+    entry = spec.fields.get("assignment_mechanism")
+    if entry is None or entry.value is None:
+        return False
+    return str(entry.value).startswith("randomised")
+
+
 def check_backdoor(
     data: pd.DataFrame, spec: Spec, config: dict[str, Any] | None = None
 ) -> QualityReport:
@@ -251,6 +300,10 @@ def check_backdoor(
 
     treatment = data[treatment_col].to_numpy().astype(int)
     covariates = data[covariate_names].astype(float).to_numpy()
+    # Read once: a failed overlap or balance check means something different depending on
+    # how the treatment was assigned, and telling a trial's owner to restrict the population
+    # is the opposite of what they should do.
+    randomised = _was_randomised(spec)
     issues: list[QualityIssue] = []
 
     # ---- 1. treatment prevalence (feasibility) ----
@@ -327,21 +380,9 @@ def check_backdoor(
             },
             affected_columns=covariate_names,
             impact_on_analysis=(
-                "Some people have almost no comparable controls on these covariates, so "
-                "their effect is extrapolated rather than observed. The confidence "
-                "interval will look narrow, but narrow in a way that means nothing; the "
-                "conclusion may not be worded above associational."
-                if not passed
-                else "Common support is adequate."
+                _overlap_impact(randomised) if not passed else "Common support is adequate."
             ),
-            recommended_repair=(
-                "Restrict the population to the region with common support (and state in "
-                "the report that the estimand changes accordingly), or drop the "
-                "adjustment-set variables driving the separation. A waiver must state "
-                "its reason."
-                if not passed
-                else ""
-            ),
+            recommended_repair=(_overlap_repair(randomised) if not passed else ""),
         )
     )
 
@@ -381,13 +422,32 @@ def check_backdoor(
             },
             affected_columns=imbalanced,
             impact_on_analysis=(
-                "Imbalance persisting after weighting means the propensity model did not "
-                "remove these between-group differences, so the adjustment may be "
-                "incomplete."
+                (
+                    "Groups formed at random arrive balanced, so a difference this size on "
+                    "these covariates says the data and the stated design disagree. The "
+                    "adjustment was never what made the comparison fair here, so a richer "
+                    "propensity model would move the number without addressing what the "
+                    "check found."
+                )
+                if randomised
+                else (
+                    "Imbalance persisting after weighting means the propensity model did "
+                    "not remove these between-group differences, so the adjustment may be "
+                    "incomplete."
+                )
             ),
             recommended_repair=(
-                "Use a more flexible propensity model, or check whether these variables "
-                "simply lack common support."
+                (
+                    "Check the allocation rather than the model: whether it was overridden "
+                    "for some units, whether the column holds what they received rather "
+                    "than what they were assigned, or whether this is the randomised cohort "
+                    "it is taken to be."
+                )
+                if randomised
+                else (
+                    "Use a more flexible propensity model, or check whether these variables "
+                    "simply lack common support."
+                )
             ),
         )
     )
