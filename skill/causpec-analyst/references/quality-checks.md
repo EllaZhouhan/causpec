@@ -36,6 +36,20 @@ The exit code is non-zero when a blocking issue is present. Every check has an a
 | `iv_weak_first_stage` | **blocking** | Under a weak instrument the bias can be arbitrarily large and the interval loses coverage |
 | `iv_low_complier_share` | warning | The conclusion holds for only a narrow slice of the population |
 | `iv_covariate_imbalance` | warning | The instrument may not be close to randomly assigned |
+| `iv_backend_supports_spec` | **blocking, not waivable** | The chosen backend cannot run this spec: `ivforest` has no channel for an `adjustment_set` and takes one instrument |
+
+`iv_backend_supports_spec` is the one check here that is about configuration rather than
+about data, and it is worth knowing why it exists. The estimator refused these two cases
+already, correctly, but it refused after the file had been read and every other check had
+run, as a stack trace. Both limits are readable from the spec, so they belong where the rest
+of the findings are.
+
+The two routes out cost different things, and the user picks:
+
+> "Those three columns can't be adjusted for separately with this estimator. I can move them
+> in with the ones the effect is allowed to vary over, which changes what the answer is about,
+> or switch to the other estimator, which handles them at the cost of slower and wider
+> intervals. Which would you rather?"
 
 ## The same check means something different in a randomised design
 

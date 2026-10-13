@@ -148,6 +148,16 @@ assumptions:
 # convention, not a law, and may reasonably be disputed, what matters is that it is
 # visible, configurable and reproducible.
 checks:
+  iv_backend_supports_spec:
+    layer: feasibility
+    severity: blocking
+    waivable: false
+    # Whether the chosen backend can run the spec as written. ivforest has no W channel and
+    # takes one instrument; dmliv has both. Not waivable: nothing would be estimated, so
+    # there is nothing to proceed with. It lives here rather than as the estimator's
+    # ValueError because it is readable from the spec, and a stack trace after every check
+    # has run is a worse way to learn it.
+
   iv_zero_variation:
     layer: identification
     severity: blocking

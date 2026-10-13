@@ -249,6 +249,76 @@ def _covariate_balance(
     return dict(zip(covariates, p_values, strict=True)), benjamini_hochberg(array, level)
 
 
+def _backend_supports_spec(
+    spec: Spec, instruments: list[str], config: dict[str, Any]
+) -> QualityIssue:
+    """Whether the chosen backend can run the spec as written.
+
+    Two limits belong to `ivforest` and not to the family: `CausalIVForest` has no separate W
+    channel, so it adjusts on X only, and it takes a single instrument. The estimator refuses
+    both, correctly, but it refused after the data was read and every check had run, as a
+    `ValueError` with a stack trace. These are preconditions readable from the spec, so they
+    belong where the other findings are, in the report, before anything is fitted.
+    """
+    check_id = "iv_backend_supports_spec"
+    layer, severity, waivable = _issue_settings(config, check_id)
+    backend = str(spec.param("estimator", "ivforest"))
+    adjustment = _adjustment_names(spec)
+
+    problems: list[str] = []
+    if backend == "ivforest":
+        if adjustment:
+            problems.append(
+                f"an adjustment_set of {len(adjustment)} column(s) "
+                f"({', '.join(adjustment)}), which ivforest has no channel for"
+            )
+        if len(instruments) > 1:
+            problems.append(f"{len(instruments)} instruments, where ivforest takes one")
+
+    evidence: dict[str, float | int | str | bool] = {
+        "backend": backend,
+        "n_instruments": len(instruments),
+        "n_adjustment_set": len(adjustment),
+        "passed": not problems,
+    }
+    if not problems:
+        return QualityIssue(
+            check_id=check_id,
+            layer=layer,
+            severity=Severity.INFO,
+            waivable=waivable,
+            summary=f"the {backend} backend can run this spec as written",
+            evidence=evidence,
+        )
+    return QualityIssue(
+        check_id=check_id,
+        layer=layer,
+        severity=severity,
+        waivable=waivable,
+        summary=f"the {backend} backend cannot run this spec: it declares " + "; ".join(problems),
+        evidence=evidence,
+        affected_columns=adjustment,
+        impact_on_analysis=(
+            "Nothing is estimated, so this is a configuration error rather than a finding "
+            "about the data. It is reported here because it is readable from the spec, and "
+            "the alternative is a stack trace after every check has already run."
+        ),
+        recommended_repair=(
+            "Either move those variables into effect_modifiers, which changes the estimand "
+            "because the effect is then allowed to vary over them and the user has to confirm "
+            "it, or set estimation.params.estimator to dmliv, which has a W channel and takes "
+            "several instruments at the cost of bootstrap-only intervals. `hte-dmliv.md` has "
+            "the comparison."
+        ),
+    )
+
+
+def _adjustment_names(spec: Spec) -> list[str]:
+    from causpec.families.hte_iv.estimator import _column_names
+
+    return _column_names(spec, "adjustment_set")
+
+
 def check_instrument(
     data: pd.DataFrame, spec: Spec, config: dict[str, Any] | None = None
 ) -> QualityReport:
@@ -267,7 +337,7 @@ def check_instrument(
         raise ValueError("hte_iv's quality checks require spec.instrument")
 
     treatment = data[treatment_col].astype(float).to_numpy()
-    issues: list[QualityIssue] = []
+    issues: list[QualityIssue] = [_backend_supports_spec(spec, instruments, config)]
 
     # ---- 1. does the instrument vary at all ----
     layer, severity, waivable = _issue_settings(config, "iv_zero_variation")

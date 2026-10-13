@@ -135,8 +135,14 @@ def test_zero_variation_instrument_is_blocked_and_not_waivable(strong) -> None:
     issue = report.get("iv_zero_variation")
     assert issue.severity is Severity.BLOCKING
     assert issue.waivable is False
-    # With no variation nothing further is computable, so no later check should appear
-    assert [i.check_id for i in report.issues] == ["iv_zero_variation"]
+    # With no variation nothing further is computable, so none of the checks that read the
+    # instrument should appear. The backend check does, and should: it reads the spec rather
+    # than the data, the two problems are independent, and a user with both is better served
+    # by seeing both than by fixing one and discovering the other.
+    reported = [i.check_id for i in report.issues]
+    assert "iv_zero_variation" in reported
+    for downstream in ("iv_weak_first_stage", "iv_covariate_imbalance", "iv_overidentification"):
+        assert downstream not in reported, downstream
 
 
 # ---- exogeneity ----
@@ -414,3 +420,62 @@ def test_the_endogeneity_test_matches_the_package_it_replaced(strong) -> None:
     assert mine == pytest.approx(float(theirs.pval), rel=0.02)
     threshold = float(CONFIG["iv_treatment_exogeneity"]["max_p_value"])
     assert (mine <= threshold) is (float(theirs.pval) <= threshold)
+
+
+# ---- the backend has to be able to run the spec ----
+
+
+def spec_with(**fields: object) -> Spec:
+    """SPEC with some fields replaced, for the backend checks."""
+    params = fields.pop("params", None)
+    merged = {**SPEC.fields, **{name: confirmed(value) for name, value in fields.items()}}
+    return SPEC.model_copy(
+        update={"fields": merged, "estimation": {"params": params} if params else {}}
+    )
+
+
+def backend_issue(data, **fields: object):
+    return check_instrument(data, spec_with(**fields), CONFIG).get("iv_backend_supports_spec")
+
+
+def test_ivforest_with_an_adjustment_set_is_refused_before_anything_is_fitted(strong) -> None:
+    """Found by running the IV path end to end.
+
+    `CausalIVForest` has no separate W channel, so the estimator refuses an adjustment_set,
+    correctly. It refused as a `ValueError` with a stack trace, after the data had been read
+    and every check had run. Both of its limits are readable from the spec, so they belong in
+    the report with the other findings.
+    """
+    issue = backend_issue(strong, adjustment_set=["max_urea", "min_bicarbonate"])
+    assert issue.severity is Severity.BLOCKING
+    assert issue.waivable is False
+    assert "no channel for" in issue.summary
+    assert "max_urea" in issue.affected_columns
+    # And it names both routes out, which differ in what they cost.
+    assert "effect_modifiers" in issue.recommended_repair
+    assert "dmliv" in issue.recommended_repair
+
+
+def test_ivforest_with_two_instruments_is_refused_the_same_way(strong) -> None:
+    issue = backend_issue(strong, instrument=["instrument", "consultant_preference"])
+    assert issue.severity is Severity.BLOCKING
+    assert "takes one" in issue.summary
+
+
+def test_dmliv_accepts_both(strong) -> None:
+    """That backend exists for exactly these two cases, at the cost of bootstrap-only
+    intervals."""
+    issue = backend_issue(
+        strong,
+        instrument=["instrument", "consultant_preference"],
+        adjustment_set=["max_urea"],
+        params={"estimator": "dmliv"},
+    )
+    assert issue.severity is Severity.INFO
+    assert "dmliv" in issue.summary
+
+
+def test_the_default_backend_with_a_plain_spec_passes(strong) -> None:
+    issue = backend_issue(strong)
+    assert issue.severity is Severity.INFO
+    assert issue.evidence["backend"] == "ivforest"
