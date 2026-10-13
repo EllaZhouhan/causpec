@@ -44,10 +44,9 @@ so longitudinal IPCW can be delivered complete, with estimation.
 - From day one, pre-commit blocks csv, parquet, xlsx, duckdb and similar data files from
   entering a commit.
 - Enable "show private contributions" in the GitHub profile settings.
-- List external sources and licences in the README draft: EconML, DoWhy and
-  Baygent are MIT, DoubleML is BSD-3; StatsPAI (MIT) is not taken as a dependency and
-  only its field layout and practice are borrowed; Causal desk declares no licence, so
-  only ideas are borrowed and no code is copied.
+- Credit the external sources in the README: the estimators, the refuters, the
+  sensitivity analysis and the overidentification test. Where code was adapted rather
+  than depended on, the module that holds it says so in its own docstring.
 
 ---
 
@@ -66,8 +65,8 @@ so longitudinal IPCW can be delivered complete, with estimation.
    counter-intuitive enough that someone will later try to "simplify" them away.
    Written: 0001 (literal numbers in reports), 0002 (data-source boundaries).
    Not written: computation on the server, field-level confirmation, the core/family
-   split, the external-code reuse policy: design.md and THIRD_PARTY_NOTICES already
-   state these, and an ADR would only duplicate them.
+   split, the external-code reuse policy: design.md already states these, and an ADR
+   would only duplicate them.
 
 ### Phase 1 (W2-W3)
 
@@ -165,8 +164,8 @@ so longitudinal IPCW can be delivered complete, with estimation.
    mapping, and the safe-failure path where the data is bad and no conclusion is drawn
    (tag v0.3)
 
-After v0.3: make the repository public (assuming the licence question is resolved),
-replace the "AI Agent Integration" paragraph in the CV, and start applying.
+After v0.3: make the repository public, replace the "AI Agent Integration" paragraph
+in the CV, and start applying.
 
 ### Phase 4 (W6-W7)
 
@@ -192,8 +191,8 @@ replace the "AI Agent Integration" paragraph in the CV, and start applying.
 ### Phase 5 (W8)
 
 1. examples/deployments: demo-hospital, demo-retail, and dataset D
-2. README: positioning, an architecture diagram, a demo GIF, Related work, external
-   sources and licences
+2. README: positioning, an architecture diagram, a demo GIF, Related work, and the
+   external sources
 3. A demo video (3-5 minutes); a technical blog post (tag v1.0)
 
 ---
@@ -204,8 +203,8 @@ replace the "AI Agent Integration" paragraph in the CV, and start applying.
 - Commit messages follow conventional commits.
 - Tag each milestone and update the CHANGELOG.
 - On a day spent only on research, commit an ADR.
-- When external code is reused, note the source, version and licence in the file header,
-  and record it in THIRD_PARTY_NOTICES.
+- When external code is reused, note the source, version and licence in the docstring of
+  the module that holds it, which is where someone reading that code will look.
 
 ---
 

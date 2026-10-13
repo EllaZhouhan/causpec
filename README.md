@@ -356,7 +356,11 @@ drifts from the code is worse than none, so the drift is a test failure.
 - [Changelog](CHANGELOG.md), which records why each change was made and not only what
   changed
 
-## Licence
+## Credit
 
-MIT (see [LICENSE](LICENSE)). External sources and their licences are recorded in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The estimators come from EconML; the refuters from DoWhy; the unmeasured-confounding
+sensitivity analysis from DoubleML; the overidentification test from linearmodels. The
+E-value and the effective F test are written here, each with a regression test against the
+numerical example in its original paper. The claim-level ladder and the fixed report
+structure were adapted from the Baygent `causal-inference` skill (MIT), and the modules
+holding them say so.

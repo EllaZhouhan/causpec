@@ -28,6 +28,12 @@ Two ideas carry this module:
 Both the rules and the thresholds live in claim_levels.yaml rather than in code:
 they decide how strongly a conclusion may be stated, so they must be fixed in
 advance, printed in the report, and recorded in the manifest.
+
+
+The ladder and the shape of the decision were adapted from the Baygent
+`causal-inference` skill's `scripts/check_refutation.py` and
+`references/refutation.md` (MIT). The thresholds here are this project's own, reset
+for frequentist diagnostics.
 """
 
 from __future__ import annotations

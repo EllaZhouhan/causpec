@@ -26,6 +26,10 @@ reflect the spec faithfully, and it loses its point if the model touches it. The
 second is where principle 5 lands: the model may not upgrade its own wording. The
 model may write interpretation for the sections in ``MODEL_AUTHORED_SECTIONS`` only,
 and that prose always goes through placeholder rendering.
+
+
+The fixed section order, and the rule that assumptions precede results, were
+adapted from the Baygent `causal-inference` skill's `references/reporting.md` (MIT).
 """
 
 from __future__ import annotations

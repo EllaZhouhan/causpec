@@ -4,7 +4,6 @@ version = "0.0.1"
 description = "Spec-gated causal analysis: confirmed specs, deterministic estimation, traceable reports."
 authors = [{ name = "Han Zhou" }]
 readme = "README.md"
-license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
