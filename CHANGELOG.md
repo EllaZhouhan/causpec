@@ -7,6 +7,27 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **`causpec columns`**, which describes every column in a file one at a time, grouped by
+  shape, with the roles a spec already holds marked. The variable-roles step opens with it and
+  names every column it proposes to leave out, because dropping a column is a decision about
+  the user's data and they can only make it if they can see it. Nothing in the command crosses
+  two columns: describing one column is a description of the file, relating two is a diagnostic
+  of the analysis, and diagnostics belong in the checks, where a spec can stand them down
+
+### Changed
+
+- **The confirmation step reads back the analysis, not the spec.** The spec file is the
+  interface to the code, so the family, the field statuses, the hashes and the word "spec"
+  itself stay out of it; what the user confirms is the decisions they made, in their own words
+- **A check that did not run is counted, never listed.** Ten of twenty-five rows in a quality
+  table read "not assessed", which is how a reader stops reading the table. `QualityReport.findings`
+  is now the only thing a user-facing surface iterates
+- **The repository tree holds what exists.** `server/causpec_mcp/`, `examples/deployments/` and
+  `deploy/` each held a README restating the plan, which made a third of the system look built;
+  the design and the schedule live in `docs/design.md` and `docs/plan.md`, and the directories
+  arrive with their code. `evals/` moved to `docs/evals/`, next to the other documents written
+  for people to read
+
 - **Gate condition 2's other half: the report has to be about this run** (design.md 11.2).
   The condition asks for a report with no unwaived blocking issues *for the current
   (snapshot_fingerprint, spec_hash) pair*, and only the first half was built. In the CLI it

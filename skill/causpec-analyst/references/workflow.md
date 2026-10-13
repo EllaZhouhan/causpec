@@ -320,10 +320,27 @@ A blocking issue means stop, and read `impact_on_analysis` and `recommended_repa
 
 ---
 
-## 7. The user confirms the whole spec
+## 7. The user confirms the whole analysis
 
-Read the spec back in full and have them confirm it field by field. This step cannot
-be skipped, and it cannot be done on their behalf.
+Every decision goes back to them, and nothing runs until they agree. This step cannot be
+skipped, and it cannot be done on their behalf.
+
+**What they confirm is the analysis, not the spec.** The spec file is the interface to the
+code: field names, a family, an estimand, a status per field. Read the decisions back in the
+user's own words instead, one line each, and ask what is wrong rather than whether it is right.
+The family, the field statuses, the hashes and the word "spec" are all between you and the
+code.
+
+> "Here is what I'll run. Tell me if any line is wrong.
+>
+> The average effect of dialysis in the ICU on dying, across all 4,000 patients. Treatment is
+> `isDialysisICU`, the arm they were randomised to. The outcome is `death`, 0 or 1, whether
+> they died at any point in this record. Everyone received the arm they were assigned. The
+> effect may vary over the 19 clinical columns, all measured before randomisation. Left out:
+> `unit_id`, the three clinician columns, and the ten `noise_` columns."
+
+The variable-roles diagram is a report section. Do not paste the mermaid block into the
+conversation: in a terminal it arrives as a page of code, not as a picture.
 
 If the user wants causal wording rather than "possibly related", this step also
 requires:

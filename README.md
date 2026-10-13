@@ -201,7 +201,8 @@ $ causpec estimate --spec spec.yaml --data cohort.csv
 ## Repository layout
 
 The **library** is the thick part and holds every computation. The **skill** is a thin
-shell that drives it. An **MCP server** is designed as the primary form and is not built.
+shell that drives it. An **MCP server** is designed as the primary form and is not built, so
+nothing in the tree stands in for it.
 
 ```
 packages/causpec/          the library, 10k lines; all computation lives here
@@ -225,12 +226,15 @@ packages/causpec/          the library, 10k lines; all computation lives here
 
 tests/                     9k lines, 685 tests; each file documents a property, not a function
 skill/causpec-analyst/     SKILL.md, 8 reference files, scripts/run.py
-docs/                      design.md, plan.md, decisions/ (four ADRs)
+docs/                      design.md, plan.md, decisions/ (four ADRs), evals/
 data/generators/           synthetic data with ground truth (output is never committed)
-evals/                     the manual workflow test; the golden tasks are Phase 2
-server/causpec_mcp/        a stub. The MCP server is Phase 3
-examples/  deploy/         configuration sketches; the Postgres demo is Phase 3
+scripts/                   build the skill bundle, and the pre-commit data-file guard
 ```
+
+Eight directories and six files, which is the whole of it. The MCP server, the Postgres
+adapter and the deployment examples are designed in `docs/design.md` sections 5, 6 and 12 and
+are **not built**, so they have no directories: an empty folder holding one README is a
+roadmap pretending to be code, and the roadmap is `docs/plan.md`.
 
 A family is a directory. `family.yaml` is where it declares the estimands it can
 identify, the spec fields it needs, the assumptions each estimand rests on, the questions

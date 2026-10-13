@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the files `evals/manual-workflow-test.md` uses, from the two generators.
+"""Build the files `docs/evals/manual-workflow-test.md` uses, from the two generators.
 
 The test needs six files. Three come straight from a generator; three are derived, each one
 carrying a defect the workflow is supposed to catch, and those three are what this script
@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         leaked = [c for c in frame.columns if any(m in str(c).lower() for m in TRUTH_MARKERS)]
         assert not leaked, f"{path.name} still carries {leaked}"
         print(f"{path.name:28} {sum(1 for _ in path.open()) - 1:>7,} rows")
-    print("\nThe answer key is not written here. See evals/manual-workflow-test.md.")
+    print("\nThe answer key is not written here. See docs/evals/manual-workflow-test.md.")
     return 0
 
 

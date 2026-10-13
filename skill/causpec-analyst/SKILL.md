@@ -829,10 +829,43 @@ been measured.
 A waiver needs an explicit reason from the user, and a waived analysis can never reach
 `causal` wording.
 
-## Step 7, shared. The user confirms the whole spec
+## Step 7, shared. The user confirms the whole analysis
 
-Read the spec back in full and have the user confirm it field by field. This step cannot be
-skipped.
+Every decision goes back to them, and nothing is estimated until they agree. This step cannot
+be skipped and cannot be done on their behalf.
+
+**Read it back as the analysis, not as the spec.** The spec file is how you talk to the code:
+field names, a family, an estimand, a status per field, a hash. The user is not reading it and
+should not be shown it. What they confirm is the set of decisions they made, in the words they
+made them in.
+
+| Don't | Do |
+|---|---|
+| "Here is the full spec to confirm" | "Here is what I'll run. Tell me if any line is wrong." |
+| a row reading `estimand: ate` | "the average effect across all 4,000 patients" |
+| a row reading `family: hte_backdoor` | nothing. They did not choose it and cannot check it |
+| `effect_modifiers: [19 columns]` | "the 19 clinical columns, all measured before randomisation" |
+
+So: one short line per decision, their phrasing where they gave you one, and a closing question
+that invites a correction rather than a yes. A table is fine, prose is fine; the spec
+vocabulary is not, and neither is the YAML. Things that belong to the code and not to this
+read-back: the family, the status of each field, the hashes, the fingerprint, the claim-level
+machinery, and the word **spec** itself.
+
+What does belong, because the user is the only one who can catch it wrong: the question, the
+treatment and outcome columns and what they hold, whether the effect is an average or a
+breakdown, how the treatment was assigned, which columns are covariates and when they were
+measured, who was excluded, and anything they asked for that the data cannot give.
+
+**The diagram is a section of the report, not something to paste into the conversation.** It
+is drawn from `variable_roles` as a mermaid block, which a terminal shows as a page of code
+rather than as a picture. Describe the roles in one line here if they need describing, and let
+the report draw them.
+
+If the user wants causal wording rather than "possibly related", this step also needs a
+justification from them for each untestable assumption, and `causal_claim_approved`. Without
+both, the ceiling for an automatic decision is `suggestive`. Say that as what it takes, not as
+a refusal.
 
 ## Step 8, shared. Estimate and report
 

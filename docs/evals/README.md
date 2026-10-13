@@ -1,4 +1,4 @@
-# evals/
+# docs/evals/
 
 Mirrors design.md section 16. Six categories:
 

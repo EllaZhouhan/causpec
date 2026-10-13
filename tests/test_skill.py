@@ -674,6 +674,20 @@ def test_the_balance_checks_stand_down_on_a_declared_trial(skill_text: str) -> N
     assert "the balance and overlap checks stand down here" in flat(skill_text).lower()
 
 
+def test_the_confirmation_step_reads_back_the_analysis_not_the_spec(skill_text: str) -> None:
+    """The spec file is the interface to the code, and the user was being shown it.
+
+    The read-back arrived as "Here is the full spec to confirm" over a table of fields. Half
+    of what is in a spec is not theirs to check: the family they did not choose, the status of
+    each field, the hashes. Confirmation that asks them to approve a form is not confirmation.
+    """
+    text = flat(skill_text)
+    assert "Read it back as the analysis, not as the spec" in text
+    assert "and the word spec itself" in text
+    # And the diagram is a report section, not a mermaid block pasted into a terminal.
+    assert "The diagram is a section of the report, not something to paste into the" in text
+
+
 def test_every_statistic_has_to_come_from_a_command(skill_text: str) -> None:
     """The hole this closes, found by running the agent on a declared randomised trial.
 

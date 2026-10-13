@@ -119,16 +119,21 @@ causpec/
  |    |    |- hte_iv/         the author's DMLIV
  |    |    |- hte_backdoor/   EconML CausalForestDML, as a baseline
  |    |    `- dynamic_lag_dml/    the author's lag profile with IPCW
+ |    |- inventory.py         every column described one at a time, for the roles step
  |    `- cli.py
- |- server/causpec_mcp/
  |- skill/causpec-analyst/
- |- examples/deployments/     configuration examples for demo-hospital and demo-retail
  |- data/generators/          synthetic data generators; what they produce is not committed
- |- evals/
- |- deploy/docker-compose.yml     the local Postgres demo
- |- docs/                     design.md, plan.md, decisions/
+ |- docs/                     design.md, plan.md, decisions/, evals/
+ |- scripts/                  the skill bundle build, and the pre-commit data-file guard
  `- .github/workflows/
 ```
+
+**A directory appears when its code does.** The MCP server (section 12), the Postgres
+adapter (section 6) and the deployment examples each had a directory holding a README that
+restated the plan, which made the tree read as though a third of the system existed. What is
+designed and not built is described here and scheduled in plan.md, and arrives in the tree
+when there is something in it: `server/causpec_mcp/`, `examples/deployments/` and
+`deploy/docker-compose.yml` are the names reserved for them.
 
 Each family directory holds: family.yaml (what question it answers, which estimands it
 can identify, what it requires, what it assumes), spec extensions, its own checks, an
