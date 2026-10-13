@@ -132,6 +132,25 @@ def measurement_columns(spec: Spec, data: pd.DataFrame) -> list[str]:
     return _columns_for(spec, data, MEASUREMENT_FIELDS)
 
 
+def _is_a_scale_not_a_measurement(series: Any, max_levels: int) -> bool:
+    """Whether a column is a code or a score rather than a continuous measurement.
+
+    Two of the basic checks compute a statistic in units of the column's own spread, and both
+    assume the values come from a continuum: "the next value above zero" and "the gap to the
+    next most extreme value" mean something for a creatinine and nothing for a stage of 0 to
+    3, where that gap is the scale's granularity and is always about one spread wide.
+
+    Counting distinct values separates the two cleanly on this project's data. The codes and
+    scores have 2, 2, 2, 2, 4 and 18 levels; the smallest genuine measurement column has
+    3,226. Any cut in between works, so the threshold is not delicate.
+
+    Binary columns were already being skipped, by accident rather than by rule: with every
+    non-zero value equal to one, the interquartile spread is zero and the zero-spike check
+    stopped there. An AKI stage of 0 to 3 has a spread of one and sailed through.
+    """
+    return int(series.nunique(dropna=True)) <= max_levels
+
+
 def _threshold(config: dict[str, Any], check_id: str, key: str, default: float) -> float:
     """One threshold from the config, with the code's default as a fallback.
 
@@ -554,14 +573,19 @@ def _zero_spike(data: pd.DataFrame, columns: list[str], config: dict[str, Any]) 
     entry = config.get("basic_zero_spike", {})
     min_share = float(entry.get("min_zero_share", 0.01))
     min_gap = float(entry.get("min_gap_to_iqr", 0.05))
+    max_levels = int(entry.get("max_levels_for_a_scale", 20))
     evidence: dict[str, float | int | str | bool] = {
         "min_zero_share": min_share,
         "min_gap_to_iqr": min_gap,
     }
     findings: list[str] = []
+    skipped: list[str] = []
     for column in columns:
         series = data[column]
         if not pd.api.types.is_numeric_dtype(series):
+            continue
+        if _is_a_scale_not_a_measurement(series, max_levels):
+            skipped.append(column)
             continue
         values = series.to_numpy(dtype=float)
         values = values[~np.isnan(values)]
@@ -587,6 +611,10 @@ def _zero_spike(data: pd.DataFrame, columns: list[str], config: dict[str, Any]) 
             evidence[f"{column}_zero_share"] = round(share, 4)
             evidence[f"{column}_smallest_nonzero"] = round(smallest, 4)
             evidence[f"{column}_gap_to_iqr"] = round(gap, 3)
+    if skipped:
+        # Recorded at the column level, because the check did run and this is which columns
+        # it did not apply to.
+        evidence["skipped_as_scales"] = ", ".join(skipped)
     passed = not findings
     return _issue(
         config,
@@ -637,12 +665,22 @@ def _isolated_extremes(
     sentinels = {
         float(value) for value in config.get("basic_null_encoding", {}).get("numeric_sentinels", [])
     }
+    # The same rule as the zero-spike check, and for the same reason: this statistic is in
+    # units of the column's spread and assumes a continuum. On a stage of 0 to 3 the gap to
+    # the next most extreme value is the scale's granularity. This replaces a hard-coded
+    # "fewer than four distinct values", which stopped binary columns and let a four-level
+    # stage through.
+    max_levels = int(config.get("basic_isolated_extremes", {}).get("max_levels_for_a_scale", 20))
     evidence: dict[str, float | int | str | bool] = {"min_gap_to_iqr": minimum}
     findings: list[str] = []
     affected: list[str] = []
+    skipped: list[str] = []
     for column in columns:
         series = data[column]
         if not pd.api.types.is_numeric_dtype(series):
+            continue
+        if _is_a_scale_not_a_measurement(series, max_levels):
+            skipped.append(column)
             continue
         values = np.asarray(series.dropna(), dtype=float)
         unique = np.unique(values)
@@ -665,6 +703,8 @@ def _isolated_extremes(
             evidence[f"{column}_{end}_gap_to_iqr"] = round(gap, 3)
             evidence[f"{column}_{end}_value"] = round(float(value), 6)
             affected.append(column)
+    if skipped:
+        evidence["skipped_as_scales"] = ", ".join(skipped)
     passed = not findings
     return _issue(
         config,

@@ -450,3 +450,70 @@ def test_the_two_column_sets_differ_in_exactly_the_structural_columns() -> None:
         "period_index",
         "termination",
     }
+
+
+def test_an_ordinal_score_is_not_a_zero_spike_or_an_outlier() -> None:
+    """A stage of 0 to 3 is a scale, and both statistics assume a continuum.
+
+    Found by running the workflow: `max_aki_stage_smoothed` is zero for 35.9% of patients
+    because that means no AKI, and the next value is 1 because that is the next stage. The
+    zero-spike statistic is the smallest non-zero value over the spread, which on a four-level
+    scale is about one, so it fires on every ordinal score.
+
+    Binary columns were already escaping by accident rather than by rule: with every non-zero
+    value equal to one the spread is zero and the check stopped there. Four levels gave a
+    spread of one and sailed through.
+    """
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame(
+        {
+            "isDialysisICU": rng.integers(0, 2, 400).astype(float),
+            "death": rng.integers(0, 2, 400).astype(float),
+            "aki_stage": rng.choice([0, 1, 2, 3], 400, p=[0.36, 0.31, 0.2, 0.13]).astype(float),
+            "sofa_total": rng.integers(0, 18, 400).astype(float),
+            "creatinine": rng.gamma(2.0, 60.0, 400) + 20,
+        }
+    )
+    spec = Spec(
+        question="q",
+        family="hte_backdoor",
+        fields={
+            "treatment": confirmed("isDialysisICU"),
+            "outcome": confirmed("death"),
+            "effect_modifiers": confirmed(["aki_stage", "sofa_total", "creatinine"]),
+        },
+    )
+    report = check_basic(frame, spec)
+    spike = report.get("basic_zero_spike")
+    assert spike.severity is Severity.INFO
+    assert "aki_stage" in str(spike.evidence["skipped_as_scales"])
+    assert "sofa_total" in str(spike.evidence["skipped_as_scales"])
+    # The measurement column is still assessed, so the exclusion is not a blanket amnesty.
+    assert "creatinine" not in str(spike.evidence["skipped_as_scales"])
+    assert report.get("basic_isolated_extremes").severity is Severity.INFO
+
+
+def test_a_sentinel_in_a_measurement_column_still_fires() -> None:
+    """The exclusion is about cardinality, and a zeroed lab column keeps hundreds of levels."""
+    rng = np.random.default_rng(1)
+    creatinine = rng.gamma(2.0, 60.0, 400) + 20
+    creatinine[:40] = 0.0
+    frame = pd.DataFrame(
+        {
+            "isDialysisICU": rng.integers(0, 2, 400).astype(float),
+            "death": rng.integers(0, 2, 400).astype(float),
+            "creatinine": creatinine,
+        }
+    )
+    spec = Spec(
+        question="q",
+        family="hte_backdoor",
+        fields={
+            "treatment": confirmed("isDialysisICU"),
+            "outcome": confirmed("death"),
+            "effect_modifiers": confirmed(["creatinine"]),
+        },
+    )
+    issue = check_basic(frame, spec).get("basic_zero_spike")
+    assert issue.severity is Severity.WARNING
+    assert "creatinine is exactly zero" in issue.summary

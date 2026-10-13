@@ -46,6 +46,15 @@ basic_null_encoding:
     ["na", "n/a", "nan", "null", "none", "nil", "missing", "unknown", ".", "-", "?", ""]
 
 basic_zero_spike:
+  # A column with at most this many distinct values is a code or a score, not a
+  # continuous measurement, and both of these statistics are in units of the column's
+  # own spread and assume a continuum. On an AKI stage of 0 to 3 the gap above zero is
+  # the scale's granularity and is always about one spread wide.
+  #
+  # Twenty, because the cut is not delicate: on this project's data the codes and
+  # scores have 2, 2, 2, 2, 4 and 18 levels, and the smallest genuine measurement
+  # column has 3,226.
+  max_levels_for_a_scale: 20
   layer: basic
   severity: warning
   waivable: true
@@ -68,6 +77,15 @@ basic_zero_spike:
   min_gap_to_iqr: 0.05
 
 basic_isolated_extremes:
+  # A column with at most this many distinct values is a code or a score, not a
+  # continuous measurement, and both of these statistics are in units of the column's
+  # own spread and assume a continuum. On an AKI stage of 0 to 3 the gap above zero is
+  # the scale's granularity and is always about one spread wide.
+  #
+  # Twenty, because the cut is not delicate: on this project's data the codes and
+  # scores have 2, 2, 2, 2, 4 and 18 levels, and the smallest genuine measurement
+  # column has 3,226.
+  max_levels_for_a_scale: 20
   layer: basic
   severity: warning
   waivable: true
