@@ -273,12 +273,23 @@ def _quality_section(
         lines += [""]
     if not report.issues:
         return "\n".join([*lines, "_No quality checks were run._"]).strip()
+
+    # The table holds the checks that ran. One that stood down is counted below and not named:
+    # it found nothing, and a named absence reads like a result. Which columns the spec declares
+    # is already in the spec table above, which is where the reader would look to see why a
+    # check had nothing to read.
     lines += ["| Check | Result | Summary |", "|---|---|---|"]
-    for issue in report.issues:
+    for issue in report.findings:
         lines.append(
             f"| `{issue.check_id}` | {SEVERITY_MARKS[issue.severity]} | {_escape(issue.summary)} |"
         )
-    failing = [i for i in report.issues if i.evidence.get("passed") is False]
+    if report.not_assessed:
+        lines += [
+            "",
+            f"{len(report.findings)} of {len(report.issues)} checks apply to this spec. The "
+            f"rest read a column it does not declare, or ask something it already answers.",
+        ]
+    failing = [i for i in report.findings if i.evidence.get("passed") is False]
     if failing:
         lines += ["", "Checks that did not pass, and what they mean:"]
         for issue in failing:

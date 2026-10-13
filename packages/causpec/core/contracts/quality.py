@@ -141,6 +141,25 @@ class QualityReport(BaseModel):
         return [issue for issue in self.issues if issue.severity is severity]
 
     @property
+    def findings(self) -> list[QualityIssue]:
+        """The checks that ran. **This is what anything user-facing shows.**
+
+        `assessed: False` in the evidence is how a check says it stood down: the spec does not
+        declare the column it reads, or an answer in the spec settles the question it would
+        ask. A check that stood down found nothing, and a report should say what is rather
+        than what is not, so it does not appear: not as a row, not as a name in a footnote.
+
+        The general rule, so this does not have to be fixed one check at a time: a check that
+        does not run is counted and never named. `not_assessed` exists for the counting.
+        """
+        return [issue for issue in self.issues if issue.evidence.get("assessed") is not False]
+
+    @property
+    def not_assessed(self) -> list[QualityIssue]:
+        """The checks that stood down. For counting them, not for listing them."""
+        return [issue for issue in self.issues if issue.evidence.get("assessed") is False]
+
+    @property
     def blocking(self) -> list[QualityIssue]:
         """What the gate looks at."""
         return self.by_severity(Severity.BLOCKING)

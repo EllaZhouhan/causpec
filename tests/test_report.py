@@ -228,6 +228,43 @@ def test_failing_check_reports_impact_and_repair() -> None:
     assert "Restrict the population" in markdown
 
 
+def test_a_check_that_did_not_run_is_counted_and_never_named() -> None:
+    """A check stands down when the spec does not declare the column it reads, or when the
+    spec already answers what it would ask: a declared randomised trial needs no balance test.
+
+    It found nothing, so it is not a row and not a name. Naming it put nine lines of "not
+    assessed" above the findings and invited the reader to read an absent check as a result.
+    The count stays, because the table is then not the whole catalogue and a reader comparing
+    two runs should be able to see that.
+    """
+    stood_down = QualityIssue(
+        check_id="backdoor_covariate_imbalance",
+        layer=Layer.IDENTIFICATION,
+        severity=Severity.INFO,
+        waivable=False,
+        summary="not applicable: the spec records assignment as randomised",
+        evidence={"passed": True, "assessed": False},
+    )
+    markdown = build(
+        SPEC,
+        QualityReport(issues=[*QUALITY.issues, stood_down]),
+        DECISION,
+        ADDRESSES,
+    )
+    assert "backdoor_covariate_imbalance" not in markdown
+    assert "not assessed" not in markdown
+    assert "1 of 2 checks apply to this spec" in markdown
+    # And the check that did run is still there.
+    assert "backdoor_overlap" in markdown
+
+
+def test_no_count_when_every_check_applied() -> None:
+    """The line exists to say the table is partial. With nothing standing down it would only
+    tell the reader that nothing happened."""
+    markdown = build(SPEC, QUALITY, DECISION, ADDRESSES)
+    assert "checks apply to this spec" not in markdown
+
+
 def test_claim_level_section_states_allowed_wording() -> None:
     markdown = build(SPEC, QUALITY, DECISION, ADDRESSES)
     assert "`suggestive`" in markdown

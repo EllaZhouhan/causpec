@@ -137,6 +137,18 @@ def test_quality_returns_nonzero_when_blocking(workspace, capsys) -> None:
     assert "[blocking]" in capsys.readouterr().out
 
 
+def test_quality_does_not_print_the_checks_that_did_not_run(workspace, capsys) -> None:
+    """Same rule as the report: a check that stood down is counted, never named. The
+    cross-sectional fixture declares no time columns, so the temporal layer stands down.
+    """
+    run("quality", "--spec", str(workspace["spec.yaml"]), "--data", str(workspace["good.csv"]))
+    out = capsys.readouterr().out
+    assert "not assessed" not in out
+    assert "not applicable" not in out
+    assert "temporal_" not in out
+    assert "checks apply to this spec." in out
+
+
 def test_quality_prints_evidence_addresses(workspace, capsys) -> None:
     run("quality", "--spec", str(workspace["spec.yaml"]), "--data", str(workspace["good.csv"]))
     assert "qc:backdoor_overlap.extreme_fraction" in capsys.readouterr().out

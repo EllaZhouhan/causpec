@@ -53,8 +53,8 @@ The two routes out cost different things, and the user picks:
 
 ## Two checks stand down on a declared randomised design
 
-`backdoor_overlap` and `backdoor_covariate_imbalance` report "not assessed" when
-`assignment_mechanism` says the treatment was randomised, and nothing blocks on them.
+`backdoor_overlap` and `backdoor_covariate_imbalance` do not run when
+`assignment_mechanism` says the treatment was randomised.
 
 Both are diagnostics for an **adjustment**: they ask whether the covariates can carry the
 comparison. Under randomisation the design carries it, so the question they answer is not the
@@ -62,11 +62,12 @@ question in front of the analysis, and a user who ran a trial should not have to
 balance table to proceed. `assignment_mechanism` is a confirmed field holding their own words,
 and on how their treatment was assigned they are the authority.
 
-They report rather than passing silently, because a check that did not run has to say so. In
-the report it reads:
-
-> not assessed: the spec records that assignment was randomised, so whether the arms are
-> comparable is settled by the design rather than by the covariates
+**They leave nothing behind.** A check that stood down has found nothing, so it is not a row
+in the quality table and not a name in a footnote: a line reading "not assessed" is a reader's
+invitation to treat an absent check as a result, or to ask you to run it anyway. What the
+report shows instead is a count, `15 of 25 checks apply to this spec`, and the spec table
+above it already says which fields the other ten would have read. This holds for every check
+that stands down, not just these two.
 
 **What to say if a user asks about balance anyway.** Answer the question rather than running
 the check back: the comparison rests on the randomisation, the covariates are there for

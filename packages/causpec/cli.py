@@ -345,6 +345,21 @@ def _run_checks(data: pd.DataFrame, spec: Spec) -> QualityReport:
     return QualityReport(issues=[*core.issues, *family.issues])
 
 
+def _coverage_line(report: QualityReport) -> str:
+    """How much of the catalogue this spec reached, as a count and no names.
+
+    A check that stood down has found nothing, and naming it says nothing: six of these are
+    waiting on a column the spec does not declare, and the balance ones are answered by the
+    spec itself. Listing them put nine lines of "not assessed" in front of the findings and
+    invited the reader to treat an absent check as a result. The count stays because the table
+    is not the whole catalogue and a reader comparing two runs should see that.
+    """
+    ran, total = len(report.findings), len(report.issues)
+    if ran == total:
+        return ""
+    return f"  {ran} of {total} checks apply to this spec."
+
+
 def cmd_quality(args: argparse.Namespace) -> int:
     """Run the quality checks only.
 
@@ -366,11 +381,13 @@ def cmd_quality(args: argparse.Namespace) -> int:
     report = QualityReport(issues=[*population.issues, *_run_checks(data, spec).issues]).stamped(
         spec_hash=spec.spec_hash(), snapshot_fingerprint=fingerprint(data, key)
     )
-    for issue in report.issues:
+    for issue in report.findings:
         mark = {"blocking": "✗", "warning": "!", "info": "·"}[issue.severity.value]
         print(f"{mark} [{issue.severity.value:8}] {issue.check_id}: {issue.summary}")
         for address, value in issue.evidence_addresses().items():
             print(f"      {address} = {value}")
+    if line := _coverage_line(report):
+        print(line)
     return 1 if report.blocking else 0
 
 

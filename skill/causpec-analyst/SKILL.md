@@ -109,6 +109,15 @@ This has gone wrong four times in this document's history, each time repaired lo
 each time coming back somewhere else, so prefer the positive form by default and let a
 negation be the exception you can point at a reading for.
 
+**A check that did not run is not a finding.** The same rule, applied to the tool's output
+rather than your prose. Checks stand down all the time: six of them read time columns a
+cross-sectional file does not have, and the two balance ones stand down on a design the user
+has told you was randomised. The tool prints only what ran, and ends with a count. Follow it.
+Do not reconstruct the list from the spec, do not read a stood-down check back to the user as
+a result, and do not offer to run one, because what it would read is not there. If the user
+asks which checks applied, the count is the answer and the report's spec table says which
+fields the rest would have needed.
+
 **Say each limitation once.** Every step of this workflow looks at the data again, so each
 one rediscovers the same constraints, and reporting them each time is how a user hears "there
 are no time columns" four times in two turns. Once a fact about the data has been stated,
@@ -683,9 +692,10 @@ What to ask depends on the answer to 1c:
   look at who benefits more, **and do not promise a tighter interval**: that gain is real but
   it is proportional to how much the covariates explain the outcome, and on this project's own
   ICU data the six baseline covariates explain 1.8% of death, which buys 0.7%. Measured, in
-  `variable-roles.md`. And the balance and overlap checks stand down here, reporting that they
-  were not assessed: they ask whether the covariates can carry the comparison, and the design
-  carries it, so the user does not have to defend a balance table for a trial they ran.
+  `variable-roles.md`. And the balance and overlap checks stand down here: they ask
+  whether the covariates can carry the comparison, and the design carries it, so the user does
+  not have to defend a balance table for a trial they ran. They leave no row behind in the
+  report, so there is nothing to explain away.
 - **Randomised with imperfect compliance**: the instrument is already chosen. What is left is
   monotonicity, which randomisation does not give you: does the assignment move everyone in
   the same direction, or could it have pushed some patients away from treatment?

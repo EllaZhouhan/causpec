@@ -663,12 +663,29 @@ def test_the_balance_checks_stand_down_on_a_declared_trial(skill_text: str) -> N
     checks = flat((REFERENCES / "quality-checks.md").read_text(encoding="utf-8")).lower()
     assert "two checks stand down on a declared randomised design" in checks
     assert "should not have to defend a balance table to proceed" in checks
-    assert "a check that did not run has to say so" in checks
+    # And standing down means leaving nothing behind: the author's rule after a report
+    # carried ten lines of "not assessed" above its findings.
+    assert "they leave nothing behind" in checks
+    assert "not a name in a footnote" in checks
     # The cost, and the one-sentence replacement for it.
     assert "what this gives up" in checks
     assert "which column it is" in checks
     # And A4 says it too, since that is where the user's answer arrives.
     assert "the balance and overlap checks stand down here" in flat(skill_text).lower()
+
+
+def test_a_check_that_did_not_run_is_never_listed(skill_text: str) -> None:
+    """The general form of the rule, so it does not have to be fixed check by check.
+
+    Twenty-four checks run on a cross-sectional file and ten of them stand down, six waiting
+    on time columns the file does not have. Listing them put the findings below a wall of
+    non-findings and invited the user to ask for a check whose input is absent. The tool now
+    prints what ran and a count, and the skill is told to follow it rather than reconstruct
+    the list from the spec.
+    """
+    text = flat(skill_text).lower()
+    assert "a check that did not run is not a finding" in text
+    assert "do not reconstruct the list from the spec" in text
 
 
 def test_the_skill_prefers_the_positive_form(skill_text: str) -> None:
