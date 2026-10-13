@@ -647,26 +647,28 @@ def test_the_step_numbers_stay_out_of_the_conversation(skill_text: str) -> None:
     assert "the step numbers are scaffolding for you, not landmarks for them" in lowered
 
 
-def test_a_balance_check_reads_the_other_way_round_in_a_trial(
-    skill_text: str,
-) -> None:
-    """The adjustment was never carrying the comparison, so imbalance is not a call to adjust.
+def test_the_balance_checks_stand_down_on_a_declared_trial(skill_text: str) -> None:
+    """They diagnose an adjustment, and the design is what carries a randomised comparison.
 
-    Found by tracing the randomised path: `backdoor_covariate_imbalance` was explained only
-    as "the adjustment may be incomplete", which is the observational reading. In a trial,
-    groups that were randomised should already be balanced, so imbalance says chance was
-    unkind, the allocation leaked, or the file is not of the arms it claims to be. Telling
-    such a user to add covariates moves the number without fixing anything, and contradicts
-    having just told them the covariates are not rescuing the comparison.
+    This went the other way first. An earlier version kept the checks running and rewrote
+    their text for the randomised case, on the grounds that a stated design contradicted by
+    the data is worth surfacing. The author's decision is that a user who says their treatment
+    was randomised is the authority on that, and the checks stand down.
+
+    What it gives up is recorded with the decision rather than argued about: a file whose
+    treatment column holds what was received rather than which arm was assigned looks
+    randomised to the spec and observational to the data, and these were the only checks where
+    that showed. The replacement is one sentence at 1c, asking which column it is.
     """
-    checks = (REFERENCES / "quality-checks.md").read_text(encoding="utf-8")
-    assert "the same check means something different in a randomised design" in flat(checks).lower()
-    assert "did not come out as it should" in flat(checks).lower()
-    assert "do not tell a user with a trial to add covariates" in flat(checks).lower()
-    # And SKILL.md points at it from the branch where it applies, positively: the earlier
-    # wording was "not telling you to adjust harder", which is the negation this document
-    # now forbids by default.
-    assert "read it as what it is" in flat(skill_text).lower()
+    checks = flat((REFERENCES / "quality-checks.md").read_text(encoding="utf-8")).lower()
+    assert "two checks stand down on a declared randomised design" in checks
+    assert "should not have to defend a balance table to proceed" in checks
+    assert "a check that did not run has to say so" in checks
+    # The cost, and the one-sentence replacement for it.
+    assert "what this gives up" in checks
+    assert "which column it is" in checks
+    # And A4 says it too, since that is where the user's answer arrives.
+    assert "the balance and overlap checks stand down here" in flat(skill_text).lower()
 
 
 def test_the_skill_prefers_the_positive_form(skill_text: str) -> None:

@@ -233,39 +233,43 @@ def _groups_declared(data: pd.DataFrame, spec: Spec, config: dict[str, Any]) -> 
     )
 
 
-def _overlap_impact(randomised: bool) -> str:
-    """What a failed overlap check means, which depends on how the treatment was assigned."""
-    if randomised:
-        return (
-            "This says the treated and untreated groups are separable from the covariates, "
-            "which randomised assignment does not leave behind: with this many units on the "
-            "wrong side of the cut, chance alone rarely produces it. So the data and the "
-            "stated design disagree, and that is the finding. Restricting the population "
-            "would hide it rather than resolve it, and the estimate that followed would rest "
-            "on an adjustment the design said was unnecessary."
-        )
-    return (
-        "Some units have almost no comparable controls on these covariates, so their effect "
-        "is extrapolated rather than observed. The confidence interval will look narrow, but "
-        "narrow in a way that means nothing; the conclusion may not be worded above "
-        "associational."
-    )
+def _not_assessed_under_randomisation(
+    check_id: str, config: dict[str, Any], what: str
+) -> QualityIssue:
+    """A balance check standing down because the design settles what it was asking.
 
+    Overlap and covariate balance are diagnostics for an **adjustment**: they ask whether the
+    covariates can carry the comparison. Under randomisation nothing is being carried by the
+    covariates, so the question they answer is not the question in front of the analysis, and
+    `assignment_mechanism` is a confirmed field with the user's own words in it. The user is
+    the authority on how their treatment was assigned, and the arithmetic here is not.
 
-def _overlap_repair(randomised: bool) -> str:
-    if randomised:
-        return (
-            "Check the allocation before changing the analysis. Three things produce this: "
-            "the allocation was overridden for some units, the file holds what they received "
-            "rather than what they were assigned, or it is not the randomised cohort it is "
-            "taken to be. If some were moved after assignment, the assignment column is an "
-            "instrument and hte_iv is the family. If the design was not randomised after all, "
-            "say so and the observational remedies apply. A waiver must state its reason."
-        )
-    return (
-        "Restrict the population to the region with common support (and state in the report "
-        "that the estimand changes accordingly), or drop the adjustment-set variables driving "
-        "the separation. A waiver must state its reason."
+    It reports rather than passing silently, because this layer's rule is that a check which
+    did not run says so: a reader of the report has to be able to see that the balance
+    diagnostics stood down, and on whose statement.
+
+    What this gives up, stated here because it is the cost of the decision and not an
+    argument against it: a file whose treatment column records what was received rather than
+    which arm was assigned looks exactly like a randomised design to the spec and exactly
+    like an observational one to the data, and these two checks were the only place that
+    difference showed up.
+    """
+    layer, _, waivable = _issue_settings(config, check_id)
+    return QualityIssue(
+        check_id=check_id,
+        layer=layer,
+        severity=Severity.INFO,
+        waivable=waivable,
+        summary=(
+            f"not assessed: the spec records that assignment was randomised, so {what} is "
+            f"settled by the design rather than by the covariates"
+        ),
+        evidence={"assessed": False, "passed": True, "assignment_mechanism": "randomised"},
+        impact_on_analysis=(
+            "This check did not run. It asks whether the covariates can carry the comparison, "
+            "which is a question about an adjustment, and under randomisation the design "
+            "carries it. Its absence is not evidence about the covariates either way."
+        ),
     )
 
 
@@ -342,7 +346,12 @@ def check_backdoor(
     # to make, whether the groups are well formed is not the user's problem yet.
     issues.append(_groups_declared(data, spec, config))
 
-    # ---- 2. overlap / positivity (blocking) ----
+    # ---- 2 and 3. overlap and covariate balance ----
+    #
+    # Both are diagnostics for an adjustment, so a declared randomised design stands them
+    # down: see _not_assessed_under_randomisation for what that gives up. The propensity
+    # model is still fitted, because section 4's weights come from it and that check still
+    # says something, uniform weights being what randomisation produces.
     layer, severity, waivable = _issue_settings(config, "backdoor_overlap")
     low = _threshold(config, "backdoor_overlap", "propensity_low", 0.05)
     high = _threshold(config, "backdoor_overlap", "propensity_high", 0.95)
@@ -351,106 +360,110 @@ def check_backdoor(
     model_name = str(
         config.get("backdoor_overlap", {}).get("propensity_model", "gradient_boosting")
     )
-
     propensity = estimate_propensity(covariates, treatment, model_name, folds, seed=0)
-    extreme = (propensity < low) | (propensity > high)
-    extreme_fraction = float(extreme.mean())
-    passed = extreme_fraction <= max_extreme
-    issues.append(
-        QualityIssue(
-            check_id="backdoor_overlap",
-            layer=layer,
-            severity=severity if not passed else Severity.INFO,
-            waivable=waivable,
-            summary=(
-                f"{extreme_fraction:.1%} of the sample has a propensity score outside "
-                f"[{low:g}, {high:g}] (threshold {max_extreme:.0%})"
-            ),
-            evidence={
-                "extreme_fraction": round(extreme_fraction, 6),
-                "threshold": max_extreme,
-                "propensity_low": low,
-                "propensity_high": high,
-                "n_extreme": int(extreme.sum()),
-                "propensity_min": round(float(propensity.min()), 6),
-                "propensity_max": round(float(propensity.max()), 6),
-                "propensity_model": model_name,
-                "cv_folds": folds,
-                "passed": passed,
-            },
-            affected_columns=covariate_names,
-            impact_on_analysis=(
-                _overlap_impact(randomised) if not passed else "Common support is adequate."
-            ),
-            recommended_repair=(_overlap_repair(randomised) if not passed else ""),
-        )
-    )
-
-    # ---- 3. covariate balance: SMD before and after IPW ----
     weights = np.where(
         treatment == 1, 1.0 / np.clip(propensity, 1e-6, 1), 1.0 / np.clip(1 - propensity, 1e-6, 1)
     )
-    layer, severity, waivable = _issue_settings(config, "backdoor_covariate_imbalance")
-    max_smd = _threshold(config, "backdoor_covariate_imbalance", "max_abs_smd", 0.10)
-    before = {
-        name: standardized_mean_difference(covariates[:, j], treatment)
-        for j, name in enumerate(covariate_names)
-    }
-    after = {
-        name: standardized_mean_difference(covariates[:, j], treatment, weights)
-        for j, name in enumerate(covariate_names)
-    }
-    imbalanced = [name for name, smd in after.items() if abs(smd) > max_smd]
-    passed = not imbalanced
-    issues.append(
-        QualityIssue(
-            check_id="backdoor_covariate_imbalance",
-            layer=layer,
-            severity=severity if not passed else Severity.INFO,
-            waivable=waivable,
-            summary=(
-                f"after IPW, {len(imbalanced)}/{len(covariate_names)} covariates still "
-                f"have |SMD| > {max_smd:g}"
-            ),
-            evidence={
-                "n_covariates": len(covariate_names),
-                "n_imbalanced_after": len(imbalanced),
-                "max_abs_smd_before": round(max(abs(v) for v in before.values()), 6),
-                "max_abs_smd_after": round(max(abs(v) for v in after.values()), 6),
-                "threshold": max_smd,
-                "passed": passed,
-            },
-            affected_columns=imbalanced,
-            impact_on_analysis=(
-                (
-                    "Groups formed at random arrive balanced, so a difference this size on "
-                    "these covariates says the data and the stated design disagree. The "
-                    "adjustment was never what made the comparison fair here, so a richer "
-                    "propensity model would move the number without addressing what the "
-                    "check found."
-                )
-                if randomised
-                else (
+
+    if randomised:
+        issues.append(
+            _not_assessed_under_randomisation(
+                "backdoor_overlap", config, "whether the arms are comparable"
+            )
+        )
+        issues.append(
+            _not_assessed_under_randomisation(
+                "backdoor_covariate_imbalance", config, "whether the arms are balanced"
+            )
+        )
+    else:
+        extreme = (propensity < low) | (propensity > high)
+        extreme_fraction = float(extreme.mean())
+        passed = extreme_fraction <= max_extreme
+        issues.append(
+            QualityIssue(
+                check_id="backdoor_overlap",
+                layer=layer,
+                severity=severity if not passed else Severity.INFO,
+                waivable=waivable,
+                summary=(
+                    f"{extreme_fraction:.1%} of the sample has a propensity score outside "
+                    f"[{low:g}, {high:g}] (threshold {max_extreme:.0%})"
+                ),
+                evidence={
+                    "extreme_fraction": round(extreme_fraction, 6),
+                    "threshold": max_extreme,
+                    "propensity_low": low,
+                    "propensity_high": high,
+                    "n_extreme": int(extreme.sum()),
+                    "propensity_min": round(float(propensity.min()), 6),
+                    "propensity_max": round(float(propensity.max()), 6),
+                    "propensity_model": model_name,
+                    "cv_folds": folds,
+                    "passed": passed,
+                },
+                affected_columns=covariate_names,
+                impact_on_analysis=(
+                    "Some units have almost no comparable controls on these covariates, so "
+                    "their effect is extrapolated rather than observed. The confidence "
+                    "interval will look narrow, but narrow in a way that means nothing; the "
+                    "conclusion may not be worded above associational."
+                    if not passed
+                    else "Common support is adequate."
+                ),
+                recommended_repair=(
+                    "Restrict the population to the region with common support (and state in "
+                    "the report that the estimand changes accordingly), or drop the "
+                    "adjustment-set variables driving the separation. A waiver must state "
+                    "its reason."
+                    if not passed
+                    else ""
+                ),
+            )
+        )
+
+        layer, severity, waivable = _issue_settings(config, "backdoor_covariate_imbalance")
+        max_smd = _threshold(config, "backdoor_covariate_imbalance", "max_abs_smd", 0.10)
+        before = {
+            name: standardized_mean_difference(covariates[:, j], treatment)
+            for j, name in enumerate(covariate_names)
+        }
+        after = {
+            name: standardized_mean_difference(covariates[:, j], treatment, weights)
+            for j, name in enumerate(covariate_names)
+        }
+        imbalanced = [name for name, smd in after.items() if abs(smd) > max_smd]
+        passed = not imbalanced
+        issues.append(
+            QualityIssue(
+                check_id="backdoor_covariate_imbalance",
+                layer=layer,
+                severity=severity if not passed else Severity.INFO,
+                waivable=waivable,
+                summary=(
+                    f"after IPW, {len(imbalanced)}/{len(covariate_names)} covariates still "
+                    f"have |SMD| > {max_smd:g}"
+                ),
+                evidence={
+                    "n_covariates": len(covariate_names),
+                    "n_imbalanced_after": len(imbalanced),
+                    "max_abs_smd_before": round(max(abs(v) for v in before.values()), 6),
+                    "max_abs_smd_after": round(max(abs(v) for v in after.values()), 6),
+                    "threshold": max_smd,
+                    "passed": passed,
+                },
+                affected_columns=imbalanced,
+                impact_on_analysis=(
                     "Imbalance persisting after weighting means the propensity model did "
                     "not remove these between-group differences, so the adjustment may be "
                     "incomplete."
-                )
-            ),
-            recommended_repair=(
-                (
-                    "Check the allocation rather than the model: whether it was overridden "
-                    "for some units, whether the column holds what they received rather "
-                    "than what they were assigned, or whether this is the randomised cohort "
-                    "it is taken to be."
-                )
-                if randomised
-                else (
+                ),
+                recommended_repair=(
                     "Use a more flexible propensity model, or check whether these variables "
                     "simply lack common support."
-                )
-            ),
+                ),
+            )
         )
-    )
 
     # ---- 4. extreme weights and effective sample size (feasibility) ----
     layer, severity, waivable = _issue_settings(config, "backdoor_extreme_weights")

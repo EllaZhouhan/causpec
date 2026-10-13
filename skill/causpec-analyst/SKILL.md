@@ -475,6 +475,18 @@ someone assigned the treatment who never had it and someone assigned the control
 | Everyone, or nearly | **The treatment column is the randomised assignment.** Nothing more is needed: it is the thing that was randomised, which is what they just told you. `hte_backdoor` |
 | Some did not | Now, and only now, two columns exist: the arm they were assigned and what they received. Ask for both. `hte_iv`, with assignment as the instrument |
 
+**On "everyone", confirm which column it is in one sentence**, because the answer and the
+column can come apart without anyone noticing:
+
+> "And `isDialysisICU` is the arm they were randomised to, rather than a record of who ended
+> up on it?"
+
+This is the one question that stands in for the balance checks, which stand down on a
+declared randomised design (`quality-checks.md`). A file holding what was received rather
+than what was assigned reads as randomised to the spec and as observational to the data, and
+nothing downstream distinguishes them, so the sentence is worth its turn. Ask it once and
+take the answer.
+
 **Do not go looking for an assignment column before asking this.** "Which column records the
 randomised assignment?" presupposes that assignment and receipt are different things, which
 is only true under non-compliance, and a user who said "it was a randomised trial" has
@@ -671,9 +683,9 @@ What to ask depends on the answer to 1c:
   look at who benefits more, **and do not promise a tighter interval**: that gain is real but
   it is proportional to how much the covariates explain the outcome, and on this project's own
   ICU data the six baseline covariates explain 1.8% of death, which buys 0.7%. Measured, in
-  `variable-roles.md`. And when a balance or overlap check fails on a randomised design, read
-  it as what it is, a sign that the randomisation did not come out as it should, which
-  `quality-checks.md` covers.
+  `variable-roles.md`. And the balance and overlap checks stand down here, reporting that they
+  were not assessed: they ask whether the covariates can carry the comparison, and the design
+  carries it, so the user does not have to defend a balance table for a trial they ran.
 - **Randomised with imperfect compliance**: the instrument is already chosen. What is left is
   monotonicity, which randomisation does not give you: does the assignment move everyone in
   the same direction, or could it have pushed some patients away from treatment?

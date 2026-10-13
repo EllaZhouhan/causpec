@@ -51,33 +51,36 @@ The two routes out cost different things, and the user picks:
 > or switch to the other estimator, which handles them at the cost of slower and wider
 > intervals. Which would you rather?"
 
-## The same check means something different in a randomised design
+## Two checks stand down on a declared randomised design
 
-Every check still runs on a trial, and two of them have to be read the other way round. In
-observational data they say the adjustment is incomplete. In a randomised design the
-adjustment was never doing that work, so what they say instead is that **the randomisation
-did not come out as it should**, and adjusting harder is not the answer.
+`backdoor_overlap` and `backdoor_covariate_imbalance` report "not assessed" when
+`assignment_mechanism` says the treatment was randomised, and nothing blocks on them.
 
-| Check | Observational reading | Randomised reading |
-|---|---|---|
-| `backdoor_covariate_imbalance` | The adjustment may be incomplete; consider a richer specification | Groups that were randomised should already be balanced. Imbalance means chance was unkind, the randomisation leaked, or the file is not of the arms it claims to be |
-| `backdoor_overlap` | Some units have no comparable controls, so their effect is extrapolated | Under 1:1 randomisation a propensity score near 0 or 1 should not be reachable. If it is, something assigned treatment that was not the randomisation |
+Both are diagnostics for an **adjustment**: they ask whether the covariates can carry the
+comparison. Under randomisation the design carries it, so the question they answer is not the
+question in front of the analysis, and a user who ran a trial should not have to defend a
+balance table to proceed. `assignment_mechanism` is a confirmed field holding their own words,
+and on how their treatment was assigned they are the authority.
 
-What to say, and what not to. Do not tell a user with a trial to add covariates: it will move
-the number without fixing anything, and it invites the reading that the adjustment is carrying
-the comparison when they were told it is not. Say what the check found and ask the one
-question that distinguishes the three causes:
+They report rather than passing silently, because a check that did not run has to say so. In
+the report it reads:
 
-> "The two groups differ more than randomisation would usually leave them, on
-> `max_creatinine` especially. With this many patients that is more than chance would usually
-> do. Was the allocation ever overridden, or did some patients get moved between arms after
-> they were assigned?"
+> not assessed: the spec records that assignment was randomised, so whether the arms are
+> comparable is settled by the design rather than by the covariates
 
-A yes makes it the non-compliance case, and the assignment column becomes an instrument. A no
-leaves an imbalance worth reporting as a limitation, with the comparison still resting on the
-design rather than on the covariates.
+**What to say if a user asks about balance anyway.** Answer the question rather than running
+the check back: the comparison rests on the randomisation, the covariates are there for
+heterogeneity, and if they want a baseline table for a paper that is a description of the
+data rather than a diagnostic of this analysis.
 
-## Why only two blocking checks
+**What this gives up.** A file whose treatment column records what was received rather than
+which arm was assigned looks like a randomised design to the spec and like an observational
+one to the data, and these two checks were the only place that difference showed up. So when
+the user says randomised, the one thing worth confirming is **which** column it is: the arm
+they were assigned, or what they actually got. That question is at 1c, it costs one sentence,
+and it is the whole of what the checks were catching.
+
+## Why only two blocking checks## Why only two blocking checks
 
 The trade-off is: **if the confidence interval already says it, do not gate on it.**
 

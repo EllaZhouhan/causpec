@@ -263,69 +263,66 @@ def test_backdoor_cannot_remove_unobserved_confounding() -> None:
     assert backdoor_bias > 0.10  # still badly biased after adjustment
 
 
-def test_a_failed_overlap_check_reads_differently_in_a_randomised_design() -> None:
-    """Telling a trial's owner to restrict the population is the opposite of the right advice.
+def test_the_balance_checks_stand_down_on_a_declared_randomised_design() -> None:
+    """They diagnose an adjustment, and randomisation is not carrying the comparison with one.
 
-    Found by running the pipeline end to end on a spec whose `assignment_mechanism` said
-    randomised, which no reading of the prose would have caught: the guidance for this case
-    had been written into the skill's reference, while the text the model actually relays
-    comes from here and was unconditionally observational. It advised restricting the
-    population to the region of common support, which for a randomised design hides the
-    finding rather than addressing it and leaves an estimate resting on an adjustment the
-    design said was unnecessary.
+    `assignment_mechanism` is a confirmed field holding the user's own words, and the user is
+    the authority on how their treatment was assigned. Overlap and covariate balance ask
+    whether the covariates can carry the comparison; under randomisation the design carries
+    it, so the question is not the one in front of the analysis.
 
-    The text functions are tested directly rather than through a fixture that happens to fail
-    overlap, because which fixture fails is not what this is about.
+    They report rather than passing silently, because this layer's rule is that a check which
+    did not run says so. A reader of the report has to be able to see that the balance
+    diagnostics stood down and on whose statement.
     """
-    from causpec.families.hte_backdoor.checks import _overlap_impact, _overlap_repair
+    from causpec.families.hte_backdoor.checks import _not_assessed_under_randomisation
 
-    observational = _overlap_repair(randomised=False).lower()
-    randomised = _overlap_repair(randomised=True).lower()
-    assert "restrict the population" in observational
-    assert "check the allocation" in randomised
-    assert "restrict the population" not in randomised
-    # And it names the route out: a reassignment makes the assignment an instrument.
-    assert "hte_iv" in randomised
-
-    assert "disagree" in _overlap_impact(randomised=True)
-    assert "extrapolated" in _overlap_impact(randomised=False)
+    config = registry.load_declaration("hte_backdoor")["checks"]
+    for check_id in ("backdoor_overlap", "backdoor_covariate_imbalance"):
+        issue = _not_assessed_under_randomisation(check_id, config, "whether the arms differ")
+        assert issue.severity is Severity.INFO
+        assert issue.evidence["assessed"] is False
+        assert "settled by the design" in issue.summary
+        assert "not evidence about the covariates either way" in issue.impact_on_analysis
 
 
-def test_the_assignment_field_is_what_switches_the_reading() -> None:
-    """Both randomised answers switch it; an absent field does not.
+def test_an_observational_design_keeps_both_balance_checks(data) -> None:
+    """Which is where they belong: there the covariates are what makes the comparison fair,
+    so whether they can is the question."""
+    report = registry.get("hte_backdoor").check(data, make_spec())
+    for check_id in ("backdoor_overlap", "backdoor_covariate_imbalance"):
+        assert report.get(check_id).evidence.get("assessed") is not False, check_id
 
-    The field is optional, and its absence is not a claim that the design was randomised.
-    """
-    from causpec.families.hte_backdoor.checks import _was_randomised
 
-    assert _was_randomised(make_spec()) is False
-    for answer in ("randomised", "randomised_with_noncompliance"):
-        spec = make_spec().model_copy(
-            update={
-                "fields": {
-                    **make_spec().fields,
-                    "assignment_mechanism": confirmed(answer),
-                }
+def test_the_weights_check_still_runs_under_randomisation(data) -> None:
+    """It is not a balance diagnostic, and uniform weights are what randomisation produces,
+    so it still says something."""
+    spec = make_spec().model_copy(
+        update={
+            "fields": {
+                **make_spec().fields,
+                "assignment_mechanism": confirmed("randomised"),
             }
-        )
-        assert _was_randomised(spec) is True, answer
-    decided = make_spec().model_copy(
-        update={"fields": {**make_spec().fields, "assignment_mechanism": confirmed("decided")}}
+        }
     )
-    assert _was_randomised(decided) is False
+    report = registry.get("hte_backdoor").check(data, spec)
+    assert report.get("backdoor_overlap").evidence["assessed"] is False
+    assert report.get("backdoor_extreme_weights").evidence.get("assessed") is not False
+    # And nothing blocks on a declared trial for want of balance.
+    assert not [i.check_id for i in report.blocking]
 
 
-def test_the_imbalance_check_inverts_too() -> None:
-    """Groups formed at random arrive balanced, so imbalance is not a call for a richer model.
+def test_what_standing_down_gives_up_is_written_where_it_happens() -> None:
+    """The cost of the decision, recorded so a later reader does not have to rediscover it.
 
-    A richer propensity model would move the number without addressing what the check found,
-    and it contradicts having just told the user the covariates are not making the comparison
-    fair.
+    A file whose treatment column records what was received rather than which arm was
+    assigned looks like a randomised design to the spec and like an observational one to the
+    data, and these two checks were the only place that difference showed up.
     """
     import inspect
 
     from causpec.families.hte_backdoor import checks
 
-    source = inspect.getsource(checks)
-    assert "Groups formed at random arrive balanced" in source
-    assert "Check the allocation rather than the model" in source
+    source = inspect.getsource(checks._not_assessed_under_randomisation)
+    assert "what was received rather than" in source
+    assert "authority on how their treatment was assigned" in source.lower()
