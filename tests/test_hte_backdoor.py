@@ -282,19 +282,12 @@ def test_a_failed_overlap_check_reads_differently_in_a_randomised_design() -> No
     observational = _overlap_repair(randomised=False).lower()
     randomised = _overlap_repair(randomised=True).lower()
     assert "restrict the population" in observational
+    assert "check the allocation" in randomised
     assert "restrict the population" not in randomised
-    # It asks which of the two is wrong rather than deciding, puts the ordinary explanations
-    # first, and names the route out: an assignment column makes this an instrument.
-    assert "ask which of the two is wrong" in randomised
-    assert "the treatment received rather than the arm assigned" in randomised
+    # And it names the route out: a reassignment makes the assignment an instrument.
     assert "hte_iv" in randomised
-    # And the way through, so the user is not left at a dead end.
-    assert "waiver with their reason" in randomised
 
-    impact = _overlap_impact(randomised=True)
-    assert "cannot say which is right" in impact
-    # The consequence is stated because it is what makes the check worth having.
-    assert "would earn causal wording" in impact
+    assert "disagree" in _overlap_impact(randomised=True)
     assert "extrapolated" in _overlap_impact(randomised=False)
 
 

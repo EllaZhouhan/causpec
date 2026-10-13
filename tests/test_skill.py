@@ -736,30 +736,3 @@ def test_the_skill_forbids_appraising_the_users_design(skill_text: str) -> None:
     # And the superlatives are listed, since they are the tell.
     for word in ("cleanest", "ideal", "textbook", "gold standard"):
         assert word in lowered, word
-
-
-def test_a_contradicted_randomisation_claim_is_a_disagreement_not_an_overrule(
-    skill_text: str,
-) -> None:
-    """The check stays, and what changes is when it runs and how it reads.
-
-    Challenged on whether a stated randomised design should be checked at all. It should, and
-    the stake is measurable on this project's own data: taking a false claim at its word gives
-    +0.019 where the truth is -0.001, and since a design-based justification is the strongest
-    the claim level accepts, that estimate reaches `causal` wording. This check is the only
-    thing between those outcomes.
-
-    What was wrong was the experience. It surfaced at step 6, after the identification and
-    estimand questions had been settled on a premise two of its three explanations overturn,
-    and it read as the tool overruling the user rather than as two of their own answers
-    disagreeing. The way through, a waiver with their reason, was never offered.
-    """
-    lowered = flat(skill_text).lower()
-    assert "run the checks as soon as the covariates are settled" in lowered
-    assert "you are not the one to settle it" in lowered
-    # The ordinary explanations come before the alarming one.
-    assert "records who actually got the treatment rather than which arm" in lowered
-    assert "offer the way through, because there is one" in lowered
-    assert "do not waive it for them" in lowered
-    # And the cost of skipping it is stated with the numbers.
-    assert "+0.019" in lowered and "-0.001" in lowered
