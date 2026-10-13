@@ -353,3 +353,100 @@ def test_a_genuinely_signed_column_is_left_alone(clean, clean_report) -> None:
     balance = clean["min_netBodyBalancePerHour"].to_numpy(dtype=float)
     assert 0.2 < float(np.mean(balance < 0)) < 0.8
     assert clean_report.get("basic_impossible_sign").severity is Severity.INFO
+
+
+# ---- structural columns are not measurements ----
+
+
+def test_a_termination_marker_is_not_held_to_measurement_rules() -> None:
+    """The bug that made the whole variable-horizon panel path unusable.
+
+    Found by running it. `exit_reason` is a label and is empty on every row but a unit's
+    last, which is what a termination marker is for, and the basic layer blocked twice on it:
+    once for not being numeric, once for 9,511 missing values. Both are the column working as
+    designed, and together they meant no panel with a variable horizon could be estimated
+    through the CLI at all.
+    """
+    frame = pd.DataFrame(
+        {
+            "pid": [1, 1, 2, 2],
+            "t": [0, 1, 0, 1],
+            "on_rrt": [0.0, 1.0, 1.0, 0.0],
+            "score": [1.5, 2.0, 3.0, 2.5],
+            "exit_reason": [None, "discharged", None, "died"],
+        }
+    )
+    spec = Spec(
+        question="q",
+        family="dynamic_lag_dml",
+        fields={
+            "unit_id": confirmed("pid"),
+            "period_index": confirmed("t"),
+            "treatment": confirmed("on_rrt"),
+            "outcome": confirmed("score"),
+            "termination": confirmed("exit_reason"),
+        },
+    )
+    report = check_basic(frame, spec)
+    assert report.get("basic_column_types").severity is Severity.INFO
+    assert report.get("basic_missing_values").severity is Severity.INFO
+
+
+def test_a_period_index_is_not_a_zero_spike() -> None:
+    """Every unit has a period zero, so a third of the rows holding zero is the index working.
+
+    The zero-spike check is about a measurement piling up at zero where its real values sit
+    elsewhere, which is what a sentinel looks like. An index is not that.
+    """
+    frame = pd.DataFrame(
+        {
+            "pid": [1, 1, 1, 2, 2, 2],
+            "t": [0, 1, 2, 0, 1, 2],
+            "on_rrt": [0.0, 1.0, 1.0, 1.0, 0.0, 1.0],
+            "score": [1.5, 2.0, 3.0, 2.5, 1.0, 2.2],
+        }
+    )
+    spec = Spec(
+        question="q",
+        family="dynamic_lag_dml",
+        fields={
+            "unit_id": confirmed("pid"),
+            "period_index": confirmed("t"),
+            "treatment": confirmed("on_rrt"),
+            "outcome": confirmed("score"),
+        },
+    )
+    assert check_basic(frame, spec).get("basic_zero_spike").severity is Severity.INFO
+
+
+def test_a_missing_unit_id_is_still_caught() -> None:
+    """Missingness is the one rule a structural column keeps: a row with no unit is a row
+    that cannot be analysed, and it is not the family's job to notice."""
+    frame = pd.DataFrame(
+        {
+            "pid": [1.0, None, 2.0],
+            "on_rrt": [0.0, 1.0, 1.0],
+            "score": [1.5, 2.0, 3.0],
+        }
+    )
+    spec = Spec(
+        question="q",
+        family="hte_backdoor",
+        fields={
+            "unit_id": confirmed("pid"),
+            "treatment": confirmed("on_rrt"),
+            "outcome": confirmed("score"),
+        },
+    )
+    assert check_basic(frame, spec).get("basic_missing_values").severity is Severity.BLOCKING
+
+
+def test_the_two_column_sets_differ_in_exactly_the_structural_columns() -> None:
+    """So that a field added to one list is not silently added to the other."""
+    from causpec.core.quality.basic import COLUMN_FIELDS, MEASUREMENT_FIELDS
+
+    assert set(COLUMN_FIELDS) - set(MEASUREMENT_FIELDS) == {
+        "unit_id",
+        "period_index",
+        "termination",
+    }

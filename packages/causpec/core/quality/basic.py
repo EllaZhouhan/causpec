@@ -62,6 +62,30 @@ COLUMN_FIELDS = (
     "termination",
 )
 
+# The columns that hold a measurement, as against the ones that hold structure. Every check
+# about a distribution belongs to the first group only, and running them over the second is
+# how this layer blocked a perfectly good panel: `exit_reason` is a label and is empty on
+# every row but a unit's last, which is what a termination marker is, and `bucket` is zero
+# for 34.5% of rows because every unit has a period zero.
+#
+# The structural columns are not unchecked, they are checked for the right things elsewhere:
+# `basic_duplicate_rows` reads unit_id and period_index as a key, and the panel family owns
+# the index's own rules (consecutive, no gaps) because only it knows what the lags need.
+MEASUREMENT_FIELDS = (
+    "treatment",
+    "outcome",
+    "state",
+    "effect_modifiers",
+    "adjustment_set",
+    "instrument",
+)
+
+# Missingness is the exception: a row with no unit cannot be analysed, so unit_id joins the
+# measurements there. `termination` and `period_index` still stay out, the first because its
+# emptiness carries the meaning and the second because an index with holes is the family's
+# check to make and its message is better.
+MISSINGNESS_FIELDS = (*MEASUREMENT_FIELDS, "unit_id")
+
 
 def _config_bytes(path: Path | None = None) -> bytes:
     if path is not None:
@@ -85,8 +109,13 @@ def analysis_columns(spec: Spec, data: pd.DataFrame) -> list[str]:
     hold a value that is not a column. A spec naming a column that does not exist is the
     family's error to raise, with a message that can name the field.
     """
+    return _columns_for(spec, data, COLUMN_FIELDS)
+
+
+def _columns_for(spec: Spec, data: pd.DataFrame, fields: tuple[str, ...]) -> list[str]:
+    """The columns named by a given set of spec fields, in order and without repeats."""
     found: list[str] = []
-    for name in COLUMN_FIELDS:
+    for name in fields:
         field = spec.fields.get(name)
         if field is None or field.value is None:
             continue
@@ -96,6 +125,11 @@ def analysis_columns(spec: Spec, data: pd.DataFrame) -> list[str]:
             if column in data.columns and column not in found:
                 found.append(column)
     return found
+
+
+def measurement_columns(spec: Spec, data: pd.DataFrame) -> list[str]:
+    """The columns holding a measurement, which is what the distribution checks are about."""
+    return _columns_for(spec, data, MEASUREMENT_FIELDS)
 
 
 def _threshold(config: dict[str, Any], check_id: str, key: str, default: float) -> float:
@@ -144,11 +178,11 @@ def _issue(
 def check_basic(data: pd.DataFrame, spec: Spec, config_path: Path | None = None) -> QualityReport:
     """Every basic-layer check, over the columns this analysis uses."""
     config = load_config(config_path)
-    columns = analysis_columns(spec, data)
+    columns = measurement_columns(spec, data)
     issues = [
         _duplicate_rows(data, spec, config),
         _column_types(data, columns, config),
-        _missing_values(data, columns, config, spec),
+        _missing_values(data, _columns_for(spec, data, MISSINGNESS_FIELDS), config, spec),
         _null_encoding(data, columns, config),
         _zero_spike(data, columns, config),
         _isolated_extremes(data, columns, config),
