@@ -11,8 +11,10 @@ for now.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
+import webbrowser
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -46,6 +48,7 @@ from causpec.core.quality import config_hash as basic_config_hash
 from causpec.core.registry import FamilyUnavailable
 from causpec.core.reporting import diagram
 from causpec.core.reporting.claim_level import ClaimLevelDecision, determine
+from causpec.core.reporting.html import to_html
 from causpec.core.reporting.render import RenderError
 from causpec.core.reporting.report import ReportError
 from causpec.core.reporting.report import build as build_report
@@ -199,6 +202,60 @@ def _optional(result: Result, address: object) -> float | None:
     return None
 
 
+def _render(
+    spec: Spec,
+    report: QualityReport,
+    decision: ClaimLevelDecision,
+    inputs: dict[str, Any],
+    narrative: Path | None,
+) -> str:
+    """Assemble the report from a run's inputs, whether they were just computed or read back.
+
+    One function for both paths, so a report rendered by `causpec report` cannot differ in
+    structure from one rendered by `causpec estimate --report`.
+    """
+    return build_report(
+        spec,
+        report,
+        decision,
+        inputs["addresses"],
+        narrative=_load_narrative(narrative),
+        tables=inputs.get("tables") or [],
+        preprocessing=inputs.get("preprocessing") or [],
+        provenance=inputs.get("provenance") or {},
+        sensitivity=inputs.get("sensitivity"),
+        exclusions=inputs.get("exclusions") or [],
+        execution_mode=ExecutionMode.CLI,
+    )
+
+
+def _emit(
+    rendered: str, question: str, out: Path | None, html_out: Path | None, show: bool
+) -> None:
+    """Write the report where it was asked for, and open the page if asked.
+
+    A browser is the only renderer every machine has. `open report.md` hands the file to
+    whatever is registered for `.md`, which on a colleague's laptop is a text editor or
+    nothing at all, so the HTML form exists for the person who has to read the thing rather
+    than diff it.
+    """
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(rendered, encoding="utf-8")
+        print(f"report: {out}", file=sys.stderr)
+    if html_out is not None:
+        html_out.parent.mkdir(parents=True, exist_ok=True)
+        html_out.write_text(to_html(rendered, title=question), encoding="utf-8")
+        print(f"page:   {html_out}", file=sys.stderr)
+        if show:
+            webbrowser.open(html_out.resolve().as_uri())
+    elif show:
+        print(
+            "nothing to open: --open needs --html, since a browser is what it opens",
+            file=sys.stderr,
+        )
+
+
 def _persist_run(
     args: argparse.Namespace,
     spec: Spec,
@@ -213,6 +270,7 @@ def _persist_run(
     source_fingerprint: str,
     snapshot_fingerprint: str,
     earlier: list[snapshot_store.PriorRun],
+    render_inputs: dict[str, Any],
 ) -> Path:
     """Persist this run as a run directory (design.md section 14).
 
@@ -229,6 +287,12 @@ def _persist_run(
         run.write_json("quality/report.json", report.model_dump(mode="json"))
         run.write_json("results/results.json", result.model_dump(mode="json"))
         run.write_json("claim_level.json", decision.model_dump(mode="json"))
+        # Everything `causpec report` needs to render this run again: the merged address
+        # map, the family's table declarations, the provenance, the refutation findings and
+        # the exclusion ledger. Persisted because the interpretation is written after the
+        # numbers are read, and re-estimating to render prose costs minutes and would make
+        # this run look like two.
+        run.write_json("render_inputs.json", render_inputs)
         if waivers:
             run.write_json("waivers.json", waivers)
         if rendered is not None:
@@ -419,6 +483,75 @@ def cmd_quality(args: argparse.Namespace) -> int:
     return 1 if report.blocking else 0
 
 
+def _resolve_run(directory: Path) -> Path:
+    """The run to read: this directory if it is one, else the newest run inside it.
+
+    `estimate --run-dir runs/` creates `runs/<timestamp>-<id>/`, so a user who passes the
+    parent they typed earlier means the run it made, and usually the last one.
+    """
+    if not directory.exists():
+        raise SystemExit(f"No such directory: {directory}")
+    if (directory / "manifest.json").exists():
+        return directory
+    runs = sorted(child for child in directory.iterdir() if (child / "manifest.json").exists())
+    if not runs:
+        raise SystemExit(
+            f"{directory} holds no run: expected a manifest.json, either here or in a "
+            f"subdirectory written by `causpec estimate --run-dir`."
+        )
+    return runs[-1]
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    """Render a finished run's report, without estimating anything again.
+
+    **Why this is a separate command.** The interpretation is written after the numbers are
+    read, which is the order the workflow asks for: estimate, show the user what came back,
+    and write the prose about what it says. Re-running the estimator to attach that prose
+    would cost minutes on the IV path, would record a second run on the same data, and would
+    invite the question of whether the two agreed.
+
+    **Why it does not write into the run directory.** The manifest checksums every file in a
+    run, so a file added or replaced afterwards fails `verify()`. A report rendered later is
+    a new artefact and belongs outside the sealed record.
+    """
+    run = _resolve_run(args.run_dir)
+    missing = [
+        name
+        for name in ("spec.yaml", "quality/report.json", "claim_level.json", "render_inputs.json")
+        if not (run / name).exists()
+    ]
+    if missing:
+        raise SystemExit(
+            f"{run} is missing {', '.join(missing)}, so this run cannot be rendered. Runs "
+            f"written before `render_inputs.json` existed can be re-rendered only by "
+            f"estimating again with --report."
+        )
+
+    spec = Spec.model_validate(yaml.safe_load((run / "spec.yaml").read_text(encoding="utf-8")))
+    quality = QualityReport.model_validate_json((run / "quality/report.json").read_text("utf-8"))
+    decision = ClaimLevelDecision.model_validate_json((run / "claim_level.json").read_text("utf-8"))
+    inputs = json.loads((run / "render_inputs.json").read_text(encoding="utf-8"))
+
+    for target in (args.out, args.html):
+        if target is not None and run in target.resolve().parents:
+            raise SystemExit(
+                f"{target} is inside the run directory, whose manifest checksums every file "
+                f"in it. Write the report beside the run rather than into it."
+            )
+
+    try:
+        rendered = _render(spec, quality, decision, inputs, args.narrative)
+    except (RenderError, ReportError) as error:
+        print(f"report rendering failed:\n{error}", file=sys.stderr)
+        return 3
+
+    _emit(rendered, spec.question, args.out, args.html, args.open)
+    if args.out is None and args.html is None:
+        print(rendered)
+    return 0
+
+
 def cmd_estimate(args: argparse.Namespace) -> int:
     spec = _load_spec(args.spec)
     source = _load_data(args.data)
@@ -484,54 +617,55 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         **sensitivity.addresses(),
     }
 
+    # Everything the report needs besides the spec, the quality report and the claim level.
+    # Collected once because it is used twice: rendered now if asked for, and persisted so
+    # `causpec report` can render later without estimating again. That matters because the
+    # interpretation is written after the numbers are seen, and on the IV path an estimate
+    # costs minutes.
+    render_inputs: dict[str, Any] = {
+        "addresses": addresses,
+        # Result tables the family declares. Prose is the wrong container for a result with
+        # one row per lag: the reader would see the lags a sentence happened to mention.
+        "tables": registry.load_declaration(spec.family).get("report_tables", []),
+        "preprocessing": [record.describe() for record in applied],
+        "provenance": {
+            "source_fingerprint": source_fingerprint,
+            "snapshot_fingerprint": snapshot_fingerprint,
+            "prior_runs": [prior.describe() for prior in earlier],
+        },
+        # As a mapping, so core renders the findings without the sensitivity module's
+        # dataclasses reaching into the reporting one.
+        "sensitivity": {
+            "findings": [
+                {
+                    "test_id": finding.test_id,
+                    "passed": finding.passed,
+                    "summary": finding.summary,
+                    "interpretation": finding.interpretation,
+                }
+                for finding in sensitivity.findings
+            ],
+            "refutation_params": sensitivity.refutation_params,
+            "skipped_because": sensitivity.skipped_because,
+            "e_value_absent_because": sensitivity.e_value_absent_because,
+        },
+        "exclusions": [
+            {
+                "criterion": record.criterion,
+                "said": record.said,
+                "n_before": record.n_before,
+                "n_removed": record.n_removed,
+                "n_after": record.n_after,
+            }
+            for record in ledger
+        ],
+    }
+
     rendered: str | None = None
     render_error: RenderError | ReportError | None = None
     if args.report or args.narrative is not None:
         try:
-            rendered = build_report(
-                spec,
-                report,
-                decision,
-                addresses,
-                narrative=_load_narrative(args.narrative),
-                # Result tables the family declares. Prose is the wrong container for a
-                # result with one row per lag: the reader would see the lags a sentence
-                # happened to mention.
-                tables=registry.load_declaration(spec.family).get("report_tables", []),
-                preprocessing=[record.describe() for record in applied],
-                provenance={
-                    "source_fingerprint": source_fingerprint,
-                    "snapshot_fingerprint": snapshot_fingerprint,
-                    "prior_runs": [prior.describe() for prior in earlier],
-                },
-                # As a mapping, so core renders the findings without the sensitivity
-                # module's dataclasses reaching into the reporting one.
-                sensitivity={
-                    "findings": [
-                        {
-                            "test_id": finding.test_id,
-                            "passed": finding.passed,
-                            "summary": finding.summary,
-                            "interpretation": finding.interpretation,
-                        }
-                        for finding in sensitivity.findings
-                    ],
-                    "refutation_params": sensitivity.refutation_params,
-                    "skipped_because": sensitivity.skipped_because,
-                    "e_value_absent_because": sensitivity.e_value_absent_because,
-                },
-                exclusions=[
-                    {
-                        "criterion": record.criterion,
-                        "said": record.said,
-                        "n_before": record.n_before,
-                        "n_removed": record.n_removed,
-                        "n_after": record.n_after,
-                    }
-                    for record in ledger
-                ],
-                execution_mode=ExecutionMode.CLI,
-            )
+            rendered = _render(spec, report, decision, render_inputs, args.narrative)
         except (RenderError, ReportError) as error:
             render_error = error
 
@@ -550,12 +684,14 @@ def cmd_estimate(args: argparse.Namespace) -> int:
             source_fingerprint=source_fingerprint,
             snapshot_fingerprint=snapshot_fingerprint,
             earlier=earlier,
+            render_inputs=render_inputs,
         )
 
     if render_error is not None:
         print(f"report rendering failed:\n{render_error}", file=sys.stderr)
         return 3
     if rendered is not None:
+        _emit(rendered, spec.question, None, args.html, args.open)
         print(rendered)
         return 0
 
@@ -604,6 +740,17 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="YAML",
         help="model-written interpretation as {section: prose}; numbers only via placeholders",
     )
+    estimate.add_argument(
+        "--html",
+        type=Path,
+        metavar="PATH",
+        help="also write the report as a self-contained web page, which needs --report",
+    )
+    estimate.add_argument(
+        "--open",
+        action="store_true",
+        help="open the page written by --html in the default browser",
+    )
     estimate.add_argument("--seed", type=int, default=42)
     estimate.add_argument(
         "--no-sensitivity",
@@ -625,6 +772,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="waive one waivable blocking check; a reason is required. May be repeated",
     )
     estimate.set_defaults(func=cmd_estimate)
+
+    render = subparsers.add_parser(
+        "report",
+        help="render a finished run's report, with no estimation; takes a run directory",
+    )
+    render.add_argument(
+        "--run-dir",
+        type=Path,
+        required=True,
+        help="a run directory, or the parent that `estimate --run-dir` wrote into",
+    )
+    render.add_argument(
+        "--narrative",
+        type=Path,
+        metavar="YAML",
+        help="model-written interpretation as {section: prose}; numbers only via placeholders",
+    )
+    render.add_argument("--out", type=Path, metavar="PATH", help="write the markdown here")
+    render.add_argument(
+        "--html", type=Path, metavar="PATH", help="write a self-contained web page here"
+    )
+    render.add_argument(
+        "--open",
+        action="store_true",
+        help="open the page written by --html in the default browser",
+    )
+    render.set_defaults(func=cmd_report)
 
     return parser
 

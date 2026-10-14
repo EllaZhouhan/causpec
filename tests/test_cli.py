@@ -6,6 +6,7 @@ This pins the path a user actually walks: whether the gate really holds here.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -413,6 +414,9 @@ def test_run_dir_persists_everything(workspace, tmp_path, capsys) -> None:
         "audit.jsonl",
         "spec.yaml",
         "claim_level.json",
+        # What `causpec report` needs to render this run again with an interpretation
+        # written after the numbers were read.
+        "render_inputs.json",
         "quality/report.json",
         "results/results.json",
         "report.md",
@@ -669,6 +673,122 @@ def test_no_sensitivity_says_so_rather_than_leaving_the_section_blank(
     out = capsys.readouterr().out
     assert "No refutation test ran" in out
     assert "not evidence that the estimate would have survived one" in out
+
+
+# ---- report: rendering a finished run ----
+
+
+def test_a_report_is_rendered_from_a_run_without_estimating_again(
+    workspace, tmp_path, capsys
+) -> None:
+    """The order the workflow asks for: estimate, show the user the numbers, then write the
+    prose about what they say. Re-running the estimator to attach that prose would cost
+    minutes on the IV path and would record a second run on the same data.
+
+    Note what this call does not take: no --data and no --spec. Everything it needs was
+    persisted by the estimate, which is the proof that nothing is being recomputed.
+    """
+    runs = tmp_path / "runs"
+    assert (
+        run(
+            "estimate",
+            "--spec",
+            str(workspace["spec.yaml"]),
+            "--data",
+            str(workspace["good.csv"]),
+            "--run-dir",
+            str(runs),
+            "--no-sensitivity",
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    out_path = tmp_path / "report.md"
+    html_path = tmp_path / "report.html"
+    assert (
+        run(
+            "report",
+            "--run-dir",
+            str(runs),
+            "--out",
+            str(out_path),
+            "--html",
+            str(html_path),
+        )
+        == 0
+    )
+    report = out_path.read_text(encoding="utf-8")
+    assert "## Data quality" in report
+    assert "## Claim level and reasoning" in report
+    page = html_path.read_text(encoding="utf-8")
+    assert page.startswith("<!doctype html>")
+    assert "<h2>Data quality</h2>" in page
+
+
+def test_rendering_from_a_run_gives_the_same_document_as_rendering_during_it(
+    workspace, tmp_path, capsys
+) -> None:
+    """The property that makes the two-stage workflow safe: `estimate --report` and
+    `estimate` followed by `report` produce the same report, so the order the user is shown
+    things in cannot change what the document says.
+
+    Verified on the IV example too, where the two were identical byte for byte.
+    """
+    runs = tmp_path / "runs"
+    args = (
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--no-sensitivity",
+    )
+    run("estimate", *args, "--run-dir", str(runs), "--report")
+    one_shot = capsys.readouterr().out
+
+    two_stage_runs = tmp_path / "runs2"
+    run("estimate", *args, "--run-dir", str(two_stage_runs))
+    capsys.readouterr()
+    run("report", "--run-dir", str(two_stage_runs))
+    two_stage = capsys.readouterr().out
+
+    # The run id and its timestamp differ by construction, and nothing else may.
+    assert _without_run_ids(one_shot) == _without_run_ids(two_stage)
+
+
+def _without_run_ids(report: str) -> str:
+    return re.sub(r"\b\d{8}T\d{6}Z-[0-9a-f]{6}\b", "<run>", report)
+
+
+def test_the_report_command_refuses_to_write_into_the_run_directory(
+    workspace, tmp_path, capsys
+) -> None:
+    """The manifest checksums every file in a run, so a file added afterwards fails
+    `verify()`. A report rendered later is a new artefact and belongs outside the record."""
+    runs = tmp_path / "runs"
+    run(
+        "estimate",
+        "--spec",
+        str(workspace["spec.yaml"]),
+        "--data",
+        str(workspace["good.csv"]),
+        "--run-dir",
+        str(runs),
+        "--no-sensitivity",
+    )
+    capsys.readouterr()
+    directory = next(runs.iterdir())
+    with pytest.raises(SystemExit) as error:
+        run("report", "--run-dir", str(runs), "--out", str(directory / "report.md"))
+    assert "manifest checksums every file" in str(error.value)
+
+
+def test_rendering_a_directory_that_holds_no_run_says_so(tmp_path) -> None:
+    empty = tmp_path / "nothing"
+    empty.mkdir()
+    with pytest.raises(SystemExit) as error:
+        run("report", "--run-dir", str(empty))
+    assert "holds no run" in str(error.value)
 
 
 def test_the_persisted_quality_report_carries_the_pair_it_describes(

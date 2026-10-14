@@ -295,8 +295,12 @@ data somewhere more convenient.
 ```bash
 RUN columns  --data <data file> [--spec spec.yaml]
 RUN quality  --spec spec.yaml --data <data file>
-RUN estimate --spec spec.yaml --data <data file> --report --narrative narrative.yaml
+RUN estimate --spec spec.yaml --data <data file> --run-dir runs/
+RUN report   --run-dir runs/ --narrative narrative.yaml --html report.html --open
 ```
+
+`estimate` prints the numbers; `report` turns a finished run into the document, estimating
+nothing. Step 8 says why they are separate.
 
 The report header automatically notes that this is the skill form (best-effort).
 **That note is for someone assessing the result afterwards, not an opening remark.**
@@ -867,12 +871,50 @@ justification from them for each untestable assumption, and `causal_claim_approv
 both, the ceiling for an automatic decision is `suggestive`. Say that as what it takes, not as
 a refusal.
 
-## Step 8, shared. Estimate and report
+## Step 8, shared. Estimate, read the numbers back, then write the report
+
+**Two stages, and the order is the point.** The numbers come first and the user sees them
+before a document is built around them: a report is a page of prose committing to a finding,
+and showing it to someone for the first time at the same moment as the finding itself gives
+them two things to react to at once.
+
+### 8a. Estimate, and read the result back in two or three lines
 
 ```bash
-RUN estimate --spec spec.yaml --data <data file> \
-    --report --narrative narrative.yaml --run-dir runs/
+RUN estimate --spec spec.yaml --data <data file> --run-dir runs/
 ```
+
+No `--report` here. It prints the addressed results, the claim level and the reasons. Say
+what came back, in their units, and ask whether it looks right:
+
+> "Among 4,000 stores, 415 ran the discount. The effect on closing within the year is
+> +0.020, interval -0.027 to +0.067, so this data cannot tell apart slightly harmful, no
+> effect, and slightly helpful. All three robustness checks passed. Shall I write this up?"
+
+Three things belong in that read-back and nothing else: **the headline number with its
+interval**, **what the interval does or does not rule out**, and **the claim level with the
+one reason it is not higher**. Not the address list, not the quality table again, not the
+refutation details; those are in the report they are about to get.
+
+**This is also where a user catches what no check can.** A sign they did not expect, an arm
+size that does not match their trial's records, a death rate that is not what they published:
+the numbers are the first thing in this workflow they can compare against their own knowledge
+of the data.
+
+### 8b. Write the interpretation, then render from the run
+
+```bash
+RUN report --run-dir runs/ --narrative narrative.yaml \
+    --html report.html --open
+```
+
+`report` re-renders the run that was just persisted. **It estimates nothing**, so the prose
+can be written after the numbers are known without paying for the analysis twice, and the
+report describes the same run rather than a second one. `--html` writes a self-contained page
+and `--open` opens it in the browser, which is the only renderer every machine has: handing
+someone a `.md` file opens whatever their machine associates with Markdown, and on a
+colleague's laptop that is a text editor or nothing. Give them the path to both files, and
+say the markdown is the one to keep next to the run.
 
 `narrative.yaml` is **your** interpretation, organised by section:
 

@@ -352,12 +352,30 @@ Without both, the ceiling for an automatic decision is `suggestive`.
 
 ---
 
-## 8. Estimate and report
+## 8. Estimate, read the numbers back, then write the report
+
+**Two stages.** The user sees the numbers before a document is written around them.
 
 ```bash
-RUN estimate --spec spec.yaml --data <data file> \
-    --report --narrative narrative.yaml --run-dir runs/
+RUN estimate --spec spec.yaml --data <data file> --run-dir runs/
 ```
+
+No `--report`: this prints the addressed results and the claim level. Read back the headline
+number with its interval, what the interval rules out, and the claim level with the one
+reason it is not higher. Then ask whether to write it up. This is the first point where the
+user can compare a number against their own knowledge of the data, which no check can do for
+them.
+
+```bash
+RUN report --run-dir runs/ --narrative narrative.yaml --html report.html --open
+```
+
+`report` renders the run that was just persisted and estimates nothing, so the interpretation
+can be written after the numbers are known without paying for the analysis twice, and the
+document describes that run rather than a second one. `--html` writes a self-contained page
+and `--open` opens it in the browser, because handing someone a `.md` file opens whatever
+their machine associates with Markdown, which on a colleague's laptop is a text editor or
+nothing at all.
 
 How to write `narrative.yaml` is in `reporting.md`.
 
@@ -365,5 +383,6 @@ Afterwards:
 
 - Tell the user the claim level **and the reasoning**, not just the level, but why it
   could not be higher
+- Give them both paths, and say the markdown is the one to keep next to the run
 - Point them at the run directory, which holds the manifest (dependency versions and
   checksums) and makes the run reproducible

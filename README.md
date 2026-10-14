@@ -20,7 +20,7 @@ report whose claim level says how strongly the finding may be worded.
 
 | | |
 |---|---|
-| Built, tested, runnable | the library, the CLI (`columns`, `quality`, `estimate`), three estimator families, the four check layers, the claim level, the report renderer, run directories with a manifest |
+| Built, tested, runnable | the library, the CLI (`columns`, `quality`, `estimate`, `report`), three estimator families, the four check layers, the claim level, the report as Markdown or as a self-contained web page, run directories with a manifest |
 | Built, validated by hand | the agent workflow. Its evidence is a log of manual runs in [docs/evals/](docs/evals/manual-workflow-test.md), each finding and the change it caused. Automated golden tasks are not written, so "the agent behaves" rests on that log rather than on a suite |
 | Designed, not built | the MCP server, the Postgres adapter, the example deployments. [docs/plan.md](docs/plan.md) has the order |
 
@@ -45,14 +45,25 @@ uv run causpec columns --data /tmp/icu.csv
 # 2. Can the data answer the question in the spec? Blocking issues stop here
 uv run causpec quality --spec docs/examples/icu-iv.yaml --data /tmp/icu.csv
 
-# 3. Estimate, refute, and render the report
+# 3. Estimate. Prints the numbers, the claim level, and why it is not higher
 uv run causpec estimate --spec docs/examples/icu-iv.yaml --data /tmp/icu.csv \
-    --report --narrative docs/examples/narrative.yaml --run-dir runs/example
+    --run-dir runs/example
+
+# 4. Turn that run into the report, estimating nothing again
+uv run causpec report --run-dir runs/example \
+    --narrative docs/examples/narrative.yaml \
+    --out /tmp/report.md --html /tmp/report.html --open
 ```
+
+Those are two commands rather than one because the numbers come before the prose: the user
+sees what came back, and the interpretation is written about it afterwards. `report` renders
+a run that is already finished, in under a second, so the second stage costs nothing and the
+document describes that run rather than a second one. `--open` opens the page in the browser,
+which is the only renderer every machine has.
 
 Step 3 takes about five minutes on a laptop, most of it the two-hundred-replicate bootstrap
 behind the interval; add `--no-sensitivity` for a first look, and the report will say the
-refuters did not run rather than leaving that section blank.
+refuters did not run rather than leaving that section blank. Step 4 takes under a second.
 
 The committed result of exactly those commands is in
 [docs/examples/report.md](docs/examples/report.md), with the spec and the narrative beside
@@ -202,7 +213,8 @@ packages/causpec/          the library; all computation lives here
     contracts/                 Spec, QualityIssue, Result, Manifest, Suggestion
     quality/                   the four check layers, thresholds in yaml
     sensitivity/               the E-value and the three refutation tests
-    reporting/                 addresses, placeholder rendering, claim level, the DAG
+    reporting/                 addresses, placeholder rendering, claim level, the DAG, and
+                               the report as a self-contained web page
     runtime/                   RunContext, atomic writes, audit log, manifest, snapshot
     mapping/                   preprocessing steps applied to a working copy
     inventory.py               every column described one at a time, for the roles step
@@ -212,7 +224,7 @@ packages/causpec/          the library; all computation lives here
   families/                  plugins; a new analysis is a directory and one registration
     hte_backdoor/  hte_iv/  dynamic_lag_dml/
       family.yaml                what it identifies, needs, assumes, refuses, and tabulates
-  cli.py                     causpec columns / quality / estimate
+  cli.py                     causpec columns / quality / estimate / report
 
 tests/                     each file documents a property, not a function
 skill/causpec-analyst/     SKILL.md and eight reference files

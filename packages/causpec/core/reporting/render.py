@@ -19,6 +19,7 @@ which a number reaches the report.
 from __future__ import annotations
 
 import contextlib
+import math
 import re
 from collections.abc import Iterable, Mapping
 
@@ -39,9 +40,18 @@ PLACEHOLDER = re.compile(r"\{\{([a-z]+):([A-Za-z0-9_.\-]+?)(?:\|([^}]+))?\}\}")
 # of a longer number.
 BARE_NUMBER = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?!\d)")
 
-# Relative tolerance when comparing a lit against results: a model might write 0.029
-# where the result is 0.0289.
-_LITERAL_MATCH_RTOL = 0.02
+# How a lit is compared against the results. **Not a relative tolerance**, which was the
+# first rule and was wrong in a way that cost a sentence: at 2% relative, `{{lit:95}}` in
+# "95% confidence interval" collided with a maximum IPW weight of 93.16, the render was
+# refused, and the author's repair was to delete "95%" from the report. A term lost its
+# number because an unrelated diagnostic happened to land nearby.
+#
+# What a smuggled result actually looks like is the result written with fewer digits: 0.0289
+# typed as 0.029, or 0.0177 as 0.018. So the test is exactly that, the result rounded to as
+# many significant digits as the literal was written with. 93.16 to two significant digits is
+# 93 and not 95, so the coincidence disappears, while every rounding of a real result is
+# still caught.
+_FLOAT_EPSILON = 1e-9
 
 
 class RenderError(Exception):
@@ -101,6 +111,32 @@ def _format_address_list(addresses: Iterable[str], limit: int = 12) -> str:
     return "\n".join(lines)
 
 
+def _significant_digits(written: str) -> int:
+    """How many significant digits a number was written with.
+
+    "0.029" is two, "28" is two, "0.0289" is three, "100" is three. Trailing zeros in an
+    integer count, which is the conservative reading: a model writing "100" where a result
+    is 100.4 is rounding a result.
+    """
+    digits = written.strip().lstrip("+-").replace(".", "").lstrip("0")
+    return max(len(digits), 1)
+
+
+def _is_the_same_number_written_shorter(written: float, result: float, digits: int) -> bool:
+    """Whether the literal is this result, rounded to the digits the literal carries.
+
+    Magnitudes are compared, not signed values: "a reduction of 0.018" carries the direction
+    in the prose and the number is the result's size, which is exactly the smuggle this
+    catches. A sentence that needs the magnitude of a result still has an address for it.
+    """
+    size = abs(result)
+    if size == 0.0:
+        return abs(written) <= _FLOAT_EPSILON
+    exponent = math.floor(math.log10(size))
+    rounded = round(size, digits - 1 - exponent)
+    return abs(abs(written) - rounded) <= _FLOAT_EPSILON * max(abs(rounded), 1.0)
+
+
 def _as_float(value: object) -> float | None:
     try:
         return float(value)  # type: ignore[arg-type]
@@ -138,10 +174,11 @@ def _check_literals_are_not_results(
         # several results, and then naming only one sends the model to an address that is
         # numerically right and semantically wrong: "a 12-hour period" is the period
         # length, which happens to equal the lag-1 effect's 12 hours.
+        digits = _significant_digits(literal)
         matches = sorted(
             address
             for address, number in numeric_results.items()
-            if abs(written - number) <= _LITERAL_MATCH_RTOL * max(abs(number), 1e-9)
+            if _is_the_same_number_written_shorter(written, number, digits)
         )
         if not matches:
             continue

@@ -7,6 +7,25 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **A `lit:` literal is refused only when it is a result written shorter**, not when it lands
+  near one. The old rule was a 2% relative tolerance, and `{{lit:95}}` in "95% confidence
+  interval" collided with a maximum IPW weight of 93.16: the render was refused and the repair
+  was to delete "95%" from the report, so a term lost its number to an unrelated diagnostic.
+  What a smuggled result looks like is the result with fewer digits, 0.0289 typed as 0.029, so
+  that is now the test, against the magnitude since the prose carries the sign
+- **`causpec report`**, which renders a finished run's report and estimates nothing. The
+  interpretation is written after the numbers are read, which is the order the workflow asks
+  for, and re-running the estimator to attach that prose would cost minutes on the IV path,
+  would record a second run on the same data, and would invite the question of whether the two
+  agreed. The estimate persists `render_inputs.json` and the render takes under a second. It
+  refuses to write into the run directory, whose manifest checksums every file in it
+- **The report can be a self-contained web page**, with `--html` on either command and
+  `--open` to show it in the browser. `open report.md` hands the file to whatever that machine
+  associates with Markdown, which on a colleague's laptop is a text editor or nothing at all,
+  and a browser is the one renderer everyone has. Written here rather than with a dependency,
+  because the input is not arbitrary Markdown but the fixed set of constructs the report
+  emits; a construct the converter does not know becomes visible text rather than
+  disappearing, and the diagram is handed to mermaid with its source as the fallback
 - **The placebo test permutes the column the design needs it to**, declared by the family as
   `sensitivity.placebo_column` and defaulting to the treatment. Permuting the treatment is the
   textbook placebo and it is arithmetically wrong for an instrumental variable: the estimate is
@@ -544,6 +563,11 @@ the milestones in plan.md section 2.
   conventions from the literature. The deep material moved to `docs/installation.md`,
   `docs/methods/hte-iv.md` and `docs/development.md`
 
+- **Step 8 is two stages: estimate, read the numbers back, then write the report.** The user
+  sees the headline number and its interval before a document is built around them, which is
+  also the first point where they can compare a result against their own knowledge of the data.
+  A report handed over at the same moment as the finding gives them two things to react to at
+  once
 - **The confirmation step reads back the analysis, not the spec.** The spec file is the
   interface to the code, so the family, the field statuses, the hashes and the word "spec"
   itself stay out of it; what the user confirms is the decisions they made, in their own words
