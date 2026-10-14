@@ -28,8 +28,15 @@ Not on PyPI yet, so installation is from the repository.
 
 ## Quickstart
 
-Synthetic data with known ground truth, then four commands, with nothing to configure. Only
-`uv` is needed; it installs the right Python and the dependencies from `uv.lock`.
+Synthetic data with known ground truth, then four commands, with nothing to configure.
+
+The first two lines are a clone and an install, and they are separate because they do
+different things. `git clone` copies this repository's files to disk and runs nothing, which
+is deliberate: a clone that executed an installer would be a way to run code on your machine
+for anyone who could get you to clone something. `uv sync` then fetches the 61 third-party
+packages this code needs, EconML and the rest, at the exact versions `uv.lock` pins. Those
+are not in the repository, because a few hundred megabytes of someone else's releases do not
+belong in it; the lock file records which ones instead.
 
 ```bash
 git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
@@ -246,6 +253,40 @@ The names are reserved in [docs/design.md](docs/design.md) section 5.
 
 ## Installing
 
+Three ways, depending on what you want.
+
+| | What you get | Where it works |
+|---|---|---|
+| **The agent**, which is what this is for | the skill, plus the command it drives | any directory, any Claude Code session |
+| **The command only**, no clone needed | `causpec` on your PATH | any directory |
+| **A clone**, for reading the code and running the quickstart | the repository and its own environment | inside the clone, as `uv run causpec ...` |
+
+```bash
+# The agent: clone once, because both commands point at the clone
+git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
+uv tool install --from . --with 'causpec[hte]' causpec
+ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
+
+# The command only, straight from GitHub
+uv tool install --from git+https://github.com/EllaZhouhan/causpec.git \
+    --with 'causpec[hte]' causpec
+
+# A clone, with the project's own environment
+git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
+uv sync --extra hte
+```
+
+The skill is text, eight Markdown files the model reads, so it needs no installing and the
+symlink is the whole of it. The command is Python and does need installing, which is why both
+halves appear above: the skill's instructions tell the model to run `causpec`, and an agent
+whose first command does not exist gets no further. [docs/installation.md](docs/installation.md)
+has the claude.ai form as well.
+
+**One trap worth knowing.** `uv run causpec` finds the nearest `pyproject.toml` above the
+current directory, so inside the clone it runs that clone's copy. Outside it, there is no
+project to find and the command falls back to whatever is on your PATH, which may be an older
+install. It does not complain, so when the two could differ, check with `uv run which causpec`.
+
 Core stays light (pydantic, pyyaml, pandas, numpy). Heavy dependencies live behind extras:
 
 | extra | Pulls in | Needed by |
@@ -255,16 +296,20 @@ Core stays light (pydantic, pyyaml, pandas, numpy). Heavy dependencies live behi
 | `parquet` | pyarrow | reading a `.parquet` extract; CSV needs nothing |
 
 ```bash
-# In a clone, which is the only way to install it today: not published to PyPI yet
 uv sync                  # spec, quality checks and report rendering only
 uv sync --extra hte      # to run HTE estimation
 uv sync --all-extras     # everything, including the panel family and parquet
-
-# Or, to get a `causpec` command on your PATH that works from any directory
-uv tool install --from . --with 'causpec[hte]' causpec
 ```
 
-With pip instead of uv, from the same clone: `pip install '.[hte]'`.
+**`uv.lock` is why a result is reproducible at all.** `pyproject.toml` asks for
+`econml>=0.15`, which is a range; the lock file says `econml 0.17.0`, and pins all 61
+packages the same way. A seed alone is not enough: it fixes the random numbers, and a minor
+EconML release that changes a default hyperparameter gives a different estimate from the same
+seed. The run manifest records the installed versions for the same reason.
+
+With pip instead of uv, from a clone: `pip install '.[hte]'`. That ignores the lock file, so
+the versions float and reproducibility becomes yours to manage. Not published to PyPI yet, so
+`pip install causpec` does not work.
 
 `dynamic_lag_dml` needs no EconML: its estimator is written here, and what it uses is
 gradient boosting for the continuation model, a linear model for the two orthogonal
