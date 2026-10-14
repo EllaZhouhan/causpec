@@ -226,12 +226,15 @@ packages/causpec/          the library, 10k lines; all computation lives here
 
 tests/                     9k lines, 685 tests; each file documents a property, not a function
 skill/causpec-analyst/     SKILL.md, 8 reference files, scripts/run.py
-docs/                      design.md, plan.md, decisions/ (four ADRs), evals/
+docs/                      design.md, plan.md, CHANGELOG.md, decisions/, evals/
 data/generators/           synthetic data with ground truth (output is never committed)
 scripts/                   build the skill bundle, and the pre-commit data-file guard
 ```
 
-Eight directories and six files, which is the whole of it. The MCP server, the Postgres
+Eight directories and five files, which is the whole of it. Only the five are at the root,
+because every tool that reads them looks there: pyproject.toml is also the ruff, pytest,
+pyright and import-linter configuration, uv.lock is what makes the dependency half of
+reproducibility true, and GitHub renders README.md as the landing page. The MCP server, the Postgres
 adapter and the deployment examples are designed in `docs/design.md` sections 5, 6 and 12 and
 are **not built**, so they have no directories: an empty folder holding one README is a
 roadmap pretending to be code, and the roadmap is `docs/plan.md`.
@@ -353,7 +356,7 @@ drifts from the code is worse than none, so the drift is a test failure.
 - [Plan](docs/plan.md), the order of work and what is done
 - [Decision records](docs/decisions/), four ADRs: the ADR policy, the data-source boundary,
   writing the basic checks without pandera, and linearmodels for one statistic
-- [Changelog](CHANGELOG.md), which records why each change was made and not only what
+- [Changelog](docs/CHANGELOG.md), which records why each change was made and not only what
   changed
 
 ## Credit
