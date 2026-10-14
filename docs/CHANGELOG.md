@@ -7,6 +7,11 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **Every install command in the project is one that works today.** `pip install
+  'causpec[hte]'` was offered by the registry's remediation, by the parquet refusal and by the
+  README, and it resolves to nothing: the package is not published. They now say
+  `uv sync --extra hte` in the repository, or `pip install '.[hte]'` from a clone, and the
+  README adds the `uv tool install` form for a command on PATH
 - **A `lit:` literal is refused only when it is a result written shorter**, not when it lands
   near one. The old rule was a 2% relative tolerance, and `{{lit:95}}` in "95% confidence
   interval" collided with a maximum IPW weight of 93.16: the render was refused and the repair

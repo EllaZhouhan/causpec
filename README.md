@@ -28,7 +28,8 @@ Not on PyPI yet, so installation is from the repository.
 
 ## Quickstart
 
-Synthetic data with known ground truth, then the three commands, with nothing to configure.
+Synthetic data with known ground truth, then four commands, with nothing to configure. Only
+`uv` is needed; it installs the right Python and the dependencies from `uv.lock`.
 
 ```bash
 git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
@@ -55,8 +56,8 @@ uv run causpec report --run-dir runs/example \
     --out /tmp/report.md --html /tmp/report.html --open
 ```
 
-Those are two commands rather than one because the numbers come before the prose: the user
-sees what came back, and the interpretation is written about it afterwards. `report` renders
+**Steps 3 and 4 are separate on purpose**, because the numbers come before the prose: the
+user sees what came back, and the interpretation is written about it afterwards. `report` renders
 a run that is already finished, in under a second, so the second stage costs nothing and the
 document describes that run rather than a second one. `--open` opens the page in the browser,
 which is the only renderer every machine has.
@@ -254,9 +255,16 @@ Core stays light (pydantic, pyyaml, pandas, numpy). Heavy dependencies live behi
 | `parquet` | pyarrow | reading a `.parquet` extract; CSV needs nothing |
 
 ```bash
+# In a clone, which is the only way to install it today: not published to PyPI yet
 uv sync                  # spec, quality checks and report rendering only
 uv sync --extra hte      # to run HTE estimation
+uv sync --all-extras     # everything, including the panel family and parquet
+
+# Or, to get a `causpec` command on your PATH that works from any directory
+uv tool install --from . --with 'causpec[hte]' causpec
 ```
+
+With pip instead of uv, from the same clone: `pip install '.[hte]'`.
 
 `dynamic_lag_dml` needs no EconML: its estimator is written here, and what it uses is
 gradient boosting for the continuation model, a linear model for the two orthogonal
@@ -273,7 +281,7 @@ error carrying the install command:
 ```console
 $ causpec estimate --spec spec.yaml --data cohort.csv
 [FAMILY_DEPENDENCY_MISSING] family hte_iv has an uninstalled dependency (econml)
-  Fix: Install causpec[hte]: uv sync --extra hte (or pip install 'causpec[hte]')
+  Fix: Install causpec[hte]: uv sync --extra hte in the repository, or pip install '.[hte]' from a clone
 ```
 
 ## Data handling

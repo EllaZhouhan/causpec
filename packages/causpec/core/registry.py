@@ -155,8 +155,12 @@ def get(family_id: str) -> Family:
         importlib.import_module(f"causpec.families.{family_id}")
     except ImportError as error:
         extra = declaration.get("requires_extra")
+        # The remediation has to be a command that works now. `pip install causpec[hte]`
+        # was offered here and does not: the package is not published, so that line sent a
+        # user to a 404 while the repository they already had was one command away.
         remediation = (
-            f"Install causpec[{extra}]: uv sync --extra {extra} (or pip install 'causpec[{extra}]')"
+            f"Install causpec[{extra}]: uv sync --extra {extra} in the repository, or "
+            f"pip install '.[{extra}]' from a clone"
             if extra
             else f"A dependency of this family is missing: {error}"
         )
