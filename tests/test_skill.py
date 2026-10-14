@@ -688,6 +688,19 @@ def test_the_confirmation_step_reads_back_the_analysis_not_the_spec(skill_text: 
     assert "The diagram is a section of the report, not something to paste into the" in text
 
 
+def test_the_agent_can_install_the_library_it_drives(skill_text: str) -> None:
+    """So the whole install is a clone and a symlink, which is the question that produced it:
+    why should anyone run an install command before the agent has even read their file?
+
+    The skill can find the clone because the symlink that put it in front of the model points
+    there, which is the one piece of its own installation a skill can see.
+    """
+    text = flat(skill_text)
+    assert "If none of them works, install it, and you already know where from" in text
+    assert "readlink ~/.claude/skills/causpec-analyst" in text
+    assert "uv tool install --from <clone> causpec" in text
+
+
 def test_the_estimators_are_installed_on_demand_by_the_agent(skill_text: str) -> None:
     """The user asked why an install is needed up front when their data lives elsewhere, and
     the second half of that is right: nothing before step 8 needs the estimators.

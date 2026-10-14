@@ -264,20 +264,36 @@ Three ways, depending on what you want.
 **The agent, in one line.** Paste it anywhere; it clones into the current directory.
 
 ```bash
-git clone https://github.com/EllaZhouhan/causpec.git && cd causpec && \
-  uv tool install --from . causpec && mkdir -p ~/.claude/skills && \
-  ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
+git clone https://github.com/EllaZhouhan/causpec.git && mkdir -p ~/.claude/skills && \
+  ln -sfn "$PWD/causpec/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
 ```
 
-Four steps, chained, and each one is there for a reason: the clone brings the files, the
-install puts `causpec` on your PATH, and the symlink is what makes Claude Code find the
-skill. `git clone` cannot do the other three itself, and that is deliberate rather than a
-gap: git copies files and never executes anything from a repository, or cloning something
-would be a way to run a stranger's code. A symlink rather than a copy, so editing `SKILL.md`
-in the clone takes effect on the next message; keep the clone where it is, and redo the link
-if you move it.
+That is the whole of it: the files, and a link that puts them where Claude Code looks. **No
+Python is installed here**, and nothing else has to be: the agent installs the library the
+first time it runs a command, and the estimators the first time something needs them, asking
+before each. It finds the clone through that same symlink.
 
-The other two forms, for when you want less:
+`git clone` cannot do the link itself, and that is deliberate rather than a gap: git copies
+files and never executes anything from a repository, or cloning something would be a way to
+run a stranger's code.
+
+**What `ln -sfn` does.** It creates a symlink, a name that points at a file elsewhere rather
+than a copy of it. Claude Code loads personal skills from `~/.claude/skills/`, and the files
+live in your clone, so the link makes `~/.claude/skills/causpec-analyst` mean
+`<clone>/skill/causpec-analyst`. `-s` is the pointer rather than a copy, `-f` overwrites a
+name that is already there, and `-n` replaces an existing link instead of creating one inside
+the directory it points at. A link rather than a copy because editing `SKILL.md` then takes
+effect on the next message, where a copy would quietly drift from the repository. The cost is
+that the clone has to stay where it is; if you move it, run the link again.
+
+To install the library up front instead, so the first analysis is not interrupted at all, add
+it to the same line:
+
+```bash
+cd causpec && uv tool install --from . causpec
+```
+
+The other two forms, for when you want something different:
 
 ```bash
 # The command only, straight from GitHub, no clone and no cd

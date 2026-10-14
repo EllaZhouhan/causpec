@@ -12,16 +12,21 @@ and the library is what computes.
 your PATH, and the skill in your personal skill directory.
 
 ```bash
-git clone https://github.com/EllaZhouhan/causpec.git && cd causpec && \
-  uv tool install --from . causpec && mkdir -p ~/.claude/skills && \
-  ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
+git clone https://github.com/EllaZhouhan/causpec.git && mkdir -p ~/.claude/skills && \
+  ln -sfn "$PWD/causpec/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
 ```
 
-One line, four steps: the files, the command on your PATH, the skill directory, and the link
-that makes Claude Code find the skill. The estimators are not installed here, because nothing
-before the estimation step needs them and they are hundreds of megabytes; the agent asks and
-installs them the first time something does. Add `--with 'causpec[hte]'` to the
-`uv tool install` if you would rather wait once, up front.
+The files, and a link that puts them where Claude Code looks for personal skills. Nothing
+Python is installed, and nothing has to be: the agent installs the library the first time it
+runs a command and the estimators the first time something needs them, asking before each,
+and it locates the clone through that same symlink with `readlink`.
+
+Installing up front is one more command, and means the first analysis is never interrupted:
+
+```bash
+cd causpec && uv tool install --from . causpec                 # the core, about a second
+cd causpec && uv tool install --from . --with 'causpec[hte]' causpec   # with the estimators
+```
 
 Now any `claude` session in any directory has it. Ask a causal question and it should
 trigger on its own; `/causpec-analyst` invokes it explicitly. Data paths can be absolute

@@ -273,6 +273,25 @@ causpec --version                  # 2. otherwise, installed for the whole machi
 | `scripts/run.py` is in the working directory | `python scripts/run.py ...` |
 | Neither | `causpec ...` |
 
+**If none of them works, install it, and you already know where from.** A user can set this up
+with nothing but a clone and the symlink that put these instructions in front of you, so the
+library may genuinely not be installed yet. That symlink is also the answer to where the
+clone is:
+
+```bash
+readlink ~/.claude/skills/causpec-analyst     # -> <clone>/skill/causpec-analyst
+```
+
+Strip the trailing `/skill/causpec-analyst` and that is the repository. Say what is missing in
+one line, ask, and on agreement run it yourself:
+
+```bash
+uv tool install --from <clone> causpec
+```
+
+That is the core only, four direct dependencies and about a second. The estimators come later,
+when something actually needs them, which is the rule below.
+
 **The working directory wins over a global install, and that order was the other way round
 once.** Someone sitting in the causpec repository usually has an installed copy on their PATH
 as well, and it can be months older than the checkout while answering `--version` perfectly
@@ -305,9 +324,12 @@ RUN report   --run-dir runs/ --narrative narrative.yaml --html report.html --ope
 nothing. Step 8 says why they are separate.
 
 **The estimators are installed when they are first needed, by you, with one question.**
-Nothing before step 8 needs them: the spec, the column inventory, the quality checks and the
-report renderer run on the core install alone, and the estimator dependencies are hundreds of
-megabytes that a user who turns out to have the wrong data shape never needed. So do not
+There are two tiers and the difference is large. The core is pydantic, pyyaml, pandas and
+numpy, eleven packages with their dependencies, and **every** command needs it, including the
+first one you run. The `hte` extra is EconML, scikit-learn, statsmodels, scipy, linearmodels
+and joblib, hundreds of megabytes, and **only the estimation needs it**: the spec, the column
+inventory, the quality checks and the report renderer all run without it, so a user whose data
+turns out to be the wrong shape never needed it. So do not
 install anything up front, and when `estimate` returns `FAMILY_DEPENDENCY_MISSING`, treat it
 as the ordinary next step rather than as a failure:
 
