@@ -6,17 +6,16 @@
 ## Context
 
 design.md 8.1 named pandera as the implementation of the basic check layer, with
-"NULL-variant detection written here". plan.md Phase 1 task 4 repeated it, and
-THIRD_PARTY_NOTICES listed it. Implementing the layer made the trade-off concrete, and it
-came out the other way.
+"NULL-variant detection written here", and plan.md Phase 1 task 4 repeated it.
+Implementing the layer made the trade-off concrete, and it came out the other way.
 
 What pandera offers is a declarative DataFrame schema: dtype, range, nullability and
 uniqueness per column, validated in one call, with failure cases returned as a frame.
 
 ## Decision
 
-Write the basic layer by hand. Remove pandera from the dependency list, from design.md 8.1
-and from THIRD_PARTY_NOTICES, since no code and no practice is taken from it.
+Write the basic layer by hand. Remove pandera from the dependency list and from
+design.md 8.1, since no code and no practice is taken from it.
 
 ## Why
 
