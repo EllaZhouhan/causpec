@@ -378,6 +378,20 @@ def _sensitivity_section(
             if finding.get("interpretation"):
                 lines.append(f"- **{finding.get('test_id')}**: {finding['interpretation']}")
         lines += [""]
+        params = sensitivity.get("refutation_params") or {}
+        if params:
+            # Said out loud, because a reader comparing the table above against the primary
+            # result is entitled to know the refuted runs were not configured identically.
+            # What they compare, a point estimate against this run's interval half-width,
+            # does not depend on these.
+            settings = ", ".join(f"`{key}` = {value}" for key, value in sorted(params.items()))
+            lines += [
+                f"The refuted runs used {settings}, rather than this analysis's own value. "
+                f"Each test compares a point estimate against the estimate and interval "
+                f"reported above, so no refuted run's interval is read, and the parameters "
+                f"that only sharpen an interval are not paid for seven times over.",
+                "",
+            ]
 
     absent = str(sensitivity.get("e_value_absent_because") or "")
     if absent:

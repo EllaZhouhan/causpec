@@ -1,0 +1,67 @@
+# The interpretation, which is the only part of the report the model writes. Six keys are
+# accepted and every other section is generated from the result addresses.
+#
+# No digit appears in this file outside a placeholder. That is enforced, not a convention:
+# the renderer refuses a bare number, because a model that is allowed to type "the effect
+# is -0.025" is a model that can type a number no computation produced. A fixed number
+# inside a term goes in as {{lit:95}}, and a lit value equal to any computed result is
+# refused in turn, so the escape hatch cannot smuggle a result through.
+
+estimand: >
+  This estimates what dialysis does to the chance of dying among the patients whose
+  dialysis decision follows the instrument, which here is the consultant on shift. It is
+  not the effect across all {{res:sample.n}} patients, and nobody in the data can be
+  identified as one of those patients, so the number describes a group that can be
+  reasoned about but not enumerated. The effect is allowed to vary over
+  {{res:design.n_effect_modifiers}} baseline covariates.
+
+data_quality: >
+  The instrument is strong: the first-stage robust F is
+  {{qc:iv_weak_first_stage.robust_f|.1f}} against a threshold of
+  {{qc:iv_weak_first_stage.robust_f_threshold|.0f}}, and the probit first stage agrees. None of
+  the covariates is imbalanced across the instrument at the declared false-discovery rate,
+  which is what a valid instrument should look like and is a necessary condition rather
+  than a sufficient one. The treatment behaves endogenously
+  (p = {{qc:iv_treatment_exogeneity.endogeneity_p_value|.4f}}), so the variance an
+  instrument costs is being paid for something. What the checks do flag is scale: with
+  {{qc:feasibility_event_counts.events_in_smaller_arm}} deaths in the smaller arm against
+  {{qc:feasibility_event_counts.n_covariates}} covariates, a breakdown by patient type is
+  thin, which is why the group effects below are read as description rather than as finding.
+
+primary_results: >
+  Among {{res:sample.n}} patients, {{res:sample.n_treated}} received dialysis, and
+  {{res:sample.outcome_rate|.1%}} of the cohort died. The estimated effect is
+  {{res:primary.ate|+.4f}} on the probability of dying, {{lit:95}}% interval
+  [{{res:primary.ate_ci_lower|+.4f}}, {{res:primary.ate_ci_upper|+.4f}}], built by
+  {{res:primary.ate_ci_method}} over {{res:estimation.n_bootstrap_samples}} replicates.
+  Read as a difference in risk, that is a reduction of about
+  {{res:primary.ate|+.4f}} in absolute terms among the patients this design speaks for.
+  The fitted effects vary: the median is {{res:cate.median|+.4f}} with the middle half
+  between {{res:cate.q25|+.4f}} and {{res:cate.q75|+.4f}}, and the median interval is
+  {{res:cate.ci_width_median|.3f}} wide, which is wider than the spread of the effects
+  themselves. That ordering is the whole story about heterogeneity here: the differences
+  between patients are smaller than the uncertainty about any one of them, so the profile
+  describes the fit rather than the population.
+
+sensitivity: >
+  An unmeasured confounder would need associations of about
+  {{res:sensitivity.e_value|.2f}} with both the treatment and the outcome, on the risk
+  ratio scale, to explain away the observed arm difference, and about
+  {{res:sensitivity.e_value_limit|.2f}} to bring the interval limit to the null. Those are
+  not large numbers in an ICU setting, where severity is exactly the kind of thing that is
+  recorded incompletely, which is the reason this analysis uses an instrument rather than
+  adjustment. The placebo treatment, the random common cause and the subset refutations are
+  reported above: a passing refuter says the machinery is not manufacturing an effect, and
+  says nothing about whether the identifying assumptions hold.
+
+limitations: >
+  The exclusion restriction and uniformity cannot be tested, and both are taken on the
+  justification recorded in the spec rather than on evidence. The outcome column carries no
+  date, so this is the chance of dying at any point in the record and not survival over a
+  window, and no survival curve or hazard can be read from it. The effect is among
+  compliers, so it does not transfer to a policy of dialysing everyone or no one. The event
+  count makes the per-patient profile exploratory. The data is synthetic, generated from a
+  known structural model, so this report demonstrates the pipeline rather than any clinical
+  finding.
+
+post_hoc: ""

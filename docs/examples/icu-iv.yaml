@@ -1,0 +1,83 @@
+# An example spec, written by hand so the quickstart in the README has something to run.
+#
+# The agent normally produces this one field at a time, with the user's own words in
+# `said` and `status: confirmed` only after they have confirmed it. Here the words are
+# invented, which is the one thing a real run never does: a spec whose `said` was not
+# spoken is a spec whose confirmation did not happen.
+#
+# The data is synthetic dataset A at the `realistic` preset, which carries its own ground
+# truth: the average effect is -0.0014, the effect among the treated is -0.0222, and the
+# naive difference in death rates is +0.0245. Unmeasured severity drives both treatment
+# and death, so the naive comparison and backdoor adjustment are both biased, and the
+# instrument is what identifies. That is what this file demonstrates.
+spec_version: 1
+question: >
+  Among ICU patients with acute kidney injury, what does starting dialysis do to the
+  chance of dying, and does the effect differ by how sick they are?
+family: hte_iv
+
+fields:
+  treatment:
+    value: isDialysisICU
+    source: user
+    said: treatment means starting dialysis in the ICU
+    turn: 2
+    status: confirmed
+  outcome:
+    value: death
+    source: user
+    said: the outcome is dying, and the column is 0 or 1 with no date
+    turn: 4
+    status: confirmed
+  estimand:
+    value: conditional_late
+    source: model
+    said: the effect among patients whose treatment follows the instrument is what this can answer
+    turn: 6
+    status: confirmed
+  instrument:
+    value: instrument
+    source: user
+    said: which consultant was on shift changes the chance of dialysis and nothing else
+    turn: 8
+    status: confirmed
+  effect_modifiers:
+    value:
+      - admission_age
+      - max_creatinine
+      - max_urea
+      - max_potassium
+      - min_pH
+      - min_ArterialPressure
+      - sofa_total_24h
+      - max_aki_stage_smoothed
+    source: user
+    said: these eight are what the team looks at before deciding
+    turn: 10
+    status: confirmed
+
+assumptions:
+  - id: relevance
+    category: empirically_assessed
+    statement: the instrument is associated with treatment, strongly enough
+  - id: exclusion_restriction
+    category: untestable
+    statement: the instrument affects the outcome only through the treatment
+    justification: >
+      Which consultant is on shift is set by the rota rather than by the patient, and a
+      consultant's general preference for dialysis does not otherwise change their care.
+    justified_by: user
+  - id: uniformity
+    category: untestable
+    statement: >
+      a higher instrument value does not move any patient away from treatment
+    justification: >
+      A consultant more inclined to dialyse does not make any individual patient less
+      likely to receive it.
+    justified_by: user
+
+estimation:
+  params:
+    estimator: ivforest
+    n_estimators: 200
+    n_bootstrap_samples: 200

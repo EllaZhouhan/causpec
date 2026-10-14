@@ -25,6 +25,8 @@ the import-linter contract).
 |---|---|---|
 | [0001](0001-literal-numbers-in-reports.md) | Literal numbers in report prose (the `lit:` namespace) | accepted |
 | [0002](0002-data-source-boundary.md) | Data-source boundaries (enforcing `root` / `allowed_relations`) | proposed |
+| [0003](0003-basic-checks-without-pandera.md) | The basic check layer is written here, not with pandera | accepted |
+| [0004](0004-linearmodels-for-overidentification-only.md) | linearmodels for one statistic, the robust overidentification test | accepted |
 
 ## How to write one
 

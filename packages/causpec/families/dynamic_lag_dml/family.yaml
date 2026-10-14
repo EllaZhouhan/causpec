@@ -451,3 +451,6 @@ sensitivity:
   primary_ci_upper: res:profile.lag1.ci_hi
   # Per-period outcomes here are continuous, so there is no risk ratio and no E-value.
   control_risk_address: ""
+  # As in hte_iv: a refuted run's interval is never read, so it does not pay for one.
+  refutation_params:
+    n_bootstrap_samples: 5

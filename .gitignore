@@ -53,5 +53,5 @@ htmlcov/
 .idea/
 .vscode/
 
-# The skill's wheel is a build product, produced by make-skill.sh; not committed.
+# The skill's wheel is a build product, produced by scripts/build_skill.sh; not committed.
 skill/causpec-analyst/assets/*.whl

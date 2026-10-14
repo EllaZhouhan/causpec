@@ -142,9 +142,17 @@ nothing. Do not quote the point estimate's E-value on its own in that case: it r
 reassurance and the situation is the opposite.
 
 **A failed refutation is the most important line in the report.** A failed placebo test means
-the estimate survived permuting the treatment, so it is not an estimate of the treatment's
-effect. Say that plainly, do not soften it, and do not look for a different number to lead
-with. The claim level drops to `associational` on its own and you may not write above it.
+the estimate survived permutation of the column the effect must come from, so it is not an
+estimate of the treatment's effect. Say that plainly, do not soften it, and do not look for a
+different number to lead with. The claim level drops to `associational` on its own and you may
+not write above it.
+
+**Which column is permuted depends on the design, and the report says which.** For a backdoor
+analysis it is the treatment, the textbook placebo. For an instrumental variable it is the
+outcome, because an IV estimate is a ratio whose denominator is the instrument-treatment
+association: permuting the treatment sends that denominator to zero and the estimate to
+whatever a near-zero divisor gives, which fails the test for a reason that has nothing to do
+with the data. If a user asks why the IV report permutes the outcome, that is the answer.
 
 A passing placebo test says the machinery is not manufacturing an effect. It does not say the
 effect is causal, and writing it as though it did is the specific mistake this section invites.

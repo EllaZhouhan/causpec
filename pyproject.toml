@@ -40,6 +40,13 @@ dynamic = [
     "scikit-learn>=1.4",
     "scipy>=1.11",
 ]
+# Reading a parquet file needs an engine, a forty-megabyte wheel for a format most
+# extracts do not arrive in, so it is an extra rather than a dependency. Without it a
+# parquet path is refused with the install command, the same way a missing family extra
+# is, instead of surfacing pandas' own ImportError.
+parquet = [
+    "pyarrow>=15.0",
+]
 
 [project.scripts]
 causpec = "causpec.cli:main"

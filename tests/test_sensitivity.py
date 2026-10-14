@@ -116,6 +116,71 @@ def data() -> pd.DataFrame:
 # ---- the E-value, against the published example ----
 
 
+def test_a_refuted_run_does_not_pay_for_an_interval_nobody_reads(data) -> None:
+    """Why this exists: the IV path took forty minutes for one report.
+
+    Seven refits, each carrying a two-hundred-replicate bootstrap, and not one of those
+    intervals is read: every test compares a point estimate against the real run's estimate
+    and its interval half-width. The family declares what may be turned down, because core
+    must not know what `n_bootstrap_samples` means, and the report says the refuted runs were
+    configured differently.
+    """
+    seen: list[int] = []
+
+    class Counting:
+        """A family that records the replicate count it was handed."""
+
+        def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
+            del data, seed
+            seen.append(int((spec.estimation.get("params") or {}).get("n_bootstrap_samples", 0)))
+            return result_of(0.0)
+
+    spec = make_spec()
+    spec = spec.model_copy(update={"estimation": {"params": {"n_bootstrap_samples": 200}}})
+    report = run_refutations(
+        Counting(),
+        data,
+        spec,
+        result_of(-0.02),
+        {
+            "sensitivity": {
+                "primary_address": "res:primary.ate",
+                "primary_ci_lower": "res:primary.ate_ci_lower",
+                "primary_ci_upper": "res:primary.ate_ci_upper",
+                "refutation_params": {"n_bootstrap_samples": 5},
+            }
+        },
+    )
+    assert seen, "no refuted run happened"
+    assert set(seen) == {5}, seen
+    assert report.refutation_params == {"n_bootstrap_samples": 5}
+    # And the real spec is untouched, so the manifest still describes what was reported.
+    assert spec.estimation["params"]["n_bootstrap_samples"] == 200
+
+
+def test_without_a_declaration_the_refuted_runs_get_the_real_parameters(data) -> None:
+    """A family that declares nothing keeps the old behaviour, which is the safe default:
+    core turns nothing down on its own initiative."""
+    seen: list[int] = []
+
+    class Counting:
+        def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
+            del data, seed
+            seen.append(int((spec.estimation.get("params") or {}).get("n_bootstrap_samples", 0)))
+            return result_of(0.0)
+
+    spec = make_spec().model_copy(update={"estimation": {"params": {"n_bootstrap_samples": 200}}})
+    report = run_refutations(
+        Counting(),
+        data,
+        spec,
+        result_of(-0.02),
+        {"sensitivity": {"primary_address": "res:primary.ate"}},
+    )
+    assert set(seen) == {200}, seen
+    assert report.refutation_params == {}
+
+
 def test_the_published_example_reproduces() -> None:
     """VanderWeele and Ding (2017). Their headline pair: an observed risk ratio of 3.9 gives
     an E-value of 7.26, and a lower confidence limit of 1.8 gives 3.0."""
@@ -188,6 +253,54 @@ def test_the_addresses_are_rounded_and_complete() -> None:
 
 
 # ---- the placebo test, which is the one that speaks to validity ----
+
+
+def test_which_column_the_placebo_permutes_is_the_family_s_decision(data) -> None:
+    """Found by generating the example report: the placebo failed on every IV analysis.
+
+    An IV estimate is a ratio whose denominator is the instrument-treatment association, so
+    permuting the treatment sends the denominator to zero and the estimate to whatever a
+    near-zero divisor gives. The example came back with +8.66 on a probability scale, the test
+    failed, and the claim level dropped to `associational` for a reason that was in the test
+    rather than in the data. Permuting the outcome leaves the first stage intact.
+    """
+    permuted: list[str] = []
+
+    class Watching:
+        """Records which column arrived shuffled, by comparing against the original."""
+
+        def __init__(self, original: pd.DataFrame) -> None:
+            self.original = original
+
+        def estimate(self, data: pd.DataFrame, spec: Spec, seed: int) -> Result:
+            del spec, seed
+            # Only the full-length frames: the subset refuter hands over half the rows, where
+            # every column differs for a reason that is not permutation.
+            if len(data) == len(self.original):
+                for column in ("isDialysisICU", "death"):
+                    original = np.asarray(self.original[column])
+                    if not np.array_equal(np.asarray(data[column]), original):
+                        permuted.append(column)
+            return result_of(0.0)
+
+    declaration = {"sensitivity": {**DECLARATION["sensitivity"], "placebo_column": "outcome"}}
+    run_refutations(Watching(data), data, make_spec(), result_of(-0.02), declaration)
+    assert set(permuted) == {"death"}, permuted
+
+    permuted.clear()
+    run_refutations(Watching(data), data, make_spec(), result_of(-0.02), DECLARATION)
+    assert set(permuted) == {"isDialysisICU"}, permuted
+
+
+def test_the_placebo_names_the_column_it_permuted(data) -> None:
+    """A reader cannot check a refutation whose summary says "the treatment" when the outcome
+    was permuted, so the field is in the summary and both names are in the evidence."""
+    declaration = {"sensitivity": {**DECLARATION["sensitivity"], "placebo_column": "outcome"}}
+    report = run_refutations(Honest(), data, make_spec(), result_of(-0.02), declaration)
+    placebo = next(f for f in report.findings if f.test_id == "placebo_treatment")
+    assert "with the outcome permuted" in placebo.summary
+    assert placebo.evidence["permuted_field"] == "outcome"
+    assert placebo.evidence["permuted_column"] == "death"
 
 
 def test_a_constant_estimator_fails_the_placebo_test(data) -> None:

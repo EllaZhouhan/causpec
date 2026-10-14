@@ -241,6 +241,21 @@ sensitivity:
   primary_ci_lower: res:primary.ate_ci_lower
   primary_ci_upper: res:primary.ate_ci_upper
   control_risk_address: res:sample.outcome_rate_control
+  # **The placebo permutes the outcome here, not the treatment.** An IV estimate is a ratio
+  # whose denominator is the instrument-treatment association, so permuting the treatment
+  # sends that denominator to zero and the estimate to whatever a near-zero divisor gives:
+  # measured on this project's own example it returned +8.66 on a probability scale, the test
+  # failed, and every IV analysis was being driven to `associational` by the test rather than
+  # by the data. Permuting the outcome leaves the first stage intact and removes the only
+  # thing the estimand can come from, which is what the collapse-to-zero standard assumes.
+  placebo_column: outcome
+  # What the refuted runs may be given instead of the real run's parameters. Each refutation
+  # compares a point estimate against the real run's estimate and its interval half-width,
+  # so a refuted run's own interval is never read, and on this backend that interval is a
+  # bootstrap: seven refits at two hundred replicates each took forty minutes and nothing
+  # looked at the result. Five keeps the percentile machinery exercised rather than bypassed.
+  refutation_params:
+    n_bootstrap_samples: 5
 
 # Questions this family cannot answer, in the words a user would ask them in, so the agent
 # refuses with a reason instead of estimating the nearest available thing.

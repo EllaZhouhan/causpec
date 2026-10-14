@@ -89,6 +89,10 @@ class SensitivityReport:
     # a clean bill of health.
     e_value_absent_because: str = ""
     skipped_because: str = ""
+    # The estimation parameters the refuted runs were given, when they differ from the real
+    # run's. Printed in the report: a refutation done more cheaply than the analysis has to
+    # say so, even though the thing it compares is unaffected.
+    refutation_params: dict[str, Any] = field(default_factory=dict)
 
     @property
     def failed(self) -> list[RefutationFinding]:
@@ -108,6 +112,20 @@ def _primary(result: Result, address: str) -> float:
     return float(value)
 
 
+def _with_params(spec: Spec, overrides: dict[str, Any]) -> Spec:
+    """A copy of the spec with `estimation.params` merged, leaving the original untouched.
+
+    The spec a run is identified by does not change: this copy exists only inside the
+    refutation and never reaches the manifest or the spec hash, which continue to describe
+    the analysis that was actually reported.
+    """
+    estimation = dict(spec.estimation)
+    params = dict(estimation.get("params") or {})
+    params.update(overrides)
+    estimation["params"] = params
+    return spec.model_copy(update={"estimation": estimation})
+
+
 def _placebo(
     family: Estimator,
     data: pd.DataFrame,
@@ -117,21 +135,34 @@ def _placebo(
     half_width: float,
     seed: int,
     draws: int,
+    field_name: str = "treatment",
 ) -> RefutationFinding:
-    """Permute the treatment; the effect must collapse.
+    """Permute one column so that no effect can exist; the estimate must collapse.
 
     The threshold is the real run's own interval half-width rather than a fixed number. A
     placebo estimate inside that distance of zero is indistinguishable from no effect at the
     precision this analysis has, which is the right standard: a tighter one would fail a
     noisy-but-correct estimator, and a looser one would pass anything.
+
+    **Which column is permuted is the family's business**, declared as
+    `sensitivity.placebo_column`, and the default is the treatment. Permuting the treatment is
+    the textbook placebo and it is wrong for an instrumental variable, which is not a style
+    preference but arithmetic: an IV estimate is a ratio whose denominator is the association
+    between the instrument and the treatment, so permuting the treatment sends that
+    denominator to zero and the estimate to whatever a near-zero divisor produces. Measured on
+    this project's own example, the permuted estimate came back as +8.66 on a probability
+    scale, the test failed, and every IV analysis was being driven to `associational` by an
+    artefact of the test rather than by anything in the data. Permuting the **outcome** leaves
+    the first stage intact and removes the only thing the estimand can come from, so the
+    collapse-to-zero standard means what it says.
     """
-    treatment = spec.fields.get("treatment")
-    column = str(treatment.value) if treatment is not None and treatment.value is not None else ""
+    field = spec.fields.get(field_name)
+    column = str(field.value) if field is not None and field.value is not None else ""
     if column not in data.columns:
         return RefutationFinding(
             test_id="placebo_treatment",
             passed=True,
-            summary="not run: no treatment column to permute",
+            summary=f"not run: no {field_name} column to permute",
             evidence={"assessed": "no"},
             interpretation="This test did not run; its absence is not evidence of anything.",
         )
@@ -149,11 +180,13 @@ def _placebo(
         test_id="placebo_treatment",
         passed=passed,
         summary=(
-            f"with the treatment permuted, the largest effect over {draws} draws was "
-            f"{worst:+.4g}, against {observed:+.4g} for the real treatment"
+            f"with the {field_name} permuted, the largest effect over {draws} draws was "
+            f"{worst:+.4g}, against {observed:+.4g} for the real data"
         ),
         evidence={
             "assessed": "yes",
+            "permuted_field": field_name,
+            "permuted_column": column,
             "n_draws": draws,
             "largest_absolute_estimate": round(worst, 6),
             "mean_estimate": round(float(np.mean(estimates)), 6),
@@ -161,13 +194,13 @@ def _placebo(
             "tolerance": round(half_width, 6),
         },
         interpretation=(
-            "A permuted treatment carries no relation to the outcome, so an effect that "
-            "survives permutation is coming from somewhere else and the real estimate cannot "
-            "be read as an effect of the treatment."
+            f"A permuted {field_name} breaks every link the estimand could come from, so an "
+            f"effect that survives permutation is coming from somewhere else and the real "
+            f"estimate cannot be read as an effect of the treatment."
             if not passed
-            else "The estimate disappears when the treatment is permuted, which is what it "
-            "should do. This says the machinery is not manufacturing an effect; it does not "
-            "say the real effect is causal."
+            else f"The estimate disappears when the {field_name} is permuted, which is what "
+            f"it should do. This says the machinery is not manufacturing an effect; it does "
+            f"not say the real effect is causal."
         ),
     )
 
@@ -322,6 +355,19 @@ def run_refutations(
                 f"not produce."
             )
         )
+    # **Why the refuted runs may be cheaper than the real one.** Every test below compares a
+    # point estimate against `observed` and `half_width`, both of which come from the real
+    # run. Nothing reads an interval from a refuted run, so paying for one is waste, and on
+    # this project's IV path it was the difference between ninety seconds and forty minutes:
+    # seven refits, each carrying a two-hundred-replicate bootstrap nothing looked at. A
+    # refutation nobody waits for is a refutation nobody runs.
+    #
+    # Which parameter to turn down is the family's business, not core's: core applies the
+    # overrides the declaration names without knowing what they mean, the same way it reads
+    # `primary_address` without knowing what a lag is.
+    overrides = dict(settings.get("refutation_params") or {})
+    refutation_spec = _with_params(spec, overrides) if overrides else spec
+
     observed = _primary(result, address)
     lower = settings.get("primary_ci_lower")
     upper = settings.get("primary_ci_upper")
@@ -333,10 +379,28 @@ def run_refutations(
         half_width = max(abs(observed) * 0.1, 1e-12)
 
     findings = [
-        _placebo(family, data, spec, address, observed, half_width, seed, placebo_draws),
-        _random_common_cause(family, data, spec, address, observed, half_width, seed),
+        _placebo(
+            family,
+            data,
+            refutation_spec,
+            address,
+            observed,
+            half_width,
+            seed,
+            placebo_draws,
+            str(settings.get("placebo_column", "treatment") or "treatment"),
+        ),
+        _random_common_cause(family, data, refutation_spec, address, observed, half_width, seed),
         _subset_stability(
-            family, data, spec, address, observed, half_width, seed, subset_draws, subset_fraction
+            family,
+            data,
+            refutation_spec,
+            address,
+            observed,
+            half_width,
+            seed,
+            subset_draws,
+            subset_fraction,
         ),
     ]
-    return SensitivityReport(findings=findings)
+    return SensitivityReport(findings=findings, refutation_params=overrides)

@@ -36,6 +36,12 @@ jobs:
       - name: import-linter (core must not import a family)
         run: uv run lint-imports
 
+      - name: no data files committed
+        # The pre-commit hook sees only staged files, so CI checks the whole tree: a file
+        # that reached main through `git add -f`, or through a gap in .gitignore, is caught
+        # here rather than by whoever clones it next.
+        run: git ls-files -z | xargs -0 uv run python scripts/check_no_data_files.py
+
       - name: pytest
         run: uv run pytest
         env:

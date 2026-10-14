@@ -110,7 +110,6 @@ causpec/
  |- packages/causpec/
  |    |- core/
  |    |    |- contracts/      Pydantic: Spec, Field, QualityIssue, Result, Manifest
- |    |    |- adapters/       csv, parquet, postgres
  |    |    |- mapping/
  |    |    |- quality/
  |    |    |- runtime/        RunContext, ArtifactWriter, audit, manifest
@@ -132,8 +131,9 @@ causpec/
 adapter (section 6) and the deployment examples each had a directory holding a README that
 restated the plan, which made the tree read as though a third of the system existed. What is
 designed and not built is described here and scheduled in plan.md, and arrives in the tree
-when there is something in it: `server/causpec_mcp/`, `examples/deployments/` and
-`deploy/docker-compose.yml` are the names reserved for them.
+when there is something in it: `core/adapters/`, `server/causpec_mcp/`,
+`examples/deployments/` and `deploy/docker-compose.yml` are the names reserved for them.
+CSV and parquet are read in `cli.py` until an adapter earns its own module.
 
 Each family directory holds: family.yaml (what question it answers, which estimands it
 can identify, what it requires, what it assumes), spec extensions, its own checks, an

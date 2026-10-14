@@ -114,6 +114,29 @@ def test_no_waivers_is_empty() -> None:
     assert _parse_waivers(None) == {}
 
 
+# ---- reading the data ----
+
+
+def test_a_parquet_path_without_an_engine_names_the_extra(workspace, tmp_path) -> None:
+    """The format was documented as supported while pyarrow was undeclared, so the failure
+    was pandas' own ImportError naming two engines this project does not choose between.
+
+    The file does not have to be a real parquet file: nothing can read it without an engine,
+    which is the case under test. With pyarrow installed this raises something else, so the
+    test skips rather than asserting on whichever message that is.
+    """
+    import importlib.util
+
+    if importlib.util.find_spec("pyarrow") is not None:  # pragma: no cover
+        pytest.skip("pyarrow is installed, so this path cannot be reached")
+    path = tmp_path / "cohort.parquet"
+    path.write_bytes(b"PAR1not-a-real-parquet-file")
+    with pytest.raises(SystemExit) as error:
+        run("columns", "--data", str(path))
+    assert "PARQUET_ENGINE_MISSING" in str(error.value)
+    assert "causpec[parquet]" in str(error.value)
+
+
 # ---- columns ----
 
 

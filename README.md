@@ -1,86 +1,99 @@
 # CauSpec
 
-Turn a causal question in plain language into an analysis spec confirmed field by
-field; assess whether the data can support that question before estimating anything;
-run the estimation in deterministic code; and produce a report whose every number
-traces back to a computation. Data sources are read-only throughout.
+[![CI](https://github.com/EllaZhouhan/causpec/actions/workflows/ci.yml/badge.svg)](https://github.com/EllaZhouhan/causpec/actions/workflows/ci.yml)
 
-> Status: the library and the agent workflow are built and tested (685 tests). The MCP
-> server, the database adapter and the demo deployment are declared and not implemented,
-> and this README says so where it matters. The repository is private until v0.3.
+Turn a causal question in plain language into an analysis spec confirmed field by field;
+assess whether the data can support that question before estimating anything; run the
+estimation in deterministic code; and produce a report whose every number traces back to a
+computation. Data sources are read-only throughout.
 
-## Loading the agent
+A question it is built for:
 
-The workflow is an agent skill. It drives the library, so the agent is what you talk to
-and the library is what computes.
+> I have ICU data at `/Users/me/extracts/cohort.csv`, one row per patient. Does dialysis
+> change the chance of dying, and are there patients who benefit more?
 
-**In Claude Code, for your own data anywhere on the machine.** Two things: the command on
-your PATH, and the skill in your personal skill directory.
+What comes back is not a number in a chat window. It is a spec you confirmed field by
+field, a quality report that may refuse to proceed, an estimate with an interval, and a
+report whose claim level says how strongly the finding may be worded.
+
+## Status
+
+| | |
+|---|---|
+| Built, tested, runnable | the library, the CLI (`columns`, `quality`, `estimate`), three estimator families, the four check layers, the claim level, the report renderer, run directories with a manifest |
+| Built, validated by hand | the agent workflow. Its evidence is a log of manual runs in [docs/evals/](docs/evals/manual-workflow-test.md), each finding and the change it caused. Automated golden tasks are not written, so "the agent behaves" rests on that log rather than on a suite |
+| Designed, not built | the MCP server, the Postgres adapter, the example deployments. [docs/plan.md](docs/plan.md) has the order |
+
+Not on PyPI yet, so installation is from the repository.
+
+## Quickstart
+
+Synthetic data with known ground truth, then the three commands, with nothing to configure.
 
 ```bash
 git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
-uv tool install --from . --with 'causpec[hte]' causpec     # puts `causpec` on PATH
-ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
+uv sync --extra hte
+
+# Synthetic dataset A: an ICU cohort where unmeasured severity drives both treatment and
+# death, so the naive comparison is biased and an instrument is what identifies.
+uv run python data/generators/dataset_a.py --out /tmp/icu.csv \
+    --preset realistic --seed 7 --n 4000
+
+# 1. What is in the file: every column described on its own, grouped by shape
+uv run causpec columns --data /tmp/icu.csv
+
+# 2. Can the data answer the question in the spec? Blocking issues stop here
+uv run causpec quality --spec docs/examples/icu-iv.yaml --data /tmp/icu.csv
+
+# 3. Estimate, refute, and render the report
+uv run causpec estimate --spec docs/examples/icu-iv.yaml --data /tmp/icu.csv \
+    --report --narrative docs/examples/narrative.yaml --run-dir runs/example
 ```
 
-Now any `claude` session in any directory has it. Ask a causal question and it should
-trigger on its own; `/causpec-analyst` invokes it explicitly. Data paths can be absolute
-and usually are, since your extract lives wherever you keep it:
+Step 3 takes about five minutes on a laptop, most of it the two-hundred-replicate bootstrap
+behind the interval; add `--no-sensitivity` for a first look, and the report will say the
+refuters did not run rather than leaving that section blank.
 
-> I have ICU data at `/Users/me/extracts/cohort.csv`, one row per patient. Does dialysis
-> change 28-day mortality, and are there patients who benefit more?
+The committed result of exactly those commands is in
+[docs/examples/report.md](docs/examples/report.md), with the spec and the narrative beside
+it.
 
-A symlink rather than a copy, so editing `SKILL.md` in the clone takes effect on the next
-message. If you move the clone, redo the link. Re-run `uv tool install` after pulling, since
-the installed command is a snapshot rather than a live link to the source.
+**What that run demonstrates**, and the reason the quickstart uses generated data: the
+generator prints the truth it built in. The average effect is −0.0014, the effect among
+the treated is −0.0222, and the naive difference in death rates is +0.0245, because
+unmeasured severity drives both the decision and the outcome. Put the same file through
+`hte_backdoor` and the overlap check **refuses to proceed**: 26.2% of patients have a
+propensity score outside [0.05, 0.95], which is what it looks like when the thing that
+decided treatment is not in the data. Waive the check and it returns +0.0177, the wrong
+sign, with the claim level dropped to `associational` and the waiver and its reason printed
+in the report. The IV route passes the checks and estimates −0.025 for the local effect
+among the patients whose treatment follows the instrument, next to the −0.0222 the
+generator built for the treated.
 
-**In Claude Code, inside this repository only.** Nothing to install:
-`.claude/skills/causpec-analyst` is already a symlink to `skill/causpec-analyst`, so a clone
-has it immediately.
+A wrong answer is available if you insist, in other words, and it arrives labelled.
 
-```bash
-uv sync --extra hte          # the estimators; omit for spec and checks only
-claude
-```
+The generator is seeded, so those commands produce the same file on any machine, and the
+`source data fingerprint` printed at the top of the committed report is the one your own run
+should show. If it does not, the two runs were not analysing the same data, which is the
+question a fingerprint exists to answer.
 
-Here the command is `uv run causpec`, because the package lives in the repository's own
-environment rather than on your PATH. The skill works out which form applies with one probe
-and the three cases are in `SKILL.md`.
+Then the agent, which is what the library is built for:
+[docs/installation.md](docs/installation.md) has the three ways to load the skill, in
+Claude Code for data anywhere on your machine, inside this repository, or uploaded to
+claude.ai.
 
-**On claude.ai**, upload the packaged skill:
-
-```bash
-./scripts/build_skill.sh     # builds the wheel into the bundle, emits the zip
-# then: Settings -> Capabilities -> Skills -> upload dist/causpec-analyst-skill.zip
-```
-
-That environment cannot install a local package, which is why the bundle carries the
-wheel. The wheel is a build product and is not committed: a committed wheel drifts
-silently from the source it claims to be.
-
-**Without an agent**, the library has a CLI and the same gates apply:
-
-```bash
-uv run causpec columns  --data cohort.csv
-uv run causpec quality  --spec spec.yaml --data cohort.csv
-uv run causpec estimate --spec spec.yaml --data cohort.csv --report --run-dir runs/
-```
-
-`columns` describes every column on its own, grouped by shape, which is what the roles step
-needs: nothing in it crosses two columns, because a comparison between the arms is a
-diagnostic and diagnostics belong in the checks, where a spec can stand them down.
-
-The skill is marked **best-effort** for one honest reason: an agent is technically able
-to bypass `scripts/run.py` and read the data itself, so in this form "only code produces
-numbers" rests on the agent following its own rules. Every report says so in its header.
+The skill form is marked **best-effort** for one honest reason: an agent is technically
+able to bypass `scripts/run.py` and read the data itself, so in this form "only code
+produces numbers" rests on the agent following its own rules. Every report says so in its
+header.
 
 ## What it is for
 
 Causal analysis on observational data usually fails before the estimation: treatment,
 outcome and time zero are vaguely defined; a post-treatment variable or a positivity
-problem goes unnoticed; definitions drift between datasets; numbers cannot be
-reproduced. Tools of the "LLM plus code" kind add a failure of their own: the model
-computing, or inventing, the numbers itself.
+problem goes unnoticed; definitions drift between datasets; numbers cannot be reproduced.
+Tools of the "LLM plus code" kind add a failure of their own: the model computing, or
+inventing, the numbers itself.
 
 Four principles:
 
@@ -92,59 +105,60 @@ Four principles:
 4. **The claim level is decided by code from the diagnostics** (causal / suggestive /
    associational / descriptive) and the model may not upgrade it.
 
+On the fourth: a claim level is a statement about **how this report may be worded**, given
+what the spec declares and what the diagnostics found. It is not a verdict that
+identification holds. `causal` means the untestable assumptions were justified by a person
+who signed for them and no diagnostic contradicted the design; it does not mean the
+assumptions are true, and code is not able to establish that they are.
+
 ## What a run actually does
 
-Eight steps, the first five with the user, the last three in code. A question becomes a
-spec field by field; the data is checked against that spec before anything is estimated;
-the estimate is computed and then attacked; the report is assembled by code with the
-model allowed to write only the interpretation.
+Eight steps. Six of them involve the user, including the confirmation at step 7, and the
+estimation never starts before it.
 
 ```
-1  the question, the data's shape, how the treatment was assigned
-2  map the concepts onto columns
-3  variable roles, which become the diagram and get checked against the adjustment set
-4  identification strategy and the assumptions it rests on
-5  the estimand: which question the number answers, and for whom
-6  quality checks: 4 core layers, then the family's own; blocking issues stop here
-7  the user confirms the whole spec
-8  estimate, refute, and render
+1  the question, the data's shape, how the treatment was assigned     with the user
+2  map the concepts onto columns                                      with the user
+3  variable roles, which become the diagram and are checked           with the user
+4  identification strategy and the assumptions it rests on            with the user
+5  the estimand: which question the number answers, and for whom      with the user
+6  quality checks: 4 core layers, then the family's own               in code
+7  the user confirms the whole analysis, in their own words           with the user
+8  estimate, refute, and render                                       in code
 ```
 
-What the report contains, all of it generated from an address map rather than written:
+The report has two kinds of content, and they never mix:
 
-- the spec with each field's **source, status and the user's own words**, and the data's
-  content fingerprint
-- an **exclusion ledger** if any population filter ran, and the preprocessing steps applied
-- the **variable-role diagram**, derived from the declared roles rather than drawn
-- the **quality table**, every check with its verdict and what it means
-- the **primary result**, then where the effect varies, then the effect by named group
-- **sensitivity and refutation**: an E-value, and a placebo treatment, a random common
-  cause and subset stability
-- the **claim level** (causal / suggestive / associational / descriptive) with the reasons
-  code used to decide it. Code can only lower it; `causal` needs a person to justify every
-  untestable assumption and say so
+**Generated by code, and the model cannot write them:** the spec table with each field's
+source, status and the user's own words, and the data's content fingerprint; an exclusion
+ledger if any population filter ran, and the preprocessing steps applied; the
+variable-role diagram, derived from the declared roles; the quality table, every check
+with its verdict; the primary result, the breakdown by named group, the E-value and the
+three refutations; and the claim level with the reasons code used to decide it.
+
+**Written by the model:** the interpretation of six sections, where every number is a
+placeholder resolving to a computed address, so an un-placeheld number fails the render.
+[docs/examples/narrative.yaml](docs/examples/narrative.yaml) is a real one.
 
 ## Supported analyses
 
 | family | Estimands | Notes |
 |---|---|---|
 | `hte_backdoor` | `ate`, `att`, `cate`, `gate` | Backdoor adjustment with a causal forest. `gate` reports the effect for named groups, which is the answer to "who benefits"; `cate` reports a per-patient cloud that names nobody |
-| `hte_iv` | `conditional_late`, `weighted_conditional_late` | Binary and continuous instruments. A population effect and a per-patient effect are **refused** with reasons: compliers cannot be identified individually |
-| `dynamic_lag_dml` | `lag_profile`, `lag_cate` | The lag profile of one treatment period on per-period outcomes, with continuation weighting for an informative horizon |
+| `hte_iv` | `conditional_late`, `weighted_conditional_late` | Binary and continuous instruments. Every effect here is **local**: it is the effect among the patients whose treatment responds to the instrument, and the report says so in those words. A population effect and a per-patient effect are **refused** with reasons, because compliers cannot be identified individually. The interval mechanisms differ by backend, which the report states: [docs/methods/hte-iv.md](docs/methods/hte-iv.md) |
+| `dynamic_lag_dml` | `lag_profile`, `lag_cate` | What one treatment period does to that period's outcome and to later ones, with continuation weighting for an informative horizon. Its intervals are exploratory, so no lag may be called significant |
 
 The estimand is reconciled against the family at the gate. It is a label no estimator
 reads, so `conditional_late` on `hte_backdoor` would otherwise print the words for an
 effect among compliers over an average across everyone.
 
-Designs outside that range (difference-in-differences, regression discontinuity,
-synthetic control) are refused explicitly, with a reason given for each excluded
-family, as are questions a supported family cannot answer.
+Designs outside that range (difference in differences, regression discontinuity, synthetic
+control, mediation) are refused explicitly, with a reason for each excluded family, as are
+questions a supported family cannot answer.
 
 ## What the checks cover
 
 Four layers in `core`, which run for every family, then the family's own design checks.
-Thresholds live in `core/quality/basic_checks.yaml` and every one of them was measured
-against this project's own data rather than picked.
 
 | layer | Examples |
 |---|---|
@@ -153,44 +167,96 @@ against this project's own data rather than picked.
 | identification | prevalence, overlap, SMD, instrument relevance and endogeneity, the declared roles against the adjustment set, the family against the question, population filters |
 | feasibility | per-arm sizes and event counts, extreme weights and effective sample size |
 
-Two properties the checks are built around. **A check that could not run is counted, never
-listed**: it stood down because the spec declares no column for it to read, or because an
-answer in the spec settles what it would ask, and in both cases it found nothing. Ten rows
-reading "not assessed" above the findings is how a reader stops reading a table. And
-**a suggested fix is offered, never applied**: when a check can name the exact operation
+**Where the thresholds come from**, since they decide how strongly a finding may be
+worded. Three kinds, and the config says which for each: a convention from the literature
+where one exists (first-stage robust F at 10, absolute SMD at 0.10, a 0.10 false-discovery
+rate, ten events per variable); a value measured against this project's own data where
+none does (the twenty-distinct-values rule that separates an ordinal score from a
+measurement came from this data's own columns, which have 2, 2, 2, 2, 4 and 18 levels
+against 3,226 for the smallest real measurement); and an engineering default where the
+quantity is a budget rather than a test (the bootstrap replicate count). All of them live
+in `core/quality/basic_checks.yaml` or a family's `family.yaml`, all are configurable, and
+the manifest records the config's hash so a verdict can be reproduced.
+
+Two properties the checks are built around.
+
+**A check that did not run is counted, never listed.** It stood down because the spec
+declares no column for it to read, or because an answer in the spec settles what it would
+ask. Either way it produced no finding, and the report says how many of the catalogue
+applied rather than listing ten rows of "not assessed" above the findings. A check that
+did not run is not evidence either way, which is why the count stays visible.
+
+**A suggested fix is offered, never applied.** When a check can name the exact operation
 that would address what it found, the agent offers it and the user agrees in their own
-words before anything runs.
+words before anything runs. A recode that reveals 200 missing values has not cleared the
+problem, it has made it visible, and the next refusal is the honest one.
+
+## Repository layout
+
+The **library** is the thick part and holds every computation. The **skill** is a thin
+shell that drives it.
+
+```
+packages/causpec/          the library; all computation lives here
+  core/                      core never imports a family (enforced by import-linter in CI)
+    contracts/                 Spec, QualityIssue, Result, Manifest, Suggestion
+    quality/                   the four check layers, thresholds in yaml
+    sensitivity/               the E-value and the three refutation tests
+    reporting/                 addresses, placeholder rendering, claim level, the DAG
+    runtime/                   RunContext, atomic writes, audit log, manifest, snapshot
+    mapping/                   preprocessing steps applied to a working copy
+    inventory.py               every column described one at a time, for the roles step
+    fingerprint.py             content fingerprints, normalised so a re-export still matches
+    gates.py                   the three gate conditions, as `if` statements
+    registry.py                the family registry: core's only interface to a family
+  families/                  plugins; a new analysis is a directory and one registration
+    hte_backdoor/  hte_iv/  dynamic_lag_dml/
+      family.yaml                what it identifies, needs, assumes, refuses, and tabulates
+  cli.py                     causpec columns / quality / estimate
+
+tests/                     each file documents a property, not a function
+skill/causpec-analyst/     SKILL.md and eight reference files
+docs/                      design.md, plan.md, CHANGELOG.md, decisions/, evals/, examples/
+data/generators/           synthetic data with ground truth (output is never committed)
+scripts/                   build the skill bundle, and the data-file guard
+```
+
+A family is a directory. `family.yaml` is where it declares the estimands it can identify,
+the spec fields it needs, the assumptions each estimand rests on, the questions it refuses,
+its check thresholds, the result tables the report should render, and which number the
+refutation tests should compare. Core reads all of that and knows nothing about what a lag
+or a complier is: a CI test asserts the string `lag` does not appear in the reporting
+module.
+
+A directory appears when its code does, so what is designed and not built has no folder.
+The names are reserved in [docs/design.md](docs/design.md) section 5.
 
 ## Installing
 
-Core stays light (pydantic, pyyaml, pandas, numpy). A family's heavy dependencies live
-behind an extra:
+Core stays light (pydantic, pyyaml, pandas, numpy). Heavy dependencies live behind extras:
 
 | extra | Pulls in | Needed by |
 |---|---|---|
 | `hte` | EconML, linearmodels, scikit-learn, statsmodels, scipy, joblib | `hte_iv`, `hte_backdoor` |
 | `dynamic` | scikit-learn, scipy, joblib | `dynamic_lag_dml` |
+| `parquet` | pyarrow | reading a `.parquet` extract; CSV needs nothing |
+
+```bash
+uv sync                  # spec, quality checks and report rendering only
+uv sync --extra hte      # to run HTE estimation
+```
 
 `dynamic_lag_dml` needs no EconML: its estimator is written here, and what it uses is
 gradient boosting for the continuation model, a linear model for the two orthogonal
 nuisances, and joblib for the bootstrap. `linearmodels` is in `hte` for exactly one
-statistic, the robust overidentification test, and [ADR-0004](docs/decisions/0004-linearmodels-for-overidentification-only.md)
-records why a hand-written version was rejected: it got the degrees of freedom wrong,
-k instead of k-1, while agreeing with the package's verdict on every design it was tried
-on, which is how that ships unnoticed.
+statistic, the robust overidentification test, and
+[ADR-0004](docs/decisions/0004-linearmodels-for-overidentification-only.md) records why a
+hand-written version was rejected: it got the degrees of freedom wrong, k instead of k-1,
+while agreeing with the package's verdict on every design it was tried on, which is how
+that ships unnoticed.
 
-```bash
-# spec, quality checks and report rendering only
-uv sync
-
-# to run HTE estimation
-uv sync --extra hte
-```
-
-With pip: `pip install causpec` or `pip install 'causpec[hte]'`.
-
-**A missing extra does not surface as an ImportError**, the registry returns a
-structured error carrying the install command:
+**A missing extra does not surface as an ImportError**, the registry returns a structured
+error carrying the install command:
 
 ```console
 $ causpec estimate --spec spec.yaml --data cohort.csv
@@ -198,172 +264,55 @@ $ causpec estimate --spec spec.yaml --data cohort.csv
   Fix: Install causpec[hte]: uv sync --extra hte (or pip install 'causpec[hte]')
 ```
 
-## Repository layout
+## Data handling
 
-The **library** is the thick part and holds every computation. The **skill** is a thin
-shell that drives it. An **MCP server** is designed as the primary form and is not built, so
-nothing in the tree stands in for it.
-
-```
-packages/causpec/          the library, 10k lines; all computation lives here
-  core/                      core never imports a family (enforced by import-linter in CI)
-    contracts/                 Spec, QualityIssue, Result, Manifest, Suggestion
-    quality/                   the four check layers, ~30 checks, thresholds in yaml
-    sensitivity/               the E-value and the three refutation tests
-    reporting/                 addresses, placeholder rendering, claim level, the DAG
-    runtime/                   RunContext, atomic writes, audit log, manifest, snapshot
-    mapping/                   preprocessing steps applied to a working copy
-    grouping.py                cutting a covariate into the groups an effect is reported for
-    fingerprint.py             content fingerprints, normalised so a re-export still matches
-    population.py              the population filters and the exclusion ledger
-    gates.py                   the three gate conditions, as `if` statements
-    registry.py                the family registry: core's only interface to a family
-    adapters/                  declared, not implemented: csv and parquet are read in cli.py
-  families/                  plugins; a new analysis is a directory and one registration
-    hte_backdoor/  hte_iv/  dynamic_lag_dml/
-      family.yaml                what it identifies, needs, assumes, refuses, and tabulates
-  cli.py                     causpec columns / quality / estimate
-
-tests/                     9k lines, 685 tests; each file documents a property, not a function
-skill/causpec-analyst/     SKILL.md, 8 reference files, scripts/run.py
-docs/                      design.md, plan.md, CHANGELOG.md, decisions/, evals/
-data/generators/           synthetic data with ground truth (output is never committed)
-scripts/                   build the skill bundle, and the pre-commit data-file guard
-```
-
-Eight directories and five files, which is the whole of it. Only the five are at the root,
-because every tool that reads them looks there: pyproject.toml is also the ruff, pytest,
-pyright and import-linter configuration, uv.lock is what makes the dependency half of
-reproducibility true, and GitHub renders README.md as the landing page. The MCP server, the Postgres
-adapter and the deployment examples are designed in `docs/design.md` sections 5, 6 and 12 and
-are **not built**, so they have no directories: an empty folder holding one README is a
-roadmap pretending to be code, and the roadmap is `docs/plan.md`.
-
-A family is a directory. `family.yaml` is where it declares the estimands it can
-identify, the spec fields it needs, the assumptions each estimand rests on, the questions
-it refuses, its check thresholds, the result tables the report should render, and which
-number the refutation tests should compare. Core reads all of that and knows nothing about
-what a lag or a complier is: a CI test asserts the string `lag` does not appear in the
-reporting module.
-
-What is declared and not implemented, stated here rather than discovered: the MCP server,
-the Postgres adapter, the example deployments, and the golden-task evals. [plan.md](docs/plan.md)
-has the order.
-
-## Estimators and confidence intervals
-
-`hte_iv` has two backends, selected through `spec.estimation.params.estimator`. Both
-binary and continuous instruments are supported.
-
-| | `ivforest` (default) | `dmliv` |
-|---|---|---|
-| Class | `econml.grf.CausalIVForest` | `econml.iv.dml.NonParamDMLIV` |
-| CATE interval | GRF honest variance, within one fit | bootstrap |
-| ATE interval | unit-level bootstrap of the forest | bootstrap |
-| Per replicate | about 5s (n=5000) | about 26s |
-| Multiple instruments / `adjustment_set` | not supported | supported |
-
-**Why `dmliv` can only bootstrap**: its final model is an arbitrary regressor, so
-EconML can derive no variance for it, `_get_inference_options()` lists nothing else.
-That is not a choice, it is the only option.
-
-**Why `ivforest`'s ATE interval also bootstraps**: `econml.grf` exposes only
-**pointwise** variance (the covariance matrix from `predict_and_var` is across output
-dimensions at a single x, not across different x). The per-point estimates from one
-forest are highly correlated, so averaging pointwise variances and dividing by n would
-assume independence. The CATE interval therefore uses GRF's analytic variance while the
-ATE interval bootstraps, different mechanisms, recorded separately in
-`res:cate.ci_method` and `res:primary.ate_ci_method` for the report to explain.
-
-**The replicate count** defaults to 200 for both backends and is overridable:
-
-```yaml
-estimation:
-  params:
-    estimator: ivforest
-    n_bootstrap_samples: 200   # below 100, res:estimation.bootstrap_adequate = "no"
-    bootstrap_n_jobs: 8        # indices are drawn up front, so this cannot change the result
-```
-
-Lowering the count distorts the interval: on the same data, 20 replicates and the GRF
-analytic interval differed by two orders of magnitude in the count of individuals with
-a significant benefit (416 against 3). Below the threshold the Result is flagged and the
-report has to surface it.
-
-## Development
-
-```bash
-uv sync --all-extras --dev   # everything
-uv run pytest                # 685 tests
-uv run ruff check .          # lint
-uv run pyright               # types; CI pins Python 3.11
-uv run lint-imports          # the architecture contract: core must not import a family
-pre-commit install           # enable the pre-commit checks, including the data-file block
-```
-
-**Real patient data must never enter this repository.** Three things enforce it: a
-`.gitignore`, a pre-commit hook, and `scripts/check_no_data_files.py`. Synthetic data is
+**Real patient data must never enter this repository**, and three layers make an accidental
+commit hard rather than merely discouraged: `.gitignore` blocks the data extensions
+wholesale, a pre-commit hook runs `scripts/check_no_data_files.py` over the staged files,
+and CI runs the same script over every tracked file, which catches anything that arrived
+through `git add -f` or a gap in the ignore rules. A fixture is allowed through only under
+`tests/fixtures/` and only up to 4KB; that limit is a size rule and not a judgement about
+content, so the no-real-data rule still rests on the person committing. Synthetic data is
 generated on demand and its output is gitignored.
 
-**The tests are written to document properties, not to cover functions.** Each file opens
-with what it is defending and why that matters, and several pin a mistake that was made
-and corrected, so it cannot come back quietly: that a fill's spread statistic has to be
-measured among the filled values rather than over the column, that a snapshot's
-fingerprint has to be recomputable from the snapshot, that rounding a hash moves the
-instability rather than removing it.
-
-## Synthetic data
-
-```bash
-# Dataset A, with ground truth. What it produces is never committed.
-uv run python data/generators/dataset_a.py --out /tmp/a.csv --preset realistic
-uv run python data/generators/dataset_a.py --out /tmp/a.csv --preset high_power --instrument-kind binary
-```
-
-`realistic` matches the scale of the real ICU study (about 9.5% treated, about 4%
-mortality) and is what demos and quality checks use. `high_power` raises the complier
-share and event rate for numerical evals, at the realistic scale an IV analysis has a
-standard error larger than the truth itself, and numerical tests drown in noise.
-
-## Inside the skill
-
-Loading it is at the top of this file. What is in it:
-
-```
-skill/causpec-analyst/
-  SKILL.md                 the eight steps, the two paths, and the rules that are not negotiable
-  references/
-    workflow.md              the long form of the steps
-    spec-fields.md           every spec field, what it means, and what it costs to get wrong
-    quality-checks.md        how to explain a failed check to a user
-    claim-levels.md          what each level permits in prose, and sensitivity wording
-    variable-roles.md        X versus W, and what can never enter the adjustment set
-    hte-dmliv.md             the IV backends and their intervals
-    dynamic-lag-dml.md       the panel family's estimand and its checks
-    reporting.md             the report's structure and which sections the model may write
-  scripts/run.py           the only way the skill reaches the data
-```
-
-The references exist because `SKILL.md` has to stay short enough to be read in full. A CI
-test asserts that every check declared in a family's `family.yaml` is explained in
-`quality-checks.md`, and that every blocking one is marked as blocking: documentation that
-drifts from the code is worse than none, so the drift is a test failure.
+A run reads its source read-only and writes nowhere near it: preprocessing returns a copy,
+the exclusion ledger records who was dropped and why, and the audit log records a hash of
+each call's parameters rather than their contents, because a path leaks directory structure
+and a column name leaks the schema.
 
 ## Documentation
 
+- [Installing and loading the agent](docs/installation.md), the three forms, and what is
+  inside the skill bundle
+- [Example](docs/examples/report.md), a full report from the quickstart, with its
+  [spec](docs/examples/icu-iv.yaml) and [narrative](docs/examples/narrative.yaml)
 - [Design](docs/design.md), the authority on what the system is and why each decision went
   the way it did, including the ones that were reversed
+- [The IV backends](docs/methods/hte-iv.md), the two estimators and where each interval
+  comes from
 - [Plan](docs/plan.md), the order of work and what is done
-- [Decision records](docs/decisions/), four ADRs: the ADR policy, the data-source boundary,
-  writing the basic checks without pandera, and linearmodels for one statistic
-- [Changelog](docs/CHANGELOG.md), which records why each change was made and not only what
+- [Decision records](docs/decisions/), four ADRs
+- [Changelog](docs/CHANGELOG.md), which records why each change was made, not only what
   changed
+- [Development](docs/development.md), the commands and how the tests are written
+- [Manual workflow log](docs/evals/manual-workflow-test.md), every finding from running the
+  agent against the synthetic data, and the change each one caused
 
 ## Credit
 
-The estimators come from EconML; the refuters from DoWhy; the unmeasured-confounding
-sensitivity analysis from DoubleML; the overidentification test from linearmodels. The
-E-value and the effective F test are written here, each with a regression test against the
-numerical example in its original paper. The claim-level ladder and the fixed report
-structure were adapted from the Baygent `causal-inference` skill (MIT), and the modules
-holding them say so.
+**Depended on:** EconML for `CausalForestDML` and `CausalIVForest`; linearmodels for one
+statistic, the robust overidentification test; scikit-learn, statsmodels and scipy for the
+nuisance models and the first-stage tests.
+
+**Written here, each with a regression test against the original paper's numerical
+example:** the E-value (VanderWeele and Ding 2017) and the three refutations, a placebo
+treatment, a random common cause and subset stability. The refutations follow DoWhy's
+design, which is where that set of tests comes from, but no DoWhy code is used and it is
+not a dependency.
+
+**Adapted, with the notice in the module that holds it:** the claim-level ladder and the
+report's fixed section order, from the Baygent `causal-inference` skill (MIT). See
+`core/reporting/claim_level.py` and `core/reporting/report.py`.
+
+The repository has no licence, so it is readable but not reusable. That is deliberate for
+now rather than an omission.

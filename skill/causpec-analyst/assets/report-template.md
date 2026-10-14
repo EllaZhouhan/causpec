@@ -25,12 +25,24 @@ primary_results: >
   The average effect is {{res:primary.ate|+.3f}}, {{lit:95}}% confidence interval
   [{{res:primary.ate_ci_lower|+.3f}}, {{res:primary.ate_ci_upper|+.3f}}], with the
   interval produced by {{res:primary.ate_ci_method}}.
-  The median individual effect is {{res:cate.median|+.3f}}, and
+  The median fitted effect is {{res:cate.median|+.3f}}, and
   {{res:cate.n_significant_benefit}} patients have an interval lying entirely below zero.
 
+# **Under IV these sentences are wrong**, and the addresses differ. There is no average
+# over everyone to report: the effect is among compliers, nobody can be identified as one,
+# and `res:cate` is the conditional local effect rather than a per-person effect. Write
+# "among patients whose treatment responds to the instrument" and say so in `estimand`
+# too. `hte-dmliv.md` has the wording.
+
 # ---- Sensitivity and refutation ----
-# Not implemented. Leave empty; the code notes that an empty section is not a pass.
-sensitivity: ""
+# The E-value and the three refuters are code-generated above this prose, so interpret
+# rather than restate. A passing refuter says the machinery is not manufacturing an
+# effect; it does not say the effect is causal.
+sensitivity: >
+  An unmeasured confounder would need a risk ratio of about
+  {{res:sensitivity.e_value|.2f}} with both the treatment and the outcome to move this
+  finding to the null, which is ... compared with the measured covariates. The placebo
+  treatment, the random common cause and the subset refutations all ... .
 
 # ---- Limitations ----
 # At minimum, name the untestable assumptions and the limits of extrapolation.

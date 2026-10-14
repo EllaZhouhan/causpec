@@ -7,26 +7,38 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The placebo test permutes the column the design needs it to**, declared by the family as
+  `sensitivity.placebo_column` and defaulting to the treatment. Permuting the treatment is the
+  textbook placebo and it is arithmetically wrong for an instrumental variable: the estimate is
+  a ratio whose denominator is the instrument-treatment association, so permuting the treatment
+  sends that denominator to zero and the estimate to whatever a near-zero divisor gives.
+  Generating the example report is what exposed it, with +8.66 returned on a probability scale,
+  the test failing, and the claim level dropping to `associational` for every IV analysis
+  because of the test rather than because of the data. Permuting the outcome leaves the first
+  stage intact and removes the only thing the estimand can come from
+- **A refuted run no longer pays for an interval nobody reads.** Every refutation compares a
+  point estimate against the real run's estimate and its interval half-width, so a refuted
+  run's own interval is never looked at. On the IV path it was being computed anyway: seven
+  refits, each carrying a two-hundred-replicate bootstrap, which made one example report take
+  forty minutes. A family now declares `sensitivity.refutation_params`, core applies the
+  overrides without knowing what they mean (the same arrangement as `primary_address`), and
+  the report states that the refuted runs were configured differently. A family that declares
+  nothing keeps the old behaviour, because core turns nothing down on its own initiative
+- **A runnable example**, `docs/examples/`: a spec, the narrative that goes with it, and the
+  report both produce, from synthetic data whose truth is known. The quickstart in the README
+  is those commands, and the example is what they print
 - **`causpec columns`**, which describes every column in a file one at a time, grouped by
   shape, with the roles a spec already holds marked. The variable-roles step opens with it and
   names every column it proposes to leave out, because dropping a column is a decision about
   the user's data and they can only make it if they can see it. Nothing in the command crosses
   two columns: describing one column is a description of the file, relating two is a diagnostic
   of the analysis, and diagnostics belong in the checks, where a spec can stand them down
-
-### Changed
-
-- **The confirmation step reads back the analysis, not the spec.** The spec file is the
-  interface to the code, so the family, the field statuses, the hashes and the word "spec"
-  itself stay out of it; what the user confirms is the decisions they made, in their own words
-- **A check that did not run is counted, never listed.** Ten of twenty-five rows in a quality
-  table read "not assessed", which is how a reader stops reading the table. `QualityReport.findings`
-  is now the only thing a user-facing surface iterates
-- **The repository tree holds what exists.** `server/causpec_mcp/`, `examples/deployments/` and
-  `deploy/` each held a README restating the plan, which made a third of the system look built;
-  the design and the schedule live in `docs/design.md` and `docs/plan.md`, and the directories
-  arrive with their code. `evals/` moved to `docs/evals/`, next to the other documents written
-  for people to read
+- **A `parquet` extra**, and a structured refusal naming it when a `.parquet` path is read
+  without pyarrow installed. The format was documented as supported while its engine was
+  undeclared, so the failure was pandas' ImportError
+- **CI runs the data-file guard** over every tracked file. The pre-commit hook sees only
+  staged files, so anything that arrived through `git add -f`, or through a gap in the ignore
+  rules, was uncaught
 
 - **Gate condition 2's other half: the report has to be about this run** (design.md 11.2).
   The condition asks for a report with no unwaived blocking issues *for the current
@@ -520,6 +532,30 @@ the milestones in plan.md section 2.
 - The vertical slice: Spec (field-level source/status), the gate, addressed Results,
   placeholder rendering, the CLI
 - ADR-0001 (literal numbers in reports), ADR-0002 (data-source boundaries)
+
+### Changed
+
+- **The README says what the code does.** Corrections, each one a real error: the refutations
+  are written here rather than taken from DoWhy and DoubleML is not used at all, so the credit
+  was wrong; the effective F was dropped in v0.3 and was still claimed; `pip install causpec`
+  does not work because the package is not published; the repository was described as private;
+  the step list said five steps involve the user when six do, the confirmation among them; and
+  the thresholds were described as all measured against this project's data when most are
+  conventions from the literature. The deep material moved to `docs/installation.md`,
+  `docs/methods/hte-iv.md` and `docs/development.md`
+
+- **The confirmation step reads back the analysis, not the spec.** The spec file is the
+  interface to the code, so the family, the field statuses, the hashes and the word "spec"
+  itself stay out of it; what the user confirms is the decisions they made, in their own words
+- **A check that did not run is counted, never listed.** Ten of twenty-five rows in a quality
+  table read "not assessed", which is how a reader stops reading the table.
+  `QualityReport.findings` is now the only thing a user-facing surface iterates
+- **The repository tree holds what exists.** `core/adapters/`, `server/causpec_mcp/`,
+  `examples/deployments/` and `deploy/` each held a README restating the plan, which made a
+  third of the system look built; the design and the schedule live in `docs/design.md` and
+  `docs/plan.md`, and the directories
+  arrive with their code. `evals/` moved to `docs/evals/`, next to the other documents written
+  for people to read
 
 ### Changed
 

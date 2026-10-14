@@ -66,7 +66,16 @@ def _load_data(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise SystemExit(f"No data file at {path}")
     if path.suffix.lower() == ".parquet":
-        return pd.read_parquet(path)
+        # The engine is an extra, so say which one and how to get it. pandas' own message
+        # names pyarrow and fastparquet without saying what this project wants.
+        try:
+            return pd.read_parquet(path)
+        except ImportError as error:
+            raise SystemExit(
+                "[PARQUET_ENGINE_MISSING] reading a parquet file needs pyarrow\n"
+                "  Fix: Install causpec[parquet]: uv sync --extra parquet "
+                "(or pip install 'causpec[parquet]')"
+            ) from error
     # The exact float parser, not the default fast one. The default returns a different
     # float64 from the same text for most real-valued columns, which would make the data
     # depend on the parser's version and the fingerprint impossible to verify against a file
@@ -507,6 +516,7 @@ def cmd_estimate(args: argparse.Namespace) -> int:
                         }
                         for finding in sensitivity.findings
                     ],
+                    "refutation_params": sensitivity.refutation_params,
                     "skipped_because": sensitivity.skipped_because,
                     "e_value_absent_because": sensitivity.e_value_absent_because,
                 },

@@ -9,10 +9,8 @@ Companion document: design.md
 
 ## 1. Principles
 
-- In service of the job search: reach something demonstrable early, then deepen it
-  version by version.
-- Roughly one task per day, each a pull request, which naturally produces at least one
-  meaningful commit a day.
+- Reach something demonstrable early, then deepen it version by version.
+- One task at a time, each as a pull request.
 - Reuse where reuse is possible (the [reuse] markers in design.md); the work written
   here concentrates on the spec, the quality checks, the gates, the reporting, and the
   author's own two methods.
@@ -27,9 +25,9 @@ Companion document: design.md
 | v0.0 | W1 | 9/21-9/27 | Productionising the research code, contracts, synthetic dataset A | none |
 | v0.1 | W3 | 10/5-10/11 | An end-to-end HTE slice: CSV, quality checks, estimation, a placeholder report, the CLI | a local CLI demo |
 | v0.2 | W4 | 10/12-10/18 | The skill, the skill+CLI form, a first set of golden tasks | a claude.ai demo |
-| v0.3 | W5 | 10/19-10/25 | The local MCP server, the gates, the Postgres demo | three demos; update the CV and start applying |
+| v0.3 | W5 | 10/19-10/25 | The local MCP server, the gates, the Postgres demo | three demos |
 | v0.4 | W7 | 11/2-11/8 | Longitudinal IPCW | a longitudinal demo |
-| v1.0 | W8 | 11/9-11/15 | README, Related work, video, blog post | the full portfolio |
+| v1.0 | W8 | 11/9-11/15 | README, Related work, video, blog post | all of it |
 
 Adjustment in version 0.3: dropping the relational shape and the third shape of dataset
 B, and dropping the StatsPAI dependency, saves about a week; that week goes into Phase 4
@@ -39,11 +37,11 @@ so longitudinal IPCW can be delivered complete, with estimation.
 
 ## 3. Prerequisites
 
-- Confirm with collaborators that the research code can be open-sourced; keep earlier
-  repositories private.
+- Only code written for this project enters this repository. The research code it
+  generalises stays where it is, and nothing derived from a collaborator's work is
+  published without their agreement.
 - From day one, pre-commit blocks csv, parquet, xlsx, duckdb and similar data files from
   entering a commit.
-- Enable "show private contributions" in the GitHub profile settings.
 - Credit the external sources in the README: the estimators, the refuters, the
   sensitivity analysis and the overidentification test. Where code was adapted rather
   than depended on, the module that holds it says so in its own docstring.
@@ -164,8 +162,7 @@ so longitudinal IPCW can be delivered complete, with estimation.
    mapping, and the safe-failure path where the data is bad and no conclusion is drawn
    (tag v0.3)
 
-After v0.3: make the repository public, replace the "AI Agent Integration" paragraph
-in the CV, and start applying.
+After v0.3 the repository goes public.
 
 ### Phase 4 (W6-W7)
 
