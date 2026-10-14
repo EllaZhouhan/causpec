@@ -261,18 +261,30 @@ Three ways, depending on what you want.
 | **The command only**, no clone needed | `causpec` on your PATH | any directory |
 | **A clone**, for reading the code and running the quickstart | the repository and its own environment | inside the clone, as `uv run causpec ...` |
 
-```bash
-# The agent: clone once, because both commands point at the clone
-git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
-uv tool install --from . causpec                                   # the command, on PATH
-ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst   # the skill
+**The agent, in one line.** Paste it anywhere; it clones into the current directory.
 
-# The command only, straight from GitHub, no clone
+```bash
+git clone https://github.com/EllaZhouhan/causpec.git && cd causpec && \
+  uv tool install --from . causpec && mkdir -p ~/.claude/skills && \
+  ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
+```
+
+Four steps, chained, and each one is there for a reason: the clone brings the files, the
+install puts `causpec` on your PATH, and the symlink is what makes Claude Code find the
+skill. `git clone` cannot do the other three itself, and that is deliberate rather than a
+gap: git copies files and never executes anything from a repository, or cloning something
+would be a way to run a stranger's code. A symlink rather than a copy, so editing `SKILL.md`
+in the clone takes effect on the next message; keep the clone where it is, and redo the link
+if you move it.
+
+The other two forms, for when you want less:
+
+```bash
+# The command only, straight from GitHub, no clone and no cd
 uv tool install --from git+https://github.com/EllaZhouhan/causpec.git causpec
 
-# A clone, with the project's own environment
-git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
-uv sync
+# A clone with its own environment, for reading the code and running the quickstart
+git clone https://github.com/EllaZhouhan/causpec.git && cd causpec && uv sync
 ```
 
 **Neither of those installs the estimators**, and that is deliberate. The spec, the column
