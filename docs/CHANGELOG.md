@@ -7,6 +7,13 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The estimators install when they are first needed, and the agent runs the command.**
+  Nothing before step 8 needs them: the spec, the inventory, the checks and the renderer run
+  on the core alone, while EconML and its neighbours are hundreds of megabytes a user whose
+  data turns out to be the wrong shape never needed. `FAMILY_DEPENDENCY_MISSING` is now the
+  ordinary next step rather than a failure, the skill carries the command for each way causpec
+  can be installed, and it asks first, because writing packages into someone's environment
+  changes their machine while reading their data does not
 - **Every install command in the project is one that works today.** `pip install
   'causpec[hte]'` was offered by the registry's remediation, by the parquet refusal and by the
   README, and it resolves to nothing: the package is not published. They now say

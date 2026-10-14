@@ -76,8 +76,10 @@ def _load_data(path: Path) -> pd.DataFrame:
         except ImportError as error:
             raise SystemExit(
                 "[PARQUET_ENGINE_MISSING] reading a parquet file needs pyarrow\n"
-                "  Fix: Install causpec[parquet]: uv sync --extra parquet in the "
-                "repository, or pip install '.[parquet]' from a clone"
+                "  Fix: Install the parquet extra. In a clone: uv sync --extra parquet, "
+                "or pip install '.[parquet]'. Installed on PATH: uv tool install --from "
+                "git+https://github.com/EllaZhouhan/causpec.git --with 'causpec[parquet]' "
+                "causpec --force"
             ) from error
     # The exact float parser, not the default fast one. The default returns a different
     # float64 from the same text for most real-valued columns, which would make the data

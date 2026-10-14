@@ -287,8 +287,10 @@ All three take identical arguments and do identical work. Below, `RUN` stands fo
 one applies.
 
 **Paths may be absolute and usually are.** The user's data lives wherever they keep it, not
-next to the spec, so `--data /Users/someone/extracts/cohort.csv` is the normal case. Use the
-path they gave you. Approving access to it is a prompt they answer in a second, so do not
+next to the spec and not inside this repository, so `--data /Users/someone/extracts/cohort.csv`
+is the normal case. Where the command is installed has nothing to do with where the data sits:
+never ask the user to move, copy or link their extract to reach it. Use the path they gave
+you. Approving access to it is a prompt they answer in a second, so do not
 explain it in advance, do not ask for a directory to be pre-authorised, and never copy their
 data somewhere more convenient.
 
@@ -301,6 +303,32 @@ RUN report   --run-dir runs/ --narrative narrative.yaml --html report.html --ope
 
 `estimate` prints the numbers; `report` turns a finished run into the document, estimating
 nothing. Step 8 says why they are separate.
+
+**The estimators are installed when they are first needed, by you, with one question.**
+Nothing before step 8 needs them: the spec, the column inventory, the quality checks and the
+report renderer run on the core install alone, and the estimator dependencies are hundreds of
+megabytes that a user who turns out to have the wrong data shape never needed. So do not
+install anything up front, and when `estimate` returns `FAMILY_DEPENDENCY_MISSING`, treat it
+as the ordinary next step rather than as a failure:
+
+> "The estimator needs EconML, which is not installed yet, about 300MB. Shall I install it?"
+
+On agreement, **run the command yourself**. The error names the extra; which command adds it
+depends on how `RUN` resolved, and the user should not have to work that out or type it:
+
+| How `RUN` resolved | How to add an extra |
+|---|---|
+| `uv run causpec` | `uv sync --extra hte` |
+| `python scripts/run.py` | the bundle's wheel is already there; `pip install 'causpec[hte]'` in that sandbox |
+| `causpec` on PATH | `uv tool install --from git+https://github.com/EllaZhouhan/causpec.git --with 'causpec[hte]' causpec --force` |
+
+Then re-run the command that failed. Say what you installed in one line afterwards, and if
+the install itself fails, report what it said and stop: a missing estimator is a reason the
+analysis cannot run, not a reason to compute something else.
+
+**Installing is a change to their machine, so it needs their agreement every time.** Reading
+their data does not change anything and needs no ceremony; writing packages into their
+environment does.
 
 The report header automatically notes that this is the skill form (best-effort).
 **That note is for someone assessing the result afterwards, not an opening remark.**

@@ -264,17 +264,31 @@ Three ways, depending on what you want.
 ```bash
 # The agent: clone once, because both commands point at the clone
 git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
-uv tool install --from . --with 'causpec[hte]' causpec
-ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
+uv tool install --from . causpec                                   # the command, on PATH
+ln -sfn "$PWD/skill/causpec-analyst" ~/.claude/skills/causpec-analyst   # the skill
 
-# The command only, straight from GitHub
-uv tool install --from git+https://github.com/EllaZhouhan/causpec.git \
-    --with 'causpec[hte]' causpec
+# The command only, straight from GitHub, no clone
+uv tool install --from git+https://github.com/EllaZhouhan/causpec.git causpec
 
 # A clone, with the project's own environment
 git clone https://github.com/EllaZhouhan/causpec.git && cd causpec
-uv sync --extra hte
+uv sync
 ```
+
+**Neither of those installs the estimators**, and that is deliberate. The spec, the column
+inventory, the quality checks and the report renderer need nothing but the core, which is a
+few seconds; EconML and its neighbours are hundreds of megabytes that a user whose data turns
+out to be the wrong shape never needed. Add them when something asks for them: `uv sync
+--extra hte` in a clone, or re-run the `uv tool install` above with
+`--with 'causpec[hte]' --force`. The agent does this for you, asking once, since installing
+changes your machine and reading your data does not. Add `--extra hte` up front if you would
+rather wait once.
+
+**Where the command is installed has nothing to do with where your data is.** Your extract
+stays wherever you keep it and `--data /Users/me/extracts/cohort.csv` is the ordinary case.
+The only reason the first form clones is that the skill is a folder of files Claude Code reads
+from `~/.claude/skills/`, and the second two commands point at the clone through `--from .`
+and `$PWD`.
 
 The skill is text, eight Markdown files the model reads, so it needs no installing and the
 symlink is the whole of it. The command is Python and does need installing, which is why both

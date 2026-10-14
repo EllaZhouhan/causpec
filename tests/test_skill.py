@@ -688,6 +688,32 @@ def test_the_confirmation_step_reads_back_the_analysis_not_the_spec(skill_text: 
     assert "The diagram is a section of the report, not something to paste into the" in text
 
 
+def test_the_estimators_are_installed_on_demand_by_the_agent(skill_text: str) -> None:
+    """The user asked why an install is needed up front when their data lives elsewhere, and
+    the second half of that is right: nothing before step 8 needs the estimators.
+
+    So the heavy extra is installed when it is first wanted, the agent runs the command
+    rather than handing it over to be typed, and it asks first, because writing packages into
+    someone's environment changes their machine while reading their data does not.
+    """
+    text = flat(skill_text)
+    assert "The estimators are installed when they are first needed" in text
+    assert "run the command yourself" in text
+    assert "needs their agreement every time" in text
+    # Which command depends on how RUN resolved, so the mapping is in the document.
+    assert "How to add an extra" in text
+    assert "uv sync --extra hte" in text
+    assert "uv tool install --from git+" in text
+
+
+def test_where_the_command_lives_is_not_where_the_data_lives(skill_text: str) -> None:
+    """The other half of the same question, and the mistake it could have led to: asking a
+    user to copy their extract into the repository so a command can find it."""
+    text = flat(skill_text)
+    assert "Where the command is installed has nothing to do with where the data sits" in text
+    assert "never ask the user to move, copy or link their extract" in text
+
+
 def test_every_statistic_has_to_come_from_a_command(skill_text: str) -> None:
     """The hole this closes, found by running the agent on a declared randomised trial.
 
