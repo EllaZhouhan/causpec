@@ -1,7 +1,7 @@
 # Installing and loading the agent
 
-Three forms, and the short version is in the README. This page has all of them, plus
-what is inside the skill bundle.
+Three forms, and the short version is in the README. This page has all of them, what is
+inside the skill bundle, and the dependencies.
 
 ## The three forms
 
@@ -63,8 +63,8 @@ That environment cannot install a local package, which is why the bundle carries
 wheel. The wheel is a build product and is not committed: a committed wheel drifts
 silently from the source it claims to be.
 
-**Without an agent**, the library has a CLI and the same gates apply. The README's
-quickstart runs it end to end on generated data.
+**Without an agent**, the library has a CLI and the same gates apply. [overview.md](overview.md#running-it-without-the-agent)
+runs it end to end on generated data.
 
 The skill is marked **best-effort** for one honest reason: an agent is technically able
 to bypass `scripts/run.py` and read the data itself, so in this form "only code produces
@@ -93,3 +93,63 @@ The references exist because `SKILL.md` has to stay short enough to be read in f
 test asserts that every check declared in a family's `family.yaml` is explained in
 `quality-checks.md`, and that every blocking one is marked as blocking, so a document that
 falls behind the code fails the suite rather than misleading a reader.
+
+## Dependencies and reproducibility
+
+| extra | Pulls in | Needed by |
+|---|---|---|
+| `hte` | EconML, linearmodels, scikit-learn, statsmodels, scipy, joblib | `hte_iv`, `hte_backdoor` |
+| `dynamic` | scikit-learn, scipy, joblib | `dynamic_lag_dml` |
+| `parquet` | pyarrow | reading a `.parquet` extract; CSV needs nothing |
+
+```bash
+uv sync                  # spec, quality checks and report rendering only
+uv sync --extra hte      # to run HTE estimation
+uv sync --all-extras     # everything, including the panel family and parquet
+```
+
+**`uv.lock` is why a result is reproducible at all.** `pyproject.toml` asks for
+`econml>=0.15`, which is a range; the lock file says `econml 0.17.0`, and pins all 61
+packages the same way. A seed alone is not enough: it fixes the random numbers, and a minor
+EconML release that changes a default hyperparameter gives a different estimate from the same
+seed. The run manifest records the installed versions for the same reason.
+
+With pip instead of uv, from a clone: `pip install '.[hte]'`. That ignores the lock file, so
+the versions float and reproducibility becomes yours to manage. Not published to PyPI yet, so
+`pip install causpec` does not work.
+
+`dynamic_lag_dml` needs no EconML: its estimator is written here, and what it uses is
+gradient boosting for the continuation model, a linear model for the two orthogonal
+nuisances, and joblib for the bootstrap. `linearmodels` is in `hte` for exactly one
+statistic, the robust overidentification test, and
+[ADR-0004](decisions/0004-linearmodels-for-overidentification-only.md) records why a
+hand-written version was rejected: it got the degrees of freedom wrong, k instead of k-1,
+while agreeing with the package's verdict on every design it was tried on, which is how
+that ships unnoticed.
+
+**A missing extra does not surface as an ImportError**, the registry returns a structured
+error carrying the install command:
+
+```console
+$ causpec estimate --spec spec.yaml --data cohort.csv
+[FAMILY_DEPENDENCY_MISSING] family hte_iv has an uninstalled dependency (econml)
+  Fix: Install causpec[hte]: uv sync --extra hte in the repository, or pip install '.[hte]' from a clone
+```
+
+**One trap worth knowing.** `uv run causpec` finds the nearest `pyproject.toml` above the
+current directory, so inside the clone it runs that clone's copy. Outside it, there is no
+project to find and the command falls back to whatever is on your PATH, which may be an older
+install. It does not complain, so when the two could differ, check with `uv run which causpec`.
+
+Core stays light (pydantic, pyyaml, pandas, numpy). Heavy dependencies live behind extras:
+
+## What `ln -sfn` does
+
+**What `ln -sfn` does.** It creates a symlink, a name that points at a file elsewhere rather
+than a copy of it. Claude Code loads personal skills from `~/.claude/skills/`, and the files
+live in your clone, so the link makes `~/.claude/skills/causpec-analyst` mean
+`<clone>/skill/causpec-analyst`. `-s` is the pointer rather than a copy, `-f` overwrites a
+name that is already there, and `-n` replaces an existing link instead of creating one inside
+the directory it points at. A link rather than a copy because editing `SKILL.md` then takes
+effect on the next message, where a copy would quietly drift from the repository. The cost is
+that the clone has to stay where it is; if you move it, run the link again.

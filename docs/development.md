@@ -11,7 +11,7 @@ uv run lint-imports          # the architecture contract: core must not import a
 pre-commit install           # enable the pre-commit checks, including the data-file block
 ```
 
-Data handling is in the README: the ignore rules, the pre-commit hook and the CI pass
+Data handling is in [overview.md](overview.md#data-handling): the ignore rules, the pre-commit hook and the CI pass
 over every tracked file. Synthetic data is generated on demand and its output is
 gitignored, and the generators are documented in [data/README.md](../data/README.md).
 

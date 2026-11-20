@@ -1,4 +1,4 @@
-# An example spec, written by hand so the quickstart in the README has something to run.
+# An example spec, written by hand so the quickstart in docs/overview.md has something to run.
 #
 # The agent normally produces this one field at a time, with the user's own words in
 # `said` and `status: confirmed` only after they have confirmed it. Here the words are

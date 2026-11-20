@@ -7,6 +7,13 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The README is written for the person running an analysis, not for the person reading the
+  code.** It explains the workflow as a conversation, with an example one, gives the two-line
+  install and how to start a session, and says what the report contains and what the claim
+  level means in plain words. The command-line walkthrough, the checks, the principles and the
+  repository layout moved to `docs/overview.md`; the dependency details moved to
+  `docs/installation.md`. The build status table is gone, since `docs/plan.md` already records
+  what is done
 - **The estimators install when they are first needed, and the agent runs the command.**
   Nothing before step 8 needs them: the spec, the inventory, the checks and the renderer run
   on the core alone, while EconML and its neighbours are hundreds of megabytes a user whose
