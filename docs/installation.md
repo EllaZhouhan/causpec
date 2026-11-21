@@ -43,8 +43,8 @@ uv tool install --from ~/causpec --with 'causpec[hte]' causpec        # with the
 
 Now any `claude` or `codex` session in any directory has it. Ask a causal question and it
 should trigger on its own; `/causpec-analyst` in Claude Code or `$causpec-analyst` in Codex
-invokes it explicitly. Data paths can be absolute
-and usually are, since your extract lives wherever you keep it:
+invokes it explicitly. The conversation was developed and tested with Claude, so try a first
+analysis in Codex before relying on it. Data paths can be absolute and usually are, since your extract lives wherever you keep it:
 
 > I have ICU data at `/Users/me/extracts/cohort.csv`, one row per patient. Does dialysis
 > change 28-day mortality, and are there patients who benefit more?
