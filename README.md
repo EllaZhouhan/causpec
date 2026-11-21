@@ -9,12 +9,20 @@ Claude Code or Codex. With it, you ask a question in plain words, such as "did o
 discount increase repeat purchases?", and the agent works through the analysis with you as a
 conversation. At the end you get a report with the answer and how strongly it can be stated.
 
-Suppose you have data on who received something and what happened to them afterwards: patients
-and a treatment, stores and a discount, employees and a training programme. You want to know
-whether it changed the outcome, and perhaps for whom it worked best.
+Suppose you have data on people, stores or other units, where some received a treatment and the
+rest did not: patients given dialysis or not, stores offered a discount or not, employees sent
+on a training course or not. The data also records the outcome, or overall evaluation criterion
+(OEC), that the treatment is expected to change, such as whether a patient died or how much a
+store sold, and other information about each unit, such as age or region. You want to know
+whether the treatment changed the outcome, and perhaps for whom it worked best.
 
-That question is easy to ask and easy to get wrong, because a simple comparison mixes up the
-effect of the treatment with the reasons people received it. Doctors give dialysis to the
+The data can come from a randomised trial or an A/B test, where chance decided who was
+treated. More often it comes from records kept as things happened, where a doctor, a manager
+or the people themselves decided. This is called observational data, and it is where the
+question is easiest to get wrong.
+
+It is easy to get wrong because a simple comparison mixes up the effect of the treatment with
+the reasons people received it. Doctors give dialysis to the
 sickest patients, so patients on dialysis can die more often even when dialysis helps them. In
 the synthetic ICU data this repository generates, patients who had dialysis died about 2.5
 percentage points more often than those who did not, although the data was built so that
