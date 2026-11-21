@@ -98,6 +98,10 @@ That is all. The first time you use CauSpec, the agent asks your permission to i
 code, which takes a few seconds. When it reaches the estimation, it asks once more, this time to
 install the statistics packages, about 300MB. The agent runs both installs itself.
 
+To update CauSpec later, run `git pull` in the `causpec` folder. If you have already used it,
+also run `uv tool upgrade causpec`, from any folder, which refreshes the installed code and keeps
+the statistics packages.
+
 ## Start a conversation
 
 Open a terminal and start Claude Code or Codex:
@@ -140,17 +144,13 @@ A report, as a web page and as a Markdown file, with:
 
 Code decides the level from the checks and from your sign-off. The agent cannot raise it.
 
-## More
+## Documentation
 
 - [docs/installation.md](docs/installation.md): other ways to install, and the dependencies
 - [docs/overview.md](docs/overview.md): how it works in technical terms, the checks, and
   running the library from the command line without an agent
 - [docs/design.md](docs/design.md): the design and the reasons behind each decision
 - [docs/development.md](docs/development.md): running the tests and contributing
-
-To update CauSpec later, run `git pull` in the `causpec` folder. If you have already used it,
-also run `uv tool upgrade causpec`, from any folder, which refreshes the installed code and keeps
-the statistics packages.
 
 ## An example conversation
 
