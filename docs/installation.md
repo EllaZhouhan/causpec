@@ -8,36 +8,51 @@ inside the skill bundle, and the dependencies.
 The workflow is an agent skill. It drives the library, so the agent is what you talk to
 and the library is what computes.
 
-**In Claude Code, for your own data anywhere on the machine.** Two things: the command on
-your PATH, and the skill in your personal skill directory.
+**In Claude Code or Codex, for your own data anywhere on the machine.** A clone, and a link
+in each harness's personal skill folder.
 
 ```bash
-git clone https://github.com/EllaZhouhan/causpec.git && mkdir -p ~/.claude/skills && \
-  ln -sfn "$PWD/causpec/skill/causpec-analyst" ~/.claude/skills/causpec-analyst
+git clone https://github.com/EllaZhouhan/causpec.git ~/causpec && sh ~/causpec/install.sh
 ```
 
-The files, and a link that puts them where Claude Code looks for personal skills. Nothing
-Python is installed, and nothing has to be: the agent installs the library the first time it
-runs a command and the estimators the first time something needs them, asking before each,
-and it locates the clone through that same symlink with `readlink`.
+`install.sh` looks for each harness it knows, by its command on PATH or its config folder, and
+links the skill into that harness's folder:
+
+| Harness | Found by | Skill folder |
+|---|---|---|
+| Claude Code | `claude`, or `~/.claude` | `~/.claude/skills/` |
+| Codex | `codex`, or `~/.codex` | `~/.agents/skills/` |
+
+If it finds neither, it links for both, so whichever is installed later finds the skill. The
+folders differ because the skill standard fixes what a skill contains and leaves where it lives
+to each harness. Supporting another harness is one line in the script, plus that folder in the
+probe in `SKILL.md`, and a test checks the two agree.
+
+Nothing Python is installed, and nothing has to be: the agent installs the library the first
+time it runs a command and the estimators the first time something needs them, asking before
+each. It locates the clone through the same link, by resolving it from whichever folder the
+harness read it from. Running the script again is safe: it replaces its own links and leaves a
+real folder in the way untouched, saying so.
 
 Installing up front is one more command, and means the first analysis is never interrupted:
 
 ```bash
-cd causpec && uv tool install --from . causpec                 # the core, about a second
-cd causpec && uv tool install --from . --with 'causpec[hte]' causpec   # with the estimators
+uv tool install --from ~/causpec causpec                              # the core, about a second
+uv tool install --from ~/causpec --with 'causpec[hte]' causpec        # with the estimators
 ```
 
-Now any `claude` session in any directory has it. Ask a causal question and it should
-trigger on its own; `/causpec-analyst` invokes it explicitly. Data paths can be absolute
+Now any `claude` or `codex` session in any directory has it. Ask a causal question and it
+should trigger on its own; `/causpec-analyst` in Claude Code or `$causpec-analyst` in Codex
+invokes it explicitly. Data paths can be absolute
 and usually are, since your extract lives wherever you keep it:
 
 > I have ICU data at `/Users/me/extracts/cohort.csv`, one row per patient. Does dialysis
 > change 28-day mortality, and are there patients who benefit more?
 
 A symlink rather than a copy, so editing `SKILL.md` in the clone takes effect on the next
-message. If you move the clone, redo the link. Re-run `uv tool install` after pulling, since
-the installed command is a snapshot rather than a live link to the source.
+message. If you move the clone, run `install.sh` again. Run `uv tool upgrade causpec` after pulling,
+since the installed command is a snapshot rather than a live link to the source; it keeps the
+extras you installed.
 
 **In Claude Code, inside this repository only.** Nothing to install:
 `.claude/skills/causpec-analyst` is already a symlink to `skill/causpec-analyst`, so a clone
@@ -96,6 +111,8 @@ falls behind the code fails the suite rather than misleading a reader.
 
 ## Dependencies and reproducibility
 
+Core stays light (pydantic, pyyaml, pandas, numpy). Heavy dependencies live behind extras:
+
 | extra | Pulls in | Needed by |
 |---|---|---|
 | `hte` | EconML, linearmodels, scikit-learn, statsmodels, scipy, joblib | `hte_iv`, `hte_backdoor` |
@@ -141,15 +158,13 @@ current directory, so inside the clone it runs that clone's copy. Outside it, th
 project to find and the command falls back to whatever is on your PATH, which may be an older
 install. It does not complain, so when the two could differ, check with `uv run which causpec`.
 
-Core stays light (pydantic, pyyaml, pandas, numpy). Heavy dependencies live behind extras:
-
 ## What `ln -sfn` does
 
-**What `ln -sfn` does.** It creates a symlink, a name that points at a file elsewhere rather
-than a copy of it. Claude Code loads personal skills from `~/.claude/skills/`, and the files
-live in your clone, so the link makes `~/.claude/skills/causpec-analyst` mean
-`<clone>/skill/causpec-analyst`. `-s` is the pointer rather than a copy, `-f` overwrites a
+`install.sh` runs it once per harness. It creates a symlink, a name that points at a file
+elsewhere rather than a copy of it. Claude Code loads personal skills from `~/.claude/skills/`
+and Codex from `~/.agents/skills/`, and the files live in your clone, so each link makes
+`<that folder>/causpec-analyst` mean `<clone>/skill/causpec-analyst`. `-s` is the pointer rather than a copy, `-f` overwrites a
 name that is already there, and `-n` replaces an existing link instead of creating one inside
 the directory it points at. A link rather than a copy because editing `SKILL.md` then takes
 effect on the next message, where a copy would quietly drift from the repository. The cost is
-that the clone has to stay where it is; if you move it, run the link again.
+that the clone has to stay where it is; if you move it, run `install.sh` again from the new place.

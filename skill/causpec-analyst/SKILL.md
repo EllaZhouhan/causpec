@@ -276,14 +276,16 @@ causpec --version                  # 2. otherwise, installed for the whole machi
 **If none of them works, install it, and you already know where from.** A user can set this up
 with nothing but a clone and the symlink that put these instructions in front of you, so the
 library may genuinely not be installed yet. That symlink is also the answer to where the
-clone is:
+clone is. It sits in whichever folder your harness reads skills from, `~/.claude/skills` for
+Claude Code and `~/.agents/skills` for Codex, so ask both:
 
 ```bash
-readlink ~/.claude/skills/causpec-analyst     # -> <clone>/skill/causpec-analyst
+for d in ~/.claude/skills ~/.agents/skills; do (cd -P "$d/causpec-analyst/../.." 2>/dev/null && [ -f pyproject.toml ] && pwd); done
 ```
 
-Strip the trailing `/skill/causpec-analyst` and that is the repository. Say what is missing in
-one line, ask, and on agreement run it yourself:
+It prints the repository, once per link that points to it. If it prints nothing, ask the user
+where they cloned causpec. Say what is missing in one line, ask, and on agreement run it
+yourself:
 
 ```bash
 uv tool install --from <clone> causpec

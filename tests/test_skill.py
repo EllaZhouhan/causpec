@@ -693,12 +693,23 @@ def test_the_agent_can_install_the_library_it_drives(skill_text: str) -> None:
     why should anyone run an install command before the agent has even read their file?
 
     The skill can find the clone because the symlink that put it in front of the model points
-    there, which is the one piece of its own installation a skill can see.
+    there, which is the one piece of its own installation a skill can see. Each harness reads
+    skills from its own folder, so the probe asks every folder install.sh links into: a probe
+    that knew only Claude Code's left a Codex user with no way to install the library.
     """
     text = flat(skill_text)
     assert "If none of them works, install it, and you already know where from" in text
-    assert "readlink ~/.claude/skills/causpec-analyst" in text
+    assert "for d in ~/.claude/skills ~/.agents/skills" in text
     assert "uv tool install --from <clone> causpec" in text
+
+
+def test_the_clone_probe_covers_every_folder_install_sh_links_into(skill_text: str) -> None:
+    """install.sh and SKILL.md name the harness folders separately, so they can drift apart."""
+    install = (SKILL_DIR.parent.parent / "install.sh").read_text(encoding="utf-8")
+    folders = re.findall(r"\|\$HOME/(\.[a-z]+/skills)$", install, flags=re.MULTILINE)
+    assert folders, "install.sh lists no harness folder"
+    for folder in folders:
+        assert f"~/{folder}" in skill_text, f"SKILL.md never looks in ~/{folder}"
 
 
 def test_the_estimators_are_installed_on_demand_by_the_agent(skill_text: str) -> None:

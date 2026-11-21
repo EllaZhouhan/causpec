@@ -7,6 +7,15 @@ the milestones in plan.md section 2.
 
 ### Added
 
+- **The skill installs for Codex as well as Claude Code, with one command.** Each harness reads
+  personal skills from its own folder, `~/.claude/skills` and `~/.agents/skills`, because the
+  skill standard fixes what a skill contains and leaves where it lives to the harness. So the
+  install is now a clone and `install.sh`, which links the skill into the folder of every
+  harness it finds, or of both when it finds neither, and leaves a real folder in its way
+  alone. `SKILL.md` found the clone with `readlink ~/.claude/skills/causpec-analyst`, which
+  left a Codex user with no way to install the library; it now resolves the link from both
+  folders, and asks the user when neither resolves. A test checks the script and the probe
+  name the same folders, since adding a harness touches both
 - **The README is written for the person running an analysis, not for the person reading the
   code.** It explains the workflow as a conversation, with an example one, gives the two-line
   install and how to start a session, and says what the report contains and what the claim

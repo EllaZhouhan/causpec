@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/EllaZhouhan/causpec/actions/workflows/ci.yml/badge.svg)](https://github.com/EllaZhouhan/causpec/actions/workflows/ci.yml)
 
-**Find out whether something made a difference, by talking it through with Claude.**
+**Find out whether something made a difference, by talking it through with Claude or Codex.**
 
 You have data on who received something and what happened to them afterwards: patients and a
 treatment, stores and a discount, employees and a training programme. You want to know whether
@@ -10,10 +10,10 @@ it changed the outcome, and perhaps for whom it worked best.
 
 That question is easy to ask and easy to get wrong. The people who received the treatment
 usually differ from those who did not, and a simple comparison mixes those differences up with
-the effect itself. CauSpec is a skill for Claude Code that walks you through the analysis as a
-conversation. Claude asks what you want to know and how the data came about, checks whether
-your data can answer the question, runs the estimation in tested code, and gives you a report
-that says how strongly the result can be stated.
+the effect itself. CauSpec is a skill for Claude Code and Codex that walks you through the
+analysis as a conversation. The agent asks what you want to know and how the data came about,
+checks whether your data can answer the question, runs the estimation in tested code, and
+gives you a report that says how strongly the result can be stated.
 
 You do not need to write code or know the statistics. You need to know your data and your field.
 
@@ -102,28 +102,28 @@ The full report from that analysis is [docs/examples/report.md](docs/examples/re
 
 ## Install
 
-You need [Claude Code](https://claude.com/claude-code) and
-[uv](https://docs.astral.sh/uv/getting-started/installation/), which Claude uses to install
-CauSpec's Python code. Then run these two lines in a terminal, on macOS or Linux:
+You need [Claude Code](https://claude.com/claude-code) or
+[Codex](https://developers.openai.com/codex), and
+[uv](https://docs.astral.sh/uv/getting-started/installation/), which the agent uses to install
+CauSpec's Python code. Then run this in a terminal, on macOS or Linux:
 
 ```bash
-git clone https://github.com/EllaZhouhan/causpec.git ~/causpec
-mkdir -p ~/.claude/skills && ln -sfn ~/causpec/skill/causpec-analyst ~/.claude/skills/causpec-analyst
+git clone https://github.com/EllaZhouhan/causpec.git ~/causpec && sh ~/causpec/install.sh
 ```
 
-The first line downloads CauSpec into a folder called `causpec` in your home directory. The
-second tells Claude Code where to find it. Keep the folder where it is.
+It downloads CauSpec into a folder called `causpec` in your home directory, then tells Claude
+Code, Codex or both where to find it, depending on which you have. Keep the folder where it is.
 
-That is all. The first time you use it, Claude asks your permission to install CauSpec's code,
-which takes a few seconds. When it reaches the estimation, it asks once more to install the
-statistics packages, about 300MB. You do not type either command yourself.
+That is all. The first time you use it, the agent asks your permission to install CauSpec's
+code, which takes a few seconds. When it reaches the estimation, it asks once more to install
+the statistics packages, about 300MB. You do not type either command yourself.
 
 ## Start a conversation
 
-Open a terminal and start Claude Code:
+Open a terminal and start Claude Code or Codex:
 
 ```bash
-claude
+claude      # or: codex
 ```
 
 Then ask your question in plain words, and say where your data file is:
@@ -131,11 +131,12 @@ Then ask your question in plain words, and say where your data file is:
 > I have sales data for 200 stores at `~/data/stores.csv`. Did the spring discount increase
 > repeat purchases?
 
-Claude recognises a question like this and uses CauSpec on its own. To call it by name, type
-`/causpec-analyst` followed by your question.
+The agent recognises a question like this and uses CauSpec on its own. To call it by name,
+type `/causpec-analyst` in Claude Code or `$causpec-analyst` in Codex, followed by your
+question. The conversation was developed and tested with Claude.
 
 Your data can be anywhere on your computer, as a CSV or Parquet file. CauSpec reads it where it
-is and never changes, moves or copies it. Claude sees what CauSpec prints, such as column
+is and never changes, moves or copies it. The agent sees what CauSpec prints, such as column
 summaries, check results and estimates, so follow your organisation's rules on using AI tools
 with your data.
 
