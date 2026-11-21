@@ -319,7 +319,7 @@ data somewhere more convenient.
 RUN columns  --data <data file> [--spec spec.yaml]
 RUN quality  --spec spec.yaml --data <data file>
 RUN estimate --spec spec.yaml --data <data file> --run-dir runs/
-RUN report   --run-dir runs/ --narrative narrative.yaml --html report.html --open
+RUN report   --run-dir runs/ --narrative narrative.yaml --out report.md --html report.html --open
 ```
 
 `estimate` prints the numbers; `report` turns a finished run into the document, estimating
@@ -957,16 +957,16 @@ of the data.
 
 ```bash
 RUN report --run-dir runs/ --narrative narrative.yaml \
-    --html report.html --open
+    --out report.md --html report.html --open
 ```
 
 `report` re-renders the run that was just persisted. **It estimates nothing**, so the prose
 can be written after the numbers are known without paying for the analysis twice, and the
-report describes the same run rather than a second one. `--html` writes a self-contained page
-and `--open` opens it in the browser, which is the only renderer every machine has: handing
-someone a `.md` file opens whatever their machine associates with Markdown, and on a
-colleague's laptop that is a text editor or nothing. Give them the path to both files, and
-say the markdown is the one to keep next to the run.
+report describes the same run rather than a second one. `--out` writes the markdown,
+`--html` writes a self-contained page, and `--open` opens it in the browser, which is the only
+renderer every machine has: handing someone a `.md` file opens whatever their machine
+associates with Markdown, and on a colleague's laptop that is a text editor or nothing. Give
+them the path to both files, and say the markdown is the one to keep next to the run.
 
 `narrative.yaml` is **your** interpretation, organised by section:
 

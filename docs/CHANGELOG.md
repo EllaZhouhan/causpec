@@ -7,6 +7,10 @@ the milestones in plan.md section 2.
 
 ### Fixed
 
+- **The skill writes the report as markdown as well as a web page.** Its `report` commands
+  passed only `--html`, so the agent was told to give the user the path to a markdown file
+  that was never written, and the README promised one. They now pass `--out report.md` too,
+  and a test checks every `report` command in the skill and its references
 - **A column listed both as an effect modifier and in the adjustment set enters the checks
   once.** Both families' checks joined the two lists, so such a column appeared twice in one
   design matrix. In `hte_iv` that made the probit first stage's Hessian exactly singular, and

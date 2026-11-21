@@ -367,15 +367,15 @@ user can compare a number against their own knowledge of the data, which no chec
 them.
 
 ```bash
-RUN report --run-dir runs/ --narrative narrative.yaml --html report.html --open
+RUN report --run-dir runs/ --narrative narrative.yaml --out report.md --html report.html --open
 ```
 
 `report` renders the run that was just persisted and estimates nothing, so the interpretation
 can be written after the numbers are known without paying for the analysis twice, and the
-document describes that run rather than a second one. `--html` writes a self-contained page
-and `--open` opens it in the browser, because handing someone a `.md` file opens whatever
-their machine associates with Markdown, which on a colleague's laptop is a text editor or
-nothing at all.
+document describes that run rather than a second one. `--out` writes the markdown, which is
+the copy to keep next to the run. `--html` writes a self-contained page and `--open` opens it
+in the browser, because handing someone a `.md` file opens whatever their machine associates
+with Markdown, which on a colleague's laptop is a text editor or nothing at all.
 
 How to write `narrative.yaml` is in `reporting.md`.
 

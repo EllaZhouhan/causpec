@@ -294,6 +294,19 @@ def test_skill_opens_with_a_greeting_not_a_preamble(skill_text: str) -> None:
     assert "Open by greeting them" in skill_text
 
 
+def test_every_report_command_writes_both_the_markdown_and_the_page() -> None:
+    """Step 8 tells the agent to give the user the path to both files.
+
+    The commands once passed only `--html`, so the markdown the user was told to keep was
+    never written, and the README promised a file that did not exist.
+    """
+    for path in (SKILL_MD, *sorted(REFERENCES.glob("*.md"))):
+        text = path.read_text(encoding="utf-8").replace("\\\n", " ")
+        for command in re.findall(r"^RUN report\b.*$", text, flags=re.MULTILINE):
+            assert "--out report.md" in command, f"{path.name}: {command}"
+            assert "--html report.html" in command, f"{path.name}: {command}"
+
+
 def test_best_effort_belongs_in_the_report_not_the_conversation(skill_text: str) -> None:
     """design.md section 3 says only "noted in the report header", not "said up front".
 
