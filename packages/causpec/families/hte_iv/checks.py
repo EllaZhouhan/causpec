@@ -332,7 +332,14 @@ def check_instrument(
     config = config or {}
     treatment_col = _column_names(spec, "treatment")[0]
     instruments = _column_names(spec, "instrument")
-    covariates = _column_names(spec, "effect_modifiers") + _column_names(spec, "adjustment_set")
+    # A column may be listed in both fields. Twice in a design matrix is perfect collinearity,
+    # and whether the probit's Hessian then inverts or raises LinAlgError is down to rounding:
+    # it passed on macOS and on most CI runs, and failed on one.
+    covariates = list(
+        dict.fromkeys(
+            _column_names(spec, "effect_modifiers") + _column_names(spec, "adjustment_set")
+        )
+    )
     if not instruments:
         raise ValueError("hte_iv's quality checks require spec.instrument")
 

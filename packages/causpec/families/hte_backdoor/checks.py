@@ -294,8 +294,12 @@ def check_backdoor(
 
     config = config or {}
     treatment_col = _column_names(spec, "treatment")[0]
-    covariate_names = _column_names(spec, "effect_modifiers") + _column_names(
-        spec, "adjustment_set"
+    # A column may be listed in both fields; it enters the propensity model and the balance
+    # table once. hte_iv's checks have the same line and the same reason.
+    covariate_names = list(
+        dict.fromkeys(
+            _column_names(spec, "effect_modifiers") + _column_names(spec, "adjustment_set")
+        )
     )
     if not covariate_names:
         raise ValueError(

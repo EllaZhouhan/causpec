@@ -16,6 +16,7 @@ from causpec.core import registry
 from causpec.core.contracts.quality import QualityReport, Severity
 from causpec.core.contracts.spec import Source, Spec, SpecField, Status
 from causpec.core.gates import GateError, check_all, check_no_blocking_issues
+from causpec.families.hte_iv import checks as iv_checks
 from causpec.families.hte_iv.checks import benjamini_hochberg, check_instrument
 
 COVARIATES = [
@@ -454,6 +455,30 @@ def test_ivforest_with_an_adjustment_set_is_refused_before_anything_is_fitted(st
     # And it names both routes out, which differ in what they cost.
     assert "effect_modifiers" in issue.recommended_repair
     assert "dmliv" in issue.recommended_repair
+
+
+def test_a_column_in_both_covariate_fields_enters_the_first_stage_once(strong, monkeypatch) -> None:
+    """`min_bicarbonate` is an effect modifier, and the test above also adjusts for it.
+
+    Both lists went into one design matrix, so the column appeared twice and the probit's
+    Hessian was exactly singular. Inverting it succeeded or raised LinAlgError depending on
+    rounding: it passed on macOS and on most CI runs, and failed on one. Rounding is why this
+    test reads the columns rather than the result, which a duplicate leaves unchanged wherever
+    the inversion happens to succeed.
+    """
+    seen: list[list[str]] = []
+    original = iv_checks._first_stage_probit
+
+    def recording(treatment, data, instruments, controls):
+        seen.append(list(controls))
+        return original(treatment, data, instruments, controls)
+
+    monkeypatch.setattr(iv_checks, "_first_stage_probit", recording)
+    check_instrument(strong, spec_with(adjustment_set=["max_urea", "min_bicarbonate"]), CONFIG)
+    assert seen, "the probit first stage never ran"
+    for controls in seen:
+        assert len(controls) == len(set(controls)), controls
+        assert "min_bicarbonate" in controls
 
 
 def test_ivforest_with_two_instruments_is_refused_the_same_way(strong) -> None:

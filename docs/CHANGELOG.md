@@ -5,6 +5,18 @@ the milestones in plan.md section 2.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A column listed both as an effect modifier and in the adjustment set enters the checks
+  once.** Both families' checks joined the two lists, so such a column appeared twice in one
+  design matrix. In `hte_iv` that made the probit first stage's Hessian exactly singular, and
+  whether inverting it succeeded or raised `LinAlgError` came down to rounding: the IV test
+  that adjusts for `min_bicarbonate`, already an effect modifier, passed on macOS and on every
+  earlier CI run and failed on one. In `hte_backdoor` the column was counted twice in the
+  propensity model and the balance table. The regression test reads the columns the first
+  stage receives rather than its result, since a duplicate leaves the result unchanged wherever
+  the inversion happens to succeed
+
 ### Added
 
 - **The skill installs for Codex as well as Claude Code, with one command.** Each harness reads
