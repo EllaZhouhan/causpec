@@ -44,17 +44,14 @@ You do not need to write code or know the statistics. You need to know your data
 - **Who benefits more?** The effect for groups you choose. For example, whether dialysis helps
   older patients more than younger ones.
 - **What if something unrecorded drove both the treatment and the outcome?** It can still
-  answer when something close to random also affected who was treated, like the consultant on
-  shift in the example conversation below.
-- **What does a treatment given period by period do over time?** With one row per person per
-  week or month, it estimates what one period of treatment does in that period and in the
-  periods after. For example, what one week of reminder notifications does to app use that week
-  and in the weeks that follow.
-
-When a question needs a method CauSpec does not have, it says so plainly. That covers comparing
-trends before and after a policy, comparing people just either side of an eligibility cut-off,
-splitting an effect into the routes it travels through, and survival curves of the time until
-an event.
+  answer if the data has an instrumental variable: something that affects who is treated, is
+  unrelated to the unrecorded factors, and affects the outcome only through the treatment. In
+  the example conversation below it is the consultant on shift: some consultants start dialysis
+  far more readily than others, and which one is on shift is close to random.
+- **How does a treatment given period by period affect the outcome over time?** With one row per
+  person per week or month, it estimates what one period of treatment does in that period and in
+  the periods after. For example, what one week of reminder notifications does to app use that
+  week and in the weeks that follow.
 
 ## How it works
 
@@ -75,6 +72,85 @@ question at a time about things only you can answer. The analysis goes through s
 
 Every number in the conversation and in the report is computed by CauSpec's code. The agent
 explains the numbers; it does not produce them.
+
+## Install
+
+You need [Claude Code](https://claude.com/claude-code) or
+[Codex](https://developers.openai.com/codex), and
+[uv](https://docs.astral.sh/uv/getting-started/installation/), which the agent uses to install
+CauSpec's Python code.
+
+The install downloads CauSpec into a new folder called `causpec`, inside whichever folder your
+terminal is in. So first choose where to keep it, somewhere you will not tidy away later, and
+move there in a terminal. A new terminal starts in your home folder; to use another, type `cd`
+followed by its path, such as `cd ~/Documents`. Then run this, on macOS or Linux:
+
+```bash
+git clone https://github.com/EllaZhouhan/causpec.git && sh causpec/install.sh
+```
+
+It downloads CauSpec, then tells Claude Code, Codex or both where to find it, depending on
+which you have. Keep the `causpec` folder where it is: the agent finds CauSpec through it, so
+moving or deleting it breaks the skill. If you do move it, run `install.sh` again from its new
+place. Once installed, CauSpec works in a terminal opened in any folder.
+
+That is all. The first time you use CauSpec, the agent asks your permission to install its
+code, which takes a few seconds. When it reaches the estimation, it asks once more, this time to
+install the statistics packages, about 300MB. The agent runs both installs itself.
+
+## Start a conversation
+
+Open a terminal and start Claude Code or Codex:
+
+```bash
+claude      # or: codex
+```
+
+Then ask your question in plain words, and say where your data file is:
+
+> I have sales data for 200 stores at `~/data/stores.csv`. Did the spring discount increase
+> repeat purchases?
+
+The agent recognises a question like this and uses CauSpec on its own. To call it by name,
+type `/causpec-analyst` in Claude Code or `$causpec-analyst` in Codex, followed by your
+question.
+
+Your data can be anywhere on your computer, as a CSV or Parquet file. CauSpec reads it where it
+is and never changes, moves or copies it. The agent does see what CauSpec prints, such as column
+summaries, check results and estimates, so follow your organisation's rules on using AI tools
+with your data.
+
+## What you get
+
+A report, as a web page and as a Markdown file, with:
+
+- your question, and each decision in the analysis next to the words you used to make it
+- every data check that applied, and what it found
+- the result with its interval, and the group of people it applies to
+- robustness checks, and how strong a hidden factor would have to be to explain the result away
+- the limitations
+- the **claim level**, which sets how strongly the report may word its conclusion:
+
+| Claim level | The report may say | When |
+|---|---|---|
+| causal | "dialysis reduced mortality" | the checks passed, and you signed off on the assumptions no data can test |
+| suggestive | "the data suggests dialysis may lower mortality" | the checks passed |
+| associational | "treated patients had lower mortality", with no causal reading | a serious problem was found and you chose to continue anyway |
+| descriptive | the numbers for each group, and nothing more | the analysis was not fully confirmed, or a serious problem was left unresolved |
+
+Code decides the level from the checks and from your sign-off. The agent cannot raise it.
+
+## More
+
+- [docs/installation.md](docs/installation.md): other ways to install, and the dependencies
+- [docs/overview.md](docs/overview.md): how it works in technical terms, the checks, and
+  running the library from the command line without an agent
+- [docs/design.md](docs/design.md): the design and the reasons behind each decision
+- [docs/development.md](docs/development.md): running the tests and contributing
+
+To update CauSpec later, run `git pull` in the `causpec` folder. If you have already used it,
+also run `uv tool upgrade causpec`, from any folder, which refreshes the installed code and keeps
+the statistics packages.
 
 ## An example conversation
 
@@ -138,84 +214,3 @@ on synthetic ICU data.
 > **Agent:** Done. The report is open in your browser.
 
 The full report from that analysis is [docs/examples/report.md](docs/examples/report.md).
-
-## Install
-
-You need [Claude Code](https://claude.com/claude-code) or
-[Codex](https://developers.openai.com/codex), and
-[uv](https://docs.astral.sh/uv/getting-started/installation/), which the agent uses to install
-CauSpec's Python code. Then run this in a terminal, on macOS or Linux:
-
-```bash
-git clone https://github.com/EllaZhouhan/causpec.git ~/causpec && sh ~/causpec/install.sh
-```
-
-It downloads CauSpec into a folder called `causpec` in your home directory, then tells Claude
-Code, Codex or both where to find it, depending on which you have. Keep the folder where it is.
-
-That is all. The first time you use CauSpec, the agent asks your permission to install its
-code, which takes a few seconds. When it reaches the estimation, it asks once more, this time to
-install the statistics packages, about 300MB. The agent runs both installs itself.
-
-## Start a conversation
-
-Open a terminal and start Claude Code or Codex:
-
-```bash
-claude      # or: codex
-```
-
-Then ask your question in plain words, and say where your data file is:
-
-> I have sales data for 200 stores at `~/data/stores.csv`. Did the spring discount increase
-> repeat purchases?
-
-The agent recognises a question like this and uses CauSpec on its own. To call it by name,
-type `/causpec-analyst` in Claude Code or `$causpec-analyst` in Codex, followed by your
-question.
-
-Your data can be anywhere on your computer, as a CSV or Parquet file. CauSpec reads it where it
-is and never changes, moves or copies it. The agent does see what CauSpec prints, such as column
-summaries, check results and estimates, so follow your organisation's rules on using AI tools
-with your data.
-
-## What you get
-
-A report, as a web page and as a Markdown file, with:
-
-- your question, and each decision in the analysis next to the words you used to make it
-- every data check that applied, and what it found
-- the result with its interval, and the group of people it applies to
-- robustness checks, and how strong a hidden factor would have to be to explain the result away
-- the limitations
-- the **claim level**, which sets how strongly the report may word its conclusion:
-
-| Claim level | The report may say | When |
-|---|---|---|
-| causal | "dialysis reduced mortality" | the checks passed, and you signed off on the assumptions no data can test |
-| suggestive | "the data suggests dialysis may lower mortality" | the checks passed |
-| associational | "treated patients had lower mortality", with no causal reading | a serious problem was found and you chose to continue anyway |
-| descriptive | the numbers for each group, and nothing more | the analysis was not fully confirmed, or a serious problem was left unresolved |
-
-Code decides the level from the checks and from your sign-off. The agent cannot raise it.
-
-## More
-
-- [docs/installation.md](docs/installation.md): other ways to install, and the dependencies
-- [docs/overview.md](docs/overview.md): how it works in technical terms, the checks, and
-  running the library from the command line without an agent
-- [docs/design.md](docs/design.md): the design and the reasons behind each decision
-- [docs/development.md](docs/development.md): running the tests and contributing
-
-To update CauSpec later, run `git -C ~/causpec pull`. If you have already used it, also run
-`uv tool upgrade causpec`, which refreshes the installed code and keeps the statistics packages.
-
-## Credit
-
-Built on EconML for the causal forests, with linearmodels, scikit-learn, statsmodels and scipy.
-The E-value and the refutation tests are implemented here, following VanderWeele and Ding
-(2017) and the design of DoWhy. The claim-level ladder and the report's section order are
-adapted from the Baygent `causal-inference` skill (MIT), with the notice in the modules that
-hold them.
-
-The repository has no licence yet, so it is readable but not reusable.

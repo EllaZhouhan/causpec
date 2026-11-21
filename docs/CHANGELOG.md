@@ -598,6 +598,12 @@ the milestones in plan.md section 2.
 
 ### Changed
 
+- **The install clones into the current directory rather than `~/causpec`.** The README now
+  says so first and asks the reader to choose where CauSpec should live, then gives the command
+  without a target. Nothing depended on the home path: `install.sh` resolves its own location,
+  the links record the clone's absolute path, and `uv tool` records the source as an absolute
+  path, so `uv tool upgrade` works from any directory. The update instructions no longer name a
+  path either
 - **The README says what the code does.** Corrections, each one a real error: the refutations
   are written here rather than taken from DoWhy and DoubleML is not used at all, so the credit
   was wrong; the effective F was dropped in v0.3 and was still claimed; `pip install causpec`

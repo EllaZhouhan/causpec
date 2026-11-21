@@ -1,7 +1,10 @@
 #!/bin/sh
 # Make the causpec-analyst skill visible to every agent harness on this machine.
 #
-#   git clone https://github.com/EllaZhouhan/causpec.git ~/causpec && sh ~/causpec/install.sh
+#   git clone https://github.com/EllaZhouhan/causpec.git && sh causpec/install.sh
+#
+# The clone lands in the current directory, so that is where CauSpec lives. The script works
+# from wherever it is run, since it resolves its own location.
 #
 # Each harness reads personal skills from its own folder, so the skill gets one symlink per
 # harness, all pointing at this clone. A link rather than a copy, so a `git pull` reaches
@@ -73,4 +76,4 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 echo
-echo "Done. Keep $clone where it is, since the links point to it."
+echo "Done. CauSpec is in $clone. Keep it there, since the links point to it."

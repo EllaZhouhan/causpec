@@ -12,8 +12,12 @@ and the library is what computes.
 in each harness's personal skill folder.
 
 ```bash
-git clone https://github.com/EllaZhouhan/causpec.git ~/causpec && sh ~/causpec/install.sh
+git clone https://github.com/EllaZhouhan/causpec.git && sh causpec/install.sh
 ```
+
+The clone lands in the directory the terminal is in, so run it from wherever CauSpec should
+live. Any location works, because the links record the clone's absolute path and every harness
+reads them from its own fixed folder, whatever directory a session starts in.
 
 `install.sh` looks for each harness it knows, by its command on PATH or its config folder, and
 links the skill into that harness's folder:
@@ -34,11 +38,12 @@ each. It locates the clone through the same link, by resolving it from whichever
 harness read it from. Running the script again is safe: it replaces its own links and leaves a
 real folder in the way untouched, saying so.
 
-Installing up front is one more command, and means the first analysis is never interrupted:
+Installing up front is one more command, run from the directory that holds the clone, and
+means the first analysis is never interrupted:
 
 ```bash
-uv tool install --from ~/causpec causpec                              # the core, about a second
-uv tool install --from ~/causpec --with 'causpec[hte]' causpec        # with the estimators
+uv tool install --from ./causpec causpec                              # the core, about a second
+uv tool install --from ./causpec --with 'causpec[hte]' causpec        # with the estimators
 ```
 
 Now any `claude` or `codex` session in any directory has it. Ask a causal question and it
