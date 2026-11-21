@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/EllaZhouhan/causpec/actions/workflows/ci.yml/badge.svg)](https://github.com/EllaZhouhan/causpec/actions/workflows/ci.yml)
 
-**Estimate causal effects through a conversation, from data you already have.**
+**Estimate causal effects through a conversation, from your data.**
 
 CauSpec is a skill: a set of instructions and tested code that you add to an AI agent such as
 Claude Code or Codex. With it, you ask a question in plain words, such as "did our spring
